@@ -16,7 +16,7 @@ const HS256_JWK_K: &str =
 #[test]
 fn hs256_verify_rfc7515_a1() {
     let key_bytes = Base64UrlUnpadded::decode_vec(HS256_JWK_K).unwrap();
-    let key = jose_hmac::verifying_key(key_bytes);
+    let key = jose_hmac::verifying_key(key_bytes).unwrap();
 
     let token: jose_core::CompactJws<jose_hmac::Hs256, serde_json::Value> =
         HS256_TOKEN.parse().unwrap();
@@ -35,8 +35,8 @@ fn hs256_verify_rfc7515_a1() {
 
 #[test]
 fn hs256_roundtrip() {
-    let key = jose_hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec());
-    let vk = jose_hmac::verifying_key(b"super-secret-key-for-testing-256".to_vec());
+    let key = jose_hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec()).unwrap();
+    let vk = jose_hmac::verifying_key(b"super-secret-key-for-testing-256".to_vec()).unwrap();
 
     let claims = serde_json::json!({"sub": "1234567890", "name": "Test User"});
 
