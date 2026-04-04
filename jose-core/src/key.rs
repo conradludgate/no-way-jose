@@ -3,7 +3,18 @@ use crate::__private::Sealed;
 pub type KeyInner<A, K> = <A as HasKey<K>>::Key;
 
 /// Generic key type, parameterized by algorithm and purpose.
-pub struct Key<A: HasKey<K>, K: KeyPurpose>(pub KeyInner<A, K>);
+pub struct Key<A: HasKey<K>, K: KeyPurpose>(KeyInner<A, K>);
+
+impl<A: HasKey<K>, K: KeyPurpose> Key<A, K> {
+    #[doc(hidden)]
+    pub fn new(inner: KeyInner<A, K>) -> Self {
+        Self(inner)
+    }
+
+    pub fn inner(&self) -> &KeyInner<A, K> {
+        &self.0
+    }
+}
 
 impl<A: HasKey<K>, K: KeyPurpose> Clone for Key<A, K>
 where

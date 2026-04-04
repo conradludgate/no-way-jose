@@ -98,7 +98,7 @@ where
         let payload_b64 = crate::base64url::encode(&payload_bytes);
 
         let signing_input = alloc::format!("{}.{}", self.header_b64, payload_b64);
-        let signature = A::sign(&key.0, signing_input.as_bytes())?;
+        let signature = A::sign(key.inner(), signing_input.as_bytes())?;
 
         Ok(CompactToken {
             header_b64: self.header_b64,
@@ -124,7 +124,7 @@ where
         v: &impl Validate<Claims = M>,
     ) -> Result<UnsealedToken<Signed<A>, M>, JoseError> {
         let signing_input = alloc::format!("{}.{}", self.header_b64, self.data.payload_b64);
-        A::verify(&key.0, signing_input.as_bytes(), &self.data.signature)?;
+        A::verify(key.inner(), signing_input.as_bytes(), &self.data.signature)?;
 
         let payload_bytes = crate::base64url::decode(&self.data.payload_b64)?;
         let claims: M = serde_json::from_slice(&payload_bytes)

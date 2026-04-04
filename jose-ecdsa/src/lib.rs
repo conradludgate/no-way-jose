@@ -48,16 +48,16 @@ pub type VerifyingKey = jose_core::VerifyingKey<Es256>;
 
 pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, JoseError> {
     p256::ecdsa::SigningKey::from_slice(bytes)
-        .map(jose_core::key::Key)
+        .map(jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
 pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
     p256::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
-        .map(jose_core::key::Key)
+        .map(jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
-    jose_core::key::Key(*key.0.verifying_key())
+    jose_core::key::Key::new(*key.inner().verifying_key())
 }

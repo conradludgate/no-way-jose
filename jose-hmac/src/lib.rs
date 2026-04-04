@@ -56,7 +56,7 @@ pub fn symmetric_key(bytes: impl Into<Vec<u8>>) -> Result<SigningKey, JoseError>
     if bytes.len() < MIN_KEY_LEN {
         return Err(JoseError::InvalidKey);
     }
-    Ok(jose_core::key::Key(HmacKey(bytes)))
+    Ok(jose_core::key::Key::new(HmacKey(bytes)))
 }
 
 pub fn verifying_key(bytes: impl Into<Vec<u8>>) -> Result<VerifyingKey, JoseError> {
@@ -64,5 +64,5 @@ pub fn verifying_key(bytes: impl Into<Vec<u8>>) -> Result<VerifyingKey, JoseErro
     if bytes.len() < MIN_KEY_LEN {
         return Err(JoseError::InvalidKey);
     }
-    Ok(jose_core::key::Key(HmacKey(bytes)))
+    Ok(jose_core::key::Key::new(HmacKey(bytes)))
 }
