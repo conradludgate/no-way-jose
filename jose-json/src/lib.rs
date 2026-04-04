@@ -95,15 +95,15 @@ impl Validate for Time {
     type Claims = RegisteredClaims;
 
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
-        if let Some(exp) = claims.exp {
-            if exp < self.now {
-                return Err(JoseError::ClaimsError);
-            }
+        if let Some(exp) = claims.exp
+            && exp < self.now
+        {
+            return Err(JoseError::ClaimsError);
         }
-        if let Some(nbf) = claims.nbf {
-            if self.now < nbf {
-                return Err(JoseError::ClaimsError);
-            }
+        if let Some(nbf) = claims.nbf
+            && self.now < nbf
+        {
+            return Err(JoseError::ClaimsError);
         }
         Ok(())
     }

@@ -40,8 +40,7 @@ fn hs256_roundtrip() {
 
     let claims = serde_json::json!({"sub": "1234567890", "name": "Test User"});
 
-    let unsigned =
-        jose_core::UnsignedToken::<jose_hmac::Hs256, _>::new(claims);
+    let unsigned = jose_core::UnsignedToken::<jose_hmac::Hs256, _>::new(claims);
     let compact = unsigned.sign(&key).unwrap();
 
     let token_str = compact.to_string();
@@ -95,8 +94,7 @@ fn es256_roundtrip() {
 
     let claims = serde_json::json!({"sub": "test", "admin": true});
 
-    let unsigned =
-        jose_core::UnsignedToken::<jose_ecdsa::Es256, _>::new(claims);
+    let unsigned = jose_core::UnsignedToken::<jose_ecdsa::Es256, _>::new(claims);
     let compact = unsigned.sign(&sk).unwrap();
 
     let token_str = compact.to_string();

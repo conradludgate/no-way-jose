@@ -86,9 +86,8 @@ where
     M: serde::Serialize,
 {
     pub fn sign(self, key: &SigningKey<A>) -> Result<CompactJws<A, M>, JoseError> {
-        let payload_bytes = serde_json::to_vec(&self.claims).map_err(|e| {
-            JoseError::PayloadError(alloc::boxed::Box::new(e))
-        })?;
+        let payload_bytes = serde_json::to_vec(&self.claims)
+            .map_err(|e| JoseError::PayloadError(alloc::boxed::Box::new(e)))?;
         let payload_b64 = crate::base64url::encode(&payload_bytes);
 
         let signing_input = alloc::format!("{}.{}", self.header_b64, payload_b64);

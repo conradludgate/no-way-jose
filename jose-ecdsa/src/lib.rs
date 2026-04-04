@@ -22,10 +22,7 @@ impl HasKey<Verifying> for Es256 {
 }
 
 impl Signer for Es256 {
-    fn sign(
-        key: &p256::ecdsa::SigningKey,
-        signing_input: &[u8],
-    ) -> Result<Vec<u8>, JoseError> {
+    fn sign(key: &p256::ecdsa::SigningKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
         use p256::ecdsa::signature::Signer;
         let sig: p256::ecdsa::Signature = key.sign(signing_input);
         Ok(sig.to_bytes().to_vec())

@@ -30,8 +30,7 @@ type HmacSha256 = Hmac<sha2::Sha256>;
 
 impl Signer for Hs256 {
     fn sign(key: &HmacKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
-        let mut mac =
-            HmacSha256::new_from_slice(&key.0).map_err(|_| JoseError::InvalidKey)?;
+        let mut mac = HmacSha256::new_from_slice(&key.0).map_err(|_| JoseError::InvalidKey)?;
         mac.update(signing_input);
         Ok(mac.finalize().into_bytes().to_vec())
     }
@@ -39,8 +38,7 @@ impl Signer for Hs256 {
 
 impl Verifier for Hs256 {
     fn verify(key: &HmacKey, signing_input: &[u8], signature: &[u8]) -> Result<(), JoseError> {
-        let mut mac =
-            HmacSha256::new_from_slice(&key.0).map_err(|_| JoseError::InvalidKey)?;
+        let mut mac = HmacSha256::new_from_slice(&key.0).map_err(|_| JoseError::InvalidKey)?;
         mac.update(signing_input);
         mac.verify_slice(signature)
             .map_err(|_| JoseError::CryptoError)
