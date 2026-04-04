@@ -66,6 +66,7 @@ impl BuilderHeader {
 pub fn parse_header_owned(header_b64: &str) -> Result<OwnedHeader, JoseError> {
     let bytes = crate::base64url::decode(header_b64)?;
     OwnedHeader::from_json_bytes(&bytes)
+        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))
 }
 
 /// Owned version of a decoded JOSE header.
@@ -80,7 +81,7 @@ pub struct OwnedHeader {
 }
 
 impl FromJson for OwnedHeader {
-    fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
+    fn from_json_bytes(bytes: &[u8]) -> Result<Self, alloc::boxed::Box<dyn core::error::Error + Send + Sync>> {
         let mut reader = JsonReader::new(bytes)?;
         let mut alg = None;
         let mut enc = None;

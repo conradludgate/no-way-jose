@@ -48,7 +48,7 @@ impl ToJson for RegisteredClaims {
 }
 
 impl FromJson for RegisteredClaims {
-    fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
+    fn from_json_bytes(bytes: &[u8]) -> Result<Self, Box<dyn core::error::Error + Send + Sync>> {
         let mut reader = JsonReader::new(bytes)?;
         let mut claims = RegisteredClaims::default();
         while let Some(key) = reader.next_key()? {

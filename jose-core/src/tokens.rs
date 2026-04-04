@@ -138,7 +138,7 @@ where
 
         let payload_bytes = crate::base64url::decode(&self.data.payload_b64)?;
         let claims: M = M::from_json_bytes(&payload_bytes)
-            .map_err(|e| JoseError::PayloadError(alloc::boxed::Box::new(e)))?;
+            .map_err(JoseError::PayloadError)?;
 
         v.validate(&claims)?;
 

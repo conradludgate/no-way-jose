@@ -14,7 +14,7 @@ pub trait ToJson {
 }
 
 pub trait FromJson: Sized {
-    fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError>;
+    fn from_json_bytes(bytes: &[u8]) -> Result<Self, alloc::boxed::Box<dyn core::error::Error + Send + Sync>>;
 }
 
 /// Opaque JSON payload — stores raw bytes without parsing.
@@ -27,7 +27,7 @@ impl ToJson for RawJson {
 }
 
 impl FromJson for RawJson {
-    fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
+    fn from_json_bytes(bytes: &[u8]) -> Result<Self, alloc::boxed::Box<dyn core::error::Error + Send + Sync>> {
         Ok(RawJson(bytes.to_vec()))
     }
 }

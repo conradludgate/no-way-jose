@@ -22,7 +22,7 @@ impl ToJson for RoundtripClaims {
 }
 
 impl FromJson for RoundtripClaims {
-    fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
+    fn from_json_bytes(bytes: &[u8]) -> Result<Self, Box<dyn core::error::Error + Send + Sync>> {
         let mut reader = JsonReader::new(bytes)?;
         let mut sub = None;
         let mut name = None;
@@ -56,7 +56,7 @@ impl ToJson for AdminClaims {
 }
 
 impl FromJson for AdminClaims {
-    fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
+    fn from_json_bytes(bytes: &[u8]) -> Result<Self, Box<dyn core::error::Error + Send + Sync>> {
         let mut reader = JsonReader::new(bytes)?;
         let mut sub = None;
         let mut admin = None;
