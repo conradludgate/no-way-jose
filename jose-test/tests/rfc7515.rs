@@ -143,3 +143,73 @@ fn require_typ_rejects_missing() {
 
     assert!(token.require_typ("JWT").is_err());
 }
+
+// -- UntypedCompactJws --
+
+#[test]
+fn untyped_parses_and_dispatches_hs256() {
+    let untyped: jose_core::UntypedCompactJws<serde_json::Value> =
+        HS256_TOKEN.parse().unwrap();
+    assert_eq!(untyped.alg(), "HS256");
+
+    let key_bytes = Base64UrlUnpadded::decode_vec(HS256_JWK_K).unwrap();
+    let key = jose_hmac::verifying_key(key_bytes).unwrap();
+
+    let typed = untyped.into_typed::<jose_hmac::Hs256>().unwrap();
+    let unsealed = typed
+        .verify(&key, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(unsealed.claims["iss"], "joe");
+}
+
+#[test]
+fn untyped_parses_and_dispatches_es256() {
+    let untyped: jose_core::UntypedCompactJws<serde_json::Value> =
+        ES256_TOKEN.parse().unwrap();
+    assert_eq!(untyped.alg(), "ES256");
+
+    let d_bytes = Base64UrlUnpadded::decode_vec(ES256_JWK_D).unwrap();
+    let sk = jose_ecdsa::signing_key_from_bytes(&d_bytes).unwrap();
+    let vk = jose_ecdsa::verifying_key_from_signing(&sk);
+
+    let typed = untyped.into_typed::<jose_ecdsa::Es256>().unwrap();
+    let unsealed = typed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(unsealed.claims["iss"], "joe");
+}
+
+#[test]
+fn untyped_rejects_wrong_typed_conversion() {
+    let untyped: jose_core::UntypedCompactJws<serde_json::Value> =
+        HS256_TOKEN.parse().unwrap();
+
+    assert!(untyped.into_typed::<jose_ecdsa::Es256>().is_err());
+}
+
+#[test]
+fn untyped_dynamic_dispatch() {
+    let key_bytes = Base64UrlUnpadded::decode_vec(HS256_JWK_K).unwrap();
+    let hmac_key = jose_hmac::verifying_key(key_bytes).unwrap();
+
+    let d_bytes = Base64UrlUnpadded::decode_vec(ES256_JWK_D).unwrap();
+    let sk = jose_ecdsa::signing_key_from_bytes(&d_bytes).unwrap();
+    let ecdsa_key = jose_ecdsa::verifying_key_from_signing(&sk);
+
+    for token_str in [HS256_TOKEN, ES256_TOKEN] {
+        let untyped: jose_core::UntypedCompactJws<serde_json::Value> =
+            token_str.parse().unwrap();
+        let result = match untyped.alg() {
+            "HS256" => untyped
+                .into_typed::<jose_hmac::Hs256>()
+                .and_then(|t| t.verify(&hmac_key, &NoValidation::dangerous_no_validation()))
+                .map(|u| u.claims),
+            "ES256" => untyped
+                .into_typed::<jose_ecdsa::Es256>()
+                .and_then(|t| t.verify(&ecdsa_key, &NoValidation::dangerous_no_validation()))
+                .map(|u| u.claims),
+            other => panic!("unexpected alg: {other}"),
+        };
+        assert_eq!(result.unwrap()["iss"], "joe");
+    }
+}

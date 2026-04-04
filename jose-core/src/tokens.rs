@@ -200,6 +200,97 @@ impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
     }
 }
 
+// -- Untyped JWS (dynamic algorithm dispatch) --
+
+/// A parsed JWS compact token without a statically known algorithm.
+///
+/// Use this when the algorithm must be determined at runtime (e.g., JWKS flows).
+/// Call `into_typed::<A>()` to convert to a typed `CompactJws<A, M>` after
+/// inspecting the `alg` header.
+pub struct UntypedCompactJws<M = Box<serde_json::value::RawValue>> {
+    alg: String,
+    header_b64: String,
+    data: SignedData,
+    _marker: PhantomData<M>,
+}
+
+impl<M> UntypedCompactJws<M> {
+    pub fn alg(&self) -> &str {
+        &self.alg
+    }
+
+    pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
+        crate::header::parse_header_owned(&self.header_b64)
+    }
+
+    pub fn raw_header_b64(&self) -> &str {
+        &self.header_b64
+    }
+
+    pub fn require_typ(&self, expected: &str) -> Result<&Self, JoseError> {
+        let header = self.header()?;
+        match header.typ.as_deref() {
+            Some(t) if t.eq_ignore_ascii_case(expected) => Ok(self),
+            _ => Err(JoseError::InvalidToken("typ mismatch")),
+        }
+    }
+
+    pub fn into_typed<A: JwsAlgorithm>(self) -> Result<CompactJws<A, M>, JoseError> {
+        if self.alg != A::ALG {
+            return Err(JoseError::InvalidToken("alg mismatch"));
+        }
+        Ok(CompactToken {
+            header_b64: self.header_b64,
+            data: self.data,
+            _marker: PhantomData,
+        })
+    }
+}
+
+impl<M> core::str::FromStr for UntypedCompactJws<M> {
+    type Err = JoseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.splitn(3, '.');
+        let header_b64 = parts.next().ok_or(JoseError::InvalidToken("missing header"))?;
+        let payload_b64 = parts.next().ok_or(JoseError::InvalidToken("missing payload"))?;
+        let signature_b64 = parts
+            .next()
+            .ok_or(JoseError::InvalidToken("missing signature"))?;
+
+        let header_bytes = crate::base64url::decode(header_b64)?;
+        let header: AlgHeader = serde_json::from_slice(&header_bytes)
+            .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?;
+        if header.crit.is_some() {
+            return Err(JoseError::InvalidToken("unsupported crit extension"));
+        }
+
+        let signature = crate::base64url::decode(signature_b64)?;
+
+        Ok(UntypedCompactJws {
+            alg: String::from(header.alg),
+            header_b64: String::from(header_b64),
+            data: SignedData {
+                payload_b64: String::from(payload_b64),
+                signature,
+            },
+            _marker: PhantomData,
+        })
+    }
+}
+
+impl<M> core::fmt::Display for UntypedCompactJws<M> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}.{}.{}",
+            self.header_b64,
+            self.data.payload_b64,
+            crate::base64url::encode(&self.data.signature),
+        )
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct AlgHeader<'a> {
     alg: &'a str,

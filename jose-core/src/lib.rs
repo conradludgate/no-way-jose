@@ -26,6 +26,7 @@ pub type VerifyingKey<A> = key::Key<A, key::Verifying>;
 
 pub type CompactJws<A, M = Box<serde_json::value::RawValue>> = tokens::CompactJws<A, M>;
 pub type UnsignedToken<A, M> = tokens::UnsignedToken<A, M>;
+pub type UntypedCompactJws<M = Box<serde_json::value::RawValue>> = tokens::UntypedCompactJws<M>;
 
 #[derive(Debug)]
 #[non_exhaustive]
