@@ -65,11 +65,12 @@ mod one_or_many {
 impl RegisteredClaims {
     pub fn new(now: jiff::Timestamp, ttl: jiff::SignedDuration) -> Self {
         let now_secs = now.as_second();
+        let exp_secs = now.checked_add(ttl).expect("TTL overflow").as_second();
         Self {
             iss: None,
             sub: None,
             aud: None,
-            exp: Some(now_secs + ttl.as_secs()),
+            exp: Some(exp_secs),
             nbf: Some(now_secs),
             iat: Some(now_secs),
             jti: None,
