@@ -13,9 +13,8 @@ pub mod purpose;
 pub mod tokens;
 pub mod validation;
 
-/// Sealed trait pattern — public trait in a private-ish module.
-/// Algorithm crates use `jose_core::sealed::Sealed` to implement marker traits.
-pub mod sealed {
+#[doc(hidden)]
+pub mod __private {
     pub trait Sealed {}
 }
 

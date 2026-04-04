@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use crate::JoseError;
 use crate::key::{HasKey, KeyInner, Signing, Verifying};
-use crate::sealed::Sealed;
+use crate::__private::Sealed;
 
 /// Marker trait for JWS algorithm identifiers.
 pub trait JwsAlgorithm: Sealed + Send + Sync + Sized + 'static {

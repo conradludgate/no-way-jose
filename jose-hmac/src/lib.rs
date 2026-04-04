@@ -8,7 +8,7 @@ use jose_core::key::{HasKey, Signing, Verifying};
 /// HS256: HMAC using SHA-256 (RFC 7518 Section 3.2).
 pub struct Hs256;
 
-impl jose_core::sealed::Sealed for Hs256 {}
+impl jose_core::__private::Sealed for Hs256 {}
 
 impl JwsAlgorithm for Hs256 {
     const ALG: &'static str = "HS256";

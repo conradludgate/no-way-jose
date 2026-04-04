@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use crate::algorithm::JwsAlgorithm;
-use crate::sealed::Sealed;
+use crate::__private::Sealed;
 
 /// Distinguishes JWS (signed) from JWE (encrypted) at the type level.
 /// Each purpose carries its own wire-format data shape.

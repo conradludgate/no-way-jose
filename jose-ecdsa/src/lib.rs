@@ -7,7 +7,7 @@ use jose_core::key::{HasKey, Signing, Verifying};
 /// ES256: ECDSA using P-256 and SHA-256 (RFC 7518 Section 3.4).
 pub struct Es256;
 
-impl jose_core::sealed::Sealed for Es256 {}
+impl jose_core::__private::Sealed for Es256 {}
 
 impl JwsAlgorithm for Es256 {
     const ALG: &'static str = "ES256";

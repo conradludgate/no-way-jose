@@ -1,4 +1,4 @@
-use crate::sealed::Sealed;
+use crate::__private::Sealed;
 
 pub type KeyInner<A, K> = <A as HasKey<K>>::Key;
 
