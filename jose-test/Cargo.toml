@@ -8,5 +8,7 @@ publish = false
 jose-core = { workspace = true }
 jose-ecdsa = { workspace = true }
 jose-hmac = { workspace = true }
+jose-rsa = { workspace = true }
 jose-json = { workspace = true }
 base64ct = { workspace = true }
+rsa = { workspace = true }

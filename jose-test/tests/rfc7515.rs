@@ -117,6 +117,90 @@ fn es256_verify_rfc7515_a3() {
         .unwrap();
 }
 
+// -- RFC 7515 A.2: RS256 --
+
+fn rfc7515_a2_rsa_private_key() -> rsa::RsaPrivateKey {
+    use rsa::BigUint;
+    let n = BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(
+        "ofgWCuLjybRlzo0tZWJjNiuSfb4p4fAkd_wWJcyQoTbji9k0l8W26mPddx\
+         HmfHQp-Vaw-4qPCJrcS2mJPMEzP1Pt0Bm4d4QlL-yRT-SFd2lZS-pCgNMs\
+         D1W_YpRPEwOWvG6b32690r2jZ47soMZo9wGzjb_7OMg0LOL-bSf63kpaSH\
+         SXndS5z5rexMdbBYUsLA9e-KXBdQOS-UTo7WTBEMa2R2CapHg665xsmtdV\
+         MTBQY4uDZlxvb3qCo5ZwKh9kG4LT6_I5IhlJH7aGhyxXFvUK-DWNmoudF8\
+         NAco9_h9iaGNj8q2ethFkMLs91kzk2PAcDTW9gb54h4FRWyuXpoQ",
+    ).unwrap());
+    let e = BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec("AQAB").unwrap());
+    let d = BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(
+        "Eq5xpGnNCivDflJsRQBXHx1hdR1k6Ulwe2JZD50LpXyWPEAeP88vLNO97I\
+         jlA7_GQ5sLKMgvfTeXZx9SE-7YwVol2NXOoAJe46sui395IW_GO-pWJ1O0\
+         BkTGoVEn2bKVRUCgu-GjBVaYLU6f3l9kJfFNS3E0QbVdxzubSu3Mkqzjkn\
+         439X0M_V51gfpRLI9JYanrC4D4qAdGcopV_0ZHHzQlBjudU2QvXt4ehNYT\
+         CBr6XCLQUShb1juUO1ZdiYoFaFQT5Tw8bGUl_x_jTj3ccPDVZFD9pIuhLh\
+         BOneufuBiB4cS98l2SR_RQyGWSeWjnczT0QU91p1DhOVRuOopznQ",
+    ).unwrap());
+    let primes = vec![
+        BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(
+            "4BzEEOtIpmVdVEZNCqS7baC4crd0pqnRH_5IB3jw3bcxGn6QLvnEtfdUdi\
+             YrqBdss1l58BQ3KhooKeQTa9AB0Hw_Py5PJdTJNPY8cQn7ouZ2KKDcmnPG\
+             BY5t7yLc1QlQ5xHdwW1VhvKn-nXqhJTBgIPgtldC-KDV5z-y2XDwGUc",
+        ).unwrap()),
+        BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(
+            "uQPEfgmVtjL0Uyyx88GZFF1fOunH3-7cepKmtH4pxhtCoHqpWmT8YAmZxa\
+             ewHgHAjLYsp1ZSe7zFYHj7C6ul7TjeLQeZD_YwD66t62wDmpe_HlB-TnBA\
+             -njbglfIsRLtXlnDzQkv5dTltRJ11BKBBypeeF6689rjcJIDEz9RWdc",
+        ).unwrap()),
+    ];
+    rsa::RsaPrivateKey::from_components(n, e, d, primes).unwrap()
+}
+
+const RS256_TOKEN: &str = "\
+    eyJhbGciOiJSUzI1NiJ9.\
+    eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFt\
+    cGxlLmNvbS9pc19yb290Ijp0cnVlfQ.\
+    cC4hiUPoj9Eetdgtv3hF80EGrhuB__dzERat0XF9g2VtQgr9PJbu3XOiZj5RZmh7\
+    AAuHIm4Bh-0Qc_lF5YKt_O8W2Fp5jujGbds9uJdbF9CUAr7t1dnZcAcQjbKBYNX4\
+    BAynRFdiuB--f_nZLgrnbyTyWzO75vRK5h6xBArLIARNPvkSjtQBMHlb1L07Qe7K\
+    0GarZRmB_eSN9383LcOLn6_dO--xi12jzDwusC-eOkHWEsqtFZESc6BfI7noOPqv\
+    hJ1phCnvWh6IeYI2w9QOYEUipUTI8np6LbgGY9Fs98rqVt5AXLIhWkWywlVmtVrB\
+    p0igcN_IoypGlUPQGe77Rw";
+
+#[test]
+fn rs256_verify_rfc7515_a2() {
+    let sk = rfc7515_a2_rsa_private_key();
+    let vk = jose_rsa::verifying_key(rsa::RsaPublicKey::from(&sk));
+
+    let token: jose_core::CompactJws<jose_rsa::Rs256, RawJson> = RS256_TOKEN.parse().unwrap();
+    let header = token.header().unwrap();
+    assert_eq!(header.alg, "RS256");
+
+    let _unsealed = token
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+}
+
+#[test]
+fn rs256_roundtrip() {
+    let sk_inner = rfc7515_a2_rsa_private_key();
+    let sk = jose_rsa::signing_key(sk_inner.clone());
+    let vk = jose_rsa::verifying_key_from_signing(&sk);
+
+    let claims = RoundtripClaims {
+        sub: "rs256".into(),
+        name: "Test".into(),
+    };
+    let token_str = jose_core::UnsignedToken::<jose_rsa::Rs256, _>::new(claims)
+        .sign(&sk)
+        .unwrap()
+        .to_string();
+
+    let parsed: jose_core::CompactJws<jose_rsa::Rs256, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "rs256");
+}
+
 // -- Roundtrip tests --
 
 #[test]
