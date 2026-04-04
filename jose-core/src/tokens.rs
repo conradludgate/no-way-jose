@@ -4,9 +4,13 @@ use core::marker::PhantomData;
 
 use crate::algorithm::{JwsAlgorithm, Signer, Verifier};
 use crate::json::{FromJson, JsonReader, RawJson, ToJson};
-use crate::purpose::{Purpose, Signed, SignedData};
+use crate::jwe_algorithm::{
+    ContentDecryptor, ContentEncryptor, JweContentEncryption, JweKeyManagement, KeyDecryptor,
+    KeyEncryptor,
+};
+use crate::purpose::{Encrypted, EncryptedData, Purpose, Signed, SignedData};
 use crate::validation::Validate;
-use crate::{JoseError, SigningKey, VerifyingKey};
+use crate::{DecryptionKey, EncryptionKey, JoseError, SigningKey, VerifyingKey};
 
 /// A parsed but unverified/undecrypted compact-serialized token.
 ///
@@ -60,10 +64,11 @@ impl<P: Purpose, M> UnsealedToken<P, M> {
     }
 }
 
-// -- Type aliases mirroring paseto --
+// -- Type aliases --
 
 pub type CompactJws<A, M = RawJson> = CompactToken<Signed<A>, M>;
 pub type UnsignedToken<A, M> = UnsealedToken<Signed<A>, M>;
+pub type CompactJwe<KM, CE, M = RawJson> = CompactToken<Encrypted<KM, CE>, M>;
 
 // -- UnsealedToken constructors --
 
@@ -137,8 +142,7 @@ where
         A::verify(key.inner(), signing_input.as_bytes(), &self.data.signature)?;
 
         let payload_bytes = crate::base64url::decode(&self.data.payload_b64)?;
-        let claims: M = M::from_json_bytes(&payload_bytes)
-            .map_err(JoseError::PayloadError)?;
+        let claims: M = M::from_json_bytes(&payload_bytes).map_err(JoseError::PayloadError)?;
 
         v.validate(&claims)?;
 
@@ -296,6 +300,215 @@ impl<M> core::fmt::Display for UntypedCompactJws<M> {
             crate::base64url::encode(&self.data.signature),
         )
     }
+}
+
+// ====================================================================
+// JWE — Encrypted tokens
+// ====================================================================
+
+impl<KM: JweKeyManagement, CE: JweContentEncryption, M> UnsealedToken<Encrypted<KM, CE>, M> {
+    pub fn new(claims: M) -> Self {
+        let header_b64 = crate::header::HeaderBuilder::new(KM::ALG)
+            .enc(CE::ENC)
+            .build();
+        UnsealedToken {
+            header_b64,
+            claims,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn with_header(header_b64: String, claims: M) -> Self {
+        UnsealedToken {
+            header_b64,
+            claims,
+            _marker: PhantomData,
+        }
+    }
+}
+
+// -- Encryption --
+
+impl<KM, CE, M> UnsealedToken<Encrypted<KM, CE>, M>
+where
+    KM: KeyEncryptor,
+    CE: ContentEncryptor,
+    M: ToJson,
+{
+    pub fn encrypt(self, key: &EncryptionKey<KM>) -> Result<CompactJwe<KM, CE, M>, JoseError> {
+        let header_bytes = crate::base64url::decode(&self.header_b64)?;
+        let (alg, enc) = parse_alg_enc_header(&header_bytes)?;
+        if alg != KM::ALG {
+            return Err(JoseError::InvalidToken(
+                "header alg does not match key management type",
+            ));
+        }
+        if enc != CE::ENC {
+            return Err(JoseError::InvalidToken(
+                "header enc does not match content encryption type",
+            ));
+        }
+
+        let (encrypted_key, cek) = KM::encrypt_cek(key.inner(), CE::KEY_LEN)?;
+
+        let plaintext = self.claims.to_json_bytes();
+        let aad = self.header_b64.as_bytes();
+        let output = CE::encrypt(&cek, aad, &plaintext)?;
+
+        Ok(CompactToken {
+            header_b64: self.header_b64,
+            data: EncryptedData {
+                encrypted_key,
+                iv: output.iv,
+                ciphertext: output.ciphertext,
+                tag: output.tag,
+            },
+            _marker: PhantomData,
+        })
+    }
+}
+
+// -- Decryption --
+
+impl<KM, CE, M> CompactToken<Encrypted<KM, CE>, M>
+where
+    KM: KeyDecryptor,
+    CE: ContentDecryptor,
+    M: FromJson,
+{
+    pub fn decrypt(
+        self,
+        key: &DecryptionKey<KM>,
+        v: &impl Validate<Claims = M>,
+    ) -> Result<UnsealedToken<Encrypted<KM, CE>, M>, JoseError> {
+        let cek = KM::decrypt_cek(key.inner(), &self.data.encrypted_key)?;
+
+        let aad = self.header_b64.as_bytes();
+        let plaintext = CE::decrypt(
+            &cek,
+            &self.data.iv,
+            aad,
+            &self.data.ciphertext,
+            &self.data.tag,
+        )?;
+
+        let claims: M = M::from_json_bytes(&plaintext).map_err(JoseError::PayloadError)?;
+        v.validate(&claims)?;
+
+        Ok(UnsealedToken {
+            header_b64: self.header_b64,
+            claims,
+            _marker: PhantomData,
+        })
+    }
+}
+
+// -- Display (JWE 5-part compact serialization) --
+
+impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::fmt::Display
+    for CompactToken<Encrypted<KM, CE>, M>
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}.{}.{}.{}.{}",
+            self.header_b64,
+            crate::base64url::encode(&self.data.encrypted_key),
+            crate::base64url::encode(&self.data.iv),
+            crate::base64url::encode(&self.data.ciphertext),
+            crate::base64url::encode(&self.data.tag),
+        )
+    }
+}
+
+// -- FromStr (JWE 5-part compact deserialization) --
+
+impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
+    for CompactToken<Encrypted<KM, CE>, M>
+{
+    type Err = JoseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.splitn(5, '.');
+        let header_b64 = parts
+            .next()
+            .ok_or(JoseError::InvalidToken("missing header"))?;
+        let ek_b64 = parts
+            .next()
+            .ok_or(JoseError::InvalidToken("missing encrypted_key"))?;
+        let iv_b64 = parts.next().ok_or(JoseError::InvalidToken("missing iv"))?;
+        let ct_b64 = parts
+            .next()
+            .ok_or(JoseError::InvalidToken("missing ciphertext"))?;
+        let tag_b64 = parts.next().ok_or(JoseError::InvalidToken("missing tag"))?;
+
+        let header_bytes = crate::base64url::decode(header_b64)?;
+        let (alg, enc) = parse_alg_enc_header(&header_bytes)?;
+        if alg != KM::ALG {
+            return Err(JoseError::InvalidToken("alg mismatch"));
+        }
+        if enc != CE::ENC {
+            return Err(JoseError::InvalidToken("enc mismatch"));
+        }
+
+        // Reject crit for now
+        let (_, crit) = parse_alg_header(&header_bytes)?;
+        if crit.is_some() {
+            return Err(JoseError::InvalidToken("unsupported crit extension"));
+        }
+
+        let encrypted_key = crate::base64url::decode(ek_b64)?;
+        let iv = crate::base64url::decode(iv_b64)?;
+        let ciphertext = crate::base64url::decode(ct_b64)?;
+        let tag = crate::base64url::decode(tag_b64)?;
+
+        Ok(CompactToken {
+            header_b64: String::from(header_b64),
+            data: EncryptedData {
+                encrypted_key,
+                iv,
+                ciphertext,
+                tag,
+            },
+            _marker: PhantomData,
+        })
+    }
+}
+
+/// Extract `alg` and `enc` from a JWE JOSE header JSON object.
+fn parse_alg_enc_header(bytes: &[u8]) -> Result<(String, String), JoseError> {
+    let mut reader =
+        JsonReader::new(bytes).map_err(|_| JoseError::InvalidToken("malformed header JSON"))?;
+    let mut alg = None;
+    let mut enc = None;
+    while let Some(key) = reader
+        .next_key()
+        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?
+    {
+        match key {
+            "alg" => {
+                alg = Some(
+                    reader
+                        .read_string()
+                        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
+                )
+            }
+            "enc" => {
+                enc = Some(
+                    reader
+                        .read_string()
+                        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
+                )
+            }
+            _ => reader
+                .skip_value()
+                .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
+        }
+    }
+    Ok((
+        alg.ok_or(JoseError::InvalidToken("missing alg in header"))?,
+        enc.ok_or(JoseError::InvalidToken("missing enc in header"))?,
+    ))
 }
 
 /// Extract `alg` and optional `crit` from a JOSE header JSON object.

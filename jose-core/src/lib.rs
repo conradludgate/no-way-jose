@@ -7,8 +7,10 @@ extern crate std;
 
 pub mod algorithm;
 pub(crate) mod base64url;
+pub mod dir;
 pub mod header;
 pub mod json;
+pub mod jwe_algorithm;
 pub mod key;
 pub mod purpose;
 pub mod tokens;
@@ -28,6 +30,10 @@ pub type VerifyingKey<A> = key::Key<A, key::Verifying>;
 pub type CompactJws<A, M = json::RawJson> = tokens::CompactJws<A, M>;
 pub type UnsignedToken<A, M> = tokens::UnsignedToken<A, M>;
 pub type UntypedCompactJws<M = json::RawJson> = tokens::UntypedCompactJws<M>;
+
+pub type EncryptionKey<KM> = key::Key<KM, key::Encrypting>;
+pub type DecryptionKey<KM> = key::Key<KM, key::Decrypting>;
+pub type CompactJwe<KM, CE, M = json::RawJson> = tokens::CompactJwe<KM, CE, M>;
 
 #[derive(Debug)]
 #[non_exhaustive]
