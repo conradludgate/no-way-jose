@@ -169,6 +169,37 @@ fn es256_roundtrip() {
     assert!(verified.claims.admin);
 }
 
+// -- ES384 roundtrip --
+
+#[test]
+fn es384_roundtrip() {
+    // A fixed 48-byte P-384 scalar (valid private key for testing).
+    let sk_bytes: [u8; 48] = [
+        0x6B, 0x9D, 0x3D, 0xAD, 0x2E, 0x1B, 0x8C, 0x1C, 0x05, 0xB1, 0x98, 0x75,
+        0xB6, 0x65, 0x9F, 0x4D, 0xE2, 0x3C, 0x3B, 0x66, 0x7B, 0xF2, 0x97, 0xBA,
+        0x9A, 0xA4, 0x77, 0x40, 0x78, 0x71, 0x37, 0xD8, 0x96, 0xD5, 0x72, 0x4E,
+        0x4C, 0x70, 0xA8, 0x25, 0xF8, 0x72, 0xC9, 0xEA, 0x60, 0xD2, 0xED, 0xF5,
+    ];
+    let sk = jose_ecdsa::es384::signing_key_from_bytes(&sk_bytes).unwrap();
+    let vk = jose_ecdsa::es384::verifying_key_from_signing(&sk);
+
+    let claims = RoundtripClaims {
+        sub: "es384".into(),
+        name: "Test".into(),
+    };
+    let token_str = jose_core::UnsignedToken::<jose_ecdsa::Es384, _>::new(claims)
+        .sign(&sk)
+        .unwrap()
+        .to_string();
+
+    let parsed: jose_core::CompactJws<jose_ecdsa::Es384, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "es384");
+}
+
 // -- HS384 / HS512 roundtrips --
 
 #[test]

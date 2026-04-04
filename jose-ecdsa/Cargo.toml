@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 jose-core = { workspace = true }
 p256 = { workspace = true }
+p384 = { workspace = true }
