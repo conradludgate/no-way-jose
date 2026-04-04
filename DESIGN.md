@@ -68,8 +68,18 @@ UnsealedToken::new(claims)
 
 ### JSON handling
 
-Headers and JWS payloads are stored as `Box<serde_json::RawValue>` — no eager
-deserialization. A borrowed `Header<'a>` view struct deserializes on demand.
+`jose-core` has no dependency on `serde` or `serde_json`. A custom minimal JSON
+reader/writer (`JsonReader`, `JsonWriter`) lives in `jose-core::json` and handles
+header parsing and claim serialization. Two traits abstract the encoding boundary:
+
+- `ToJson` — write JSON into a caller-provided `&mut Vec<u8>`
+- `FromJson` — parse from `&[u8]`, returning `Box<dyn Error + Send + Sync>`
+
+`RawJson` is the default payload type — it stores raw JSON bytes without parsing.
+
+The JSON parser is intentionally strict: whitespace between tokens is rejected.
+This is a deliberate design choice — JWTs should use compact JSON without
+extraneous whitespace.
 
 ## Implementation Status
 
@@ -84,7 +94,7 @@ deserialization. A borrowed `Header<'a>` view struct deserializes on demand.
 - [x] `Key<A, K>` / `SigningKey<A>` / `VerifyingKey<A>`
 - [x] `Signer` / `Verifier`
 - [ ] `ContentEncrypt` / `KeyManage` (future)
-- [ ] `Payload` (using serde Serialize/DeserializeOwned directly)
+- [x] `ToJson` / `FromJson` (custom, no serde dependency)
 - [x] `Validate` / `NoValidation`
 - [x] `JoseError`
 
@@ -95,7 +105,7 @@ deserialization. A borrowed `Header<'a>` view struct deserializes on demand.
 - [x] `SignedData`
 - [ ] `EncryptedData` (future)
 - [x] `CompactJws<A, M>` / `UnsignedToken<A, M>` aliases
-- [ ] `UntypedJws<M>` (dynamic algorithm path)
+- [x] `UntypedCompactJws<M>` (dynamic algorithm path)
 - [x] `FromStr` / `Display` for JWS compact serialization
 - [x] Base64url encoding/decoding
 
@@ -105,9 +115,19 @@ deserialization. A borrowed `Header<'a>` view struct deserializes on demand.
 - [x] `HeaderBuilder`
 - [x] `raw_header_b64()` accessor
 
+### Security hardening (jose-core)
+
+- [x] `crit` header rejection (RFC 7515 §4.1.11)
+- [x] `require_typ` validation (RFC 8725 §3.11), consumes self
+- [x] `alg` header validated against type parameter at sign time
+- [x] HMAC minimum key length enforced (32 bytes, RFC 7518 §3.2)
+- [x] `Key` inner field private; `new`/`inner` are `#[doc(hidden)]`
+- [x] Sealed trait via `#[doc(hidden)] pub mod __private`
+- [x] `HeaderBuilder` uses `JsonWriter` (no JSON injection)
+
 ### Claims (jose-json)
 
-- [ ] `Json<M>` payload wrapper (using serde directly for now)
+- [x] `RawJson` default payload type
 - [x] `RegisteredClaims`
 - [x] `HasExpiry` validator
 - [x] `FromIssuer` validator
@@ -127,6 +147,9 @@ deserialization. A borrowed `Header<'a>` view struct deserializes on demand.
 - [x] Sign/verify round-trip (ES256, HS256)
 - [x] Algorithm mismatch rejection
 - [x] Claims validation (expiry, issuer, audience)
+- [x] `UntypedCompactJws` dynamic dispatch
+- [x] `require_typ` validation
+- [x] `crit` header rejection
 
 ## Future Ideas
 
@@ -134,6 +157,9 @@ deserialization. A borrowed `Header<'a>` view struct deserializes on demand.
 - **JWE support**: `Encrypted<KM, CE>` purpose with AES-GCM, AES-CBC-HS content
   encryption and RSA-OAEP, AES-KW, ECDH-ES key management
 - **JWK / JWK Sets**: `Jwk`, `JwkSet`, `ToJwk`/`FromJwk` traits, JWK Thumbprint (RFC 7638)
+- **Serde feature flag**: optional `serde` dep in `jose-core` providing blanket
+  `ToJson`/`FromJson` for `Serialize`/`DeserializeOwned`
+- **Header caching**: avoid re-decoding the header in `FromStr` → `header()` → `verify()`
 - **Alternate crypto backends**: aws-lc-rs, ring, libsodium
 - **`no_std` support**: jose-core is designed for it; algorithm crates may vary
 - **JSON serialization mode**: JWS/JWE JSON serialization (non-compact), multiple signatures
