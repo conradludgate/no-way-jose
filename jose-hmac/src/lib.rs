@@ -61,9 +61,27 @@ macro_rules! hmac_algorithm {
     };
 }
 
-hmac_algorithm!(Hs256, "HS256", sha2::Sha256, 32, "HS256: HMAC using SHA-256 (RFC 7518 §3.2).");
-hmac_algorithm!(Hs384, "HS384", sha2::Sha384, 48, "HS384: HMAC using SHA-384 (RFC 7518 §3.2).");
-hmac_algorithm!(Hs512, "HS512", sha2::Sha512, 64, "HS512: HMAC using SHA-512 (RFC 7518 §3.2).");
+hmac_algorithm!(
+    Hs256,
+    "HS256",
+    sha2::Sha256,
+    32,
+    "HS256: HMAC using SHA-256 (RFC 7518 §3.2)."
+);
+hmac_algorithm!(
+    Hs384,
+    "HS384",
+    sha2::Sha384,
+    48,
+    "HS384: HMAC using SHA-384 (RFC 7518 §3.2)."
+);
+hmac_algorithm!(
+    Hs512,
+    "HS512",
+    sha2::Sha512,
+    64,
+    "HS512: HMAC using SHA-512 (RFC 7518 §3.2)."
+);
 
 pub mod hs256 {
     pub type SigningKey = jose_core::SigningKey<super::Hs256>;
@@ -73,9 +91,7 @@ pub mod hs256 {
         Ok(jose_core::key::Key::new(super::make_key(bytes, 32)?))
     }
 
-    pub fn verifying_key(
-        bytes: impl Into<Vec<u8>>,
-    ) -> Result<VerifyingKey, jose_core::JoseError> {
+    pub fn verifying_key(bytes: impl Into<Vec<u8>>) -> Result<VerifyingKey, jose_core::JoseError> {
         Ok(jose_core::key::Key::new(super::make_key(bytes, 32)?))
     }
 }
@@ -88,9 +104,7 @@ pub mod hs384 {
         Ok(jose_core::key::Key::new(super::make_key(bytes, 48)?))
     }
 
-    pub fn verifying_key(
-        bytes: impl Into<Vec<u8>>,
-    ) -> Result<VerifyingKey, jose_core::JoseError> {
+    pub fn verifying_key(bytes: impl Into<Vec<u8>>) -> Result<VerifyingKey, jose_core::JoseError> {
         Ok(jose_core::key::Key::new(super::make_key(bytes, 48)?))
     }
 }
@@ -103,9 +117,7 @@ pub mod hs512 {
         Ok(jose_core::key::Key::new(super::make_key(bytes, 64)?))
     }
 
-    pub fn verifying_key(
-        bytes: impl Into<Vec<u8>>,
-    ) -> Result<VerifyingKey, jose_core::JoseError> {
+    pub fn verifying_key(bytes: impl Into<Vec<u8>>) -> Result<VerifyingKey, jose_core::JoseError> {
         Ok(jose_core::key::Key::new(super::make_key(bytes, 64)?))
     }
 }

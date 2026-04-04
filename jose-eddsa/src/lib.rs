@@ -22,10 +22,7 @@ impl HasKey<Verifying> for EdDsa {
 }
 
 impl Signer for EdDsa {
-    fn sign(
-        key: &ed25519_dalek::SigningKey,
-        signing_input: &[u8],
-    ) -> Result<Vec<u8>, JoseError> {
+    fn sign(key: &ed25519_dalek::SigningKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
         use ed25519_dalek::Signer;
         let sig = key.sign(signing_input);
         Ok(sig.to_bytes().to_vec())
@@ -39,9 +36,7 @@ impl Verifier for EdDsa {
         signature: &[u8],
     ) -> Result<(), JoseError> {
         use ed25519_dalek::Verifier;
-        let sig_bytes: [u8; 64] = signature
-            .try_into()
-            .map_err(|_| JoseError::CryptoError)?;
+        let sig_bytes: [u8; 64] = signature.try_into().map_err(|_| JoseError::CryptoError)?;
         let sig = ed25519_dalek::Signature::from_bytes(&sig_bytes);
         key.verify(signing_input, &sig)
             .map_err(|_| JoseError::CryptoError)

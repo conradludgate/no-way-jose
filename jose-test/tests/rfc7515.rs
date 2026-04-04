@@ -129,7 +129,8 @@ const RFC7520_HS256_TOKEN: &str = "\
 
 #[test]
 fn rfc7520_hs256_verify() {
-    let key_bytes = Base64UrlUnpadded::decode_vec("hJtXIZ2uSN5kbQfbtTNWbpdmhkV8FJG-Onbc6mxCcYg").unwrap();
+    let key_bytes =
+        Base64UrlUnpadded::decode_vec("hJtXIZ2uSN5kbQfbtTNWbpdmhkV8FJG-Onbc6mxCcYg").unwrap();
     let vk = jose_hmac::verifying_key(key_bytes).unwrap();
 
     let token: jose_core::CompactJws<jose_hmac::Hs256, RawJson> =
@@ -150,34 +151,46 @@ fn rfc7520_hs256_verify() {
 
 fn rfc7515_a2_rsa_private_key() -> rsa::RsaPrivateKey {
     use rsa::BigUint;
-    let n = BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(
-        "ofgWCuLjybRlzo0tZWJjNiuSfb4p4fAkd_wWJcyQoTbji9k0l8W26mPddx\
+    let n = BigUint::from_bytes_be(
+        &Base64UrlUnpadded::decode_vec(
+            "ofgWCuLjybRlzo0tZWJjNiuSfb4p4fAkd_wWJcyQoTbji9k0l8W26mPddx\
          HmfHQp-Vaw-4qPCJrcS2mJPMEzP1Pt0Bm4d4QlL-yRT-SFd2lZS-pCgNMs\
          D1W_YpRPEwOWvG6b32690r2jZ47soMZo9wGzjb_7OMg0LOL-bSf63kpaSH\
          SXndS5z5rexMdbBYUsLA9e-KXBdQOS-UTo7WTBEMa2R2CapHg665xsmtdV\
          MTBQY4uDZlxvb3qCo5ZwKh9kG4LT6_I5IhlJH7aGhyxXFvUK-DWNmoudF8\
          NAco9_h9iaGNj8q2ethFkMLs91kzk2PAcDTW9gb54h4FRWyuXpoQ",
-    ).unwrap());
+        )
+        .unwrap(),
+    );
     let e = BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec("AQAB").unwrap());
-    let d = BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(
-        "Eq5xpGnNCivDflJsRQBXHx1hdR1k6Ulwe2JZD50LpXyWPEAeP88vLNO97I\
+    let d = BigUint::from_bytes_be(
+        &Base64UrlUnpadded::decode_vec(
+            "Eq5xpGnNCivDflJsRQBXHx1hdR1k6Ulwe2JZD50LpXyWPEAeP88vLNO97I\
          jlA7_GQ5sLKMgvfTeXZx9SE-7YwVol2NXOoAJe46sui395IW_GO-pWJ1O0\
          BkTGoVEn2bKVRUCgu-GjBVaYLU6f3l9kJfFNS3E0QbVdxzubSu3Mkqzjkn\
          439X0M_V51gfpRLI9JYanrC4D4qAdGcopV_0ZHHzQlBjudU2QvXt4ehNYT\
          CBr6XCLQUShb1juUO1ZdiYoFaFQT5Tw8bGUl_x_jTj3ccPDVZFD9pIuhLh\
          BOneufuBiB4cS98l2SR_RQyGWSeWjnczT0QU91p1DhOVRuOopznQ",
-    ).unwrap());
+        )
+        .unwrap(),
+    );
     let primes = vec![
-        BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(
-            "4BzEEOtIpmVdVEZNCqS7baC4crd0pqnRH_5IB3jw3bcxGn6QLvnEtfdUdi\
+        BigUint::from_bytes_be(
+            &Base64UrlUnpadded::decode_vec(
+                "4BzEEOtIpmVdVEZNCqS7baC4crd0pqnRH_5IB3jw3bcxGn6QLvnEtfdUdi\
              YrqBdss1l58BQ3KhooKeQTa9AB0Hw_Py5PJdTJNPY8cQn7ouZ2KKDcmnPG\
              BY5t7yLc1QlQ5xHdwW1VhvKn-nXqhJTBgIPgtldC-KDV5z-y2XDwGUc",
-        ).unwrap()),
-        BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(
-            "uQPEfgmVtjL0Uyyx88GZFF1fOunH3-7cepKmtH4pxhtCoHqpWmT8YAmZxa\
+            )
+            .unwrap(),
+        ),
+        BigUint::from_bytes_be(
+            &Base64UrlUnpadded::decode_vec(
+                "uQPEfgmVtjL0Uyyx88GZFF1fOunH3-7cepKmtH4pxhtCoHqpWmT8YAmZxa\
              ewHgHAjLYsp1ZSe7zFYHj7C6ul7TjeLQeZD_YwD66t62wDmpe_HlB-TnBA\
              -njbglfIsRLtXlnDzQkv5dTltRJ11BKBBypeeF6689rjcJIDEz9RWdc",
-        ).unwrap()),
+            )
+            .unwrap(),
+        ),
     ];
     rsa::RsaPrivateKey::from_components(n, e, d, primes).unwrap()
 }
@@ -291,7 +304,8 @@ const EDDSA_TOKEN: &str = "\
 
 #[test]
 fn eddsa_verify_rfc8037() {
-    let d_bytes = Base64UrlUnpadded::decode_vec("nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A").unwrap();
+    let d_bytes =
+        Base64UrlUnpadded::decode_vec("nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A").unwrap();
     let d: [u8; 32] = d_bytes.try_into().unwrap();
     let sk = jose_eddsa::signing_key_from_bytes(&d);
     let vk = jose_eddsa::verifying_key_from_signing(&sk);
@@ -307,7 +321,8 @@ fn eddsa_verify_rfc8037() {
 
 #[test]
 fn eddsa_roundtrip() {
-    let d_bytes = Base64UrlUnpadded::decode_vec("nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A").unwrap();
+    let d_bytes =
+        Base64UrlUnpadded::decode_vec("nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A").unwrap();
     let d: [u8; 32] = d_bytes.try_into().unwrap();
     let sk = jose_eddsa::signing_key_from_bytes(&d);
     let vk = jose_eddsa::verifying_key_from_signing(&sk);
@@ -335,10 +350,10 @@ fn eddsa_roundtrip() {
 fn es384_roundtrip() {
     // A fixed 48-byte P-384 scalar (valid private key for testing).
     let sk_bytes: [u8; 48] = [
-        0x6B, 0x9D, 0x3D, 0xAD, 0x2E, 0x1B, 0x8C, 0x1C, 0x05, 0xB1, 0x98, 0x75,
-        0xB6, 0x65, 0x9F, 0x4D, 0xE2, 0x3C, 0x3B, 0x66, 0x7B, 0xF2, 0x97, 0xBA,
-        0x9A, 0xA4, 0x77, 0x40, 0x78, 0x71, 0x37, 0xD8, 0x96, 0xD5, 0x72, 0x4E,
-        0x4C, 0x70, 0xA8, 0x25, 0xF8, 0x72, 0xC9, 0xEA, 0x60, 0xD2, 0xED, 0xF5,
+        0x6B, 0x9D, 0x3D, 0xAD, 0x2E, 0x1B, 0x8C, 0x1C, 0x05, 0xB1, 0x98, 0x75, 0xB6, 0x65, 0x9F,
+        0x4D, 0xE2, 0x3C, 0x3B, 0x66, 0x7B, 0xF2, 0x97, 0xBA, 0x9A, 0xA4, 0x77, 0x40, 0x78, 0x71,
+        0x37, 0xD8, 0x96, 0xD5, 0x72, 0x4E, 0x4C, 0x70, 0xA8, 0x25, 0xF8, 0x72, 0xC9, 0xEA, 0x60,
+        0xD2, 0xED, 0xF5,
     ];
     let sk = jose_ecdsa::es384::signing_key_from_bytes(&sk_bytes).unwrap();
     let vk = jose_ecdsa::es384::verifying_key_from_signing(&sk);
