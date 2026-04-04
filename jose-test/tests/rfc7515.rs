@@ -117,6 +117,35 @@ fn es256_verify_rfc7515_a3() {
         .unwrap();
 }
 
+// -- RFC 7520 Section 4.4: HS256 with kid --
+
+const RFC7520_HS256_TOKEN: &str = "\
+    eyJhbGciOiJIUzI1NiIsImtpZCI6IjAxOGMwYWU1LTRkOWItNDcxYi1iZmQ2LWVlZjMxNGJjNzAzNyJ9.\
+    SXTigJlzIGEgZGFuZ2Vyb3VzIGJ1c2luZXNzLCBGcm9kbywgZ29pbmcgb3V0IH\
+    lvdXIgZG9vci4gWW91IHN0ZXAgb250byB0aGUgcm9hZCwgYW5kIGlmIHlvdSBk\
+    b24ndCBrZWVwIHlvdXIgZmVldCwgdGhlcmXigJlzIG5vIGtub3dpbmcgd2hlcm\
+    UgeW91IG1pZ2h0IGJlIHN3ZXB0IG9mZiB0by4.\
+    s0h6KThzkfBBBkLspW1h84VsJZFTsPPqMDA7g1Md7p0";
+
+#[test]
+fn rfc7520_hs256_verify() {
+    let key_bytes = Base64UrlUnpadded::decode_vec("hJtXIZ2uSN5kbQfbtTNWbpdmhkV8FJG-Onbc6mxCcYg").unwrap();
+    let vk = jose_hmac::verifying_key(key_bytes).unwrap();
+
+    let token: jose_core::CompactJws<jose_hmac::Hs256, RawJson> =
+        RFC7520_HS256_TOKEN.parse().unwrap();
+    let header = token.header().unwrap();
+    assert_eq!(header.alg, "HS256");
+    assert_eq!(
+        header.kid.as_deref(),
+        Some("018c0ae5-4d9b-471b-bfd6-eef314bc7037")
+    );
+
+    let _unsealed = token
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+}
+
 // -- RFC 7515 A.2: RS256 --
 
 fn rfc7515_a2_rsa_private_key() -> rsa::RsaPrivateKey {

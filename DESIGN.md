@@ -7,13 +7,15 @@ A type-safe Rust JOSE (JWS/JWE/JWT/JWK) library inspired by the
 
 | RFC  | Title                                              | Status      |
 |------|----------------------------------------------------|-------------|
-| 7515 | JSON Web Signature (JWS)                           | In progress |
+| 7515 | JSON Web Signature (JWS)                           | Done        |
 | 7516 | JSON Web Encryption (JWE)                          | Planned     |
 | 7517 | JSON Web Key (JWK)                                 | Planned     |
-| 7518 | JSON Web Algorithms (JWA)                          | In progress |
-| 7519 | JSON Web Token (JWT)                               | In progress |
+| 7518 | JSON Web Algorithms (JWA)                          | Done (JWS)  |
+| 7519 | JSON Web Token (JWT)                               | Done        |
 | 7520 | Examples of Protecting Content Using JOSE           | Test vectors|
 | 7638 | JSON Web Key (JWK) Thumbprint                      | Planned     |
+| 8037 | CFRG Elliptic Curve Diffie-Hellman and Signatures  | Done (EdDSA)|
+| 8725 | JSON Web Token Best Current Practices              | Partial     |
 
 ## Crate Map
 
@@ -21,8 +23,10 @@ A type-safe Rust JOSE (JWS/JWE/JWT/JWK) library inspired by the
 no-way-jose/
   jose-core/     Core traits, token types, base64url (no_std, no crypto deps)
   jose-json/     JSON Payload, registered JWT claims, validators
-  jose-ecdsa/    ES256 (asymmetric JWS)
-  jose-hmac/     HS256 (symmetric JWS)
+  jose-ecdsa/    ES256, ES384 (ECDSA JWS)
+  jose-eddsa/    EdDSA Ed25519 (JWS)
+  jose-hmac/     HS256, HS384, HS512 (HMAC JWS)
+  jose-rsa/      RS256 (RSA PKCS#1 v1.5 JWS)
   jose-test/     Integration tests (unpublished)
 ```
 
@@ -120,7 +124,7 @@ extraneous whitespace.
 - [x] `crit` header rejection (RFC 7515 §4.1.11)
 - [x] `require_typ` validation (RFC 8725 §3.11), consumes self
 - [x] `alg` header validated against type parameter at sign time
-- [x] HMAC minimum key length enforced (32 bytes, RFC 7518 §3.2)
+- [x] HMAC minimum key length enforced (32/48/64 bytes, RFC 7518 §3.2)
 - [x] `Key` inner field private; `new`/`inner` are `#[doc(hidden)]`
 - [x] Sealed trait via `#[doc(hidden)] pub mod __private`
 - [x] `HeaderBuilder` uses `JsonWriter` (no JSON injection)
@@ -137,14 +141,22 @@ extraneous whitespace.
 ### Algorithms
 
 - [x] `Es256` (jose-ecdsa) — P-256 / SHA-256
+- [x] `Es384` (jose-ecdsa) — P-384 / SHA-384
+- [x] `EdDsa` (jose-eddsa) — Ed25519
 - [x] `Hs256` (jose-hmac) — HMAC-SHA-256
+- [x] `Hs384` (jose-hmac) — HMAC-SHA-384
+- [x] `Hs512` (jose-hmac) — HMAC-SHA-512
+- [x] `Rs256` (jose-rsa) — RSASSA-PKCS1-v1_5 / SHA-256
 
 ### Tests (jose-test)
 
+- [x] RFC 7515 Appendix A.1 — HS256 JWS test vector (strict header rejection)
+- [x] RFC 7515 Appendix A.2 — RS256 JWS test vector
 - [x] RFC 7515 Appendix A.3 — ES256 JWS test vector
-- [x] RFC 7515 Appendix A.1 — HS256 JWS test vector
-- [ ] RFC 7520 Section 4 — ECDSA test vectors
-- [x] Sign/verify round-trip (ES256, HS256)
+- [x] RFC 7520 Section 4.4 — HS256 JWS test vector (with kid)
+- [x] RFC 8037 Appendix A — EdDSA Ed25519 test vector
+- [x] Sign/verify round-trip (ES256, ES384, EdDSA, HS256, HS384, HS512, RS256)
+- [x] Key length enforcement (HS384 min 48, HS512 min 64)
 - [x] Algorithm mismatch rejection
 - [x] Claims validation (expiry, issuer, audience)
 - [x] `UntypedCompactJws` dynamic dispatch
@@ -153,7 +165,7 @@ extraneous whitespace.
 
 ## Future Ideas
 
-- **More JWS algorithms**: `Es384`, `Es512`, `Rs256`–`Rs512`, `Ps256`–`Ps512`, `EdDsa`
+- **More JWS algorithms**: `Es512`, `Rs384`–`Rs512`, `Ps256`–`Ps512`
 - **JWE support**: `Encrypted<KM, CE>` purpose with AES-GCM, AES-CBC-HS content
   encryption and RSA-OAEP, AES-KW, ECDH-ES key management
 - **JWK / JWK Sets**: `Jwk`, `JwkSet`, `ToJwk`/`FromJwk` traits, JWK Thumbprint (RFC 7638)
