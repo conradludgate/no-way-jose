@@ -5,6 +5,7 @@ members = [
     "jose-ecdsa",
     "jose-hmac",
     "jose-json",
+    "jose-test",
 ]
 
 [workspace.dependencies]

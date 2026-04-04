@@ -244,6 +244,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "jose-test"
+version = "0.1.0"
+dependencies = [
+ "base64ct",
+ "jose-core",
+ "jose-ecdsa",
+ "jose-hmac",
+ "jose-json",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.183"
 source = "registry+https://github.com/rust-lang/crates.io-index"
