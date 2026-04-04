@@ -2,63 +2,68 @@ pub use jiff;
 pub use jose_core::validation::Validate;
 
 use jose_core::JoseError;
+use jose_core::json::{FromJson, JsonReader, JsonWriter, ToJson};
 
 /// Registered JWT claims per RFC 7519 Section 4.1.
 ///
 /// Timestamps are NumericDate (seconds since epoch).
-#[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Clone, Debug)]
 pub struct RegisteredClaims {
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub iss: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub sub: Option<String>,
     /// RFC 7519 §4.1.3: may be a single string or an array of strings.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "one_or_many::serialize",
-        deserialize_with = "one_or_many::deserialize"
-    )]
     pub aud: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub exp: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub nbf: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub iat: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub jti: Option<String>,
 }
 
-mod one_or_many {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S: Serializer>(
-        value: &Option<Vec<String>>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        match value {
-            None => serializer.serialize_none(),
-            Some(v) if v.len() == 1 => serializer.serialize_str(&v[0]),
-            Some(v) => v.serialize(serializer),
+impl ToJson for RegisteredClaims {
+    fn to_json_bytes(&self) -> Vec<u8> {
+        let mut w = JsonWriter::new();
+        if let Some(iss) = &self.iss {
+            w.string("iss", iss);
         }
+        if let Some(sub) = &self.sub {
+            w.string("sub", sub);
+        }
+        if let Some(aud) = &self.aud {
+            w.string_or_array("aud", aud);
+        }
+        if let Some(exp) = self.exp {
+            w.number("exp", exp);
+        }
+        if let Some(nbf) = self.nbf {
+            w.number("nbf", nbf);
+        }
+        if let Some(iat) = self.iat {
+            w.number("iat", iat);
+        }
+        if let Some(jti) = &self.jti {
+            w.string("jti", jti);
+        }
+        w.finish()
     }
+}
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Option<Vec<String>>, D::Error> {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum OneOrMany {
-            One(String),
-            Many(Vec<String>),
+impl FromJson for RegisteredClaims {
+    fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
+        let mut reader = JsonReader::new(bytes)?;
+        let mut claims = RegisteredClaims::default();
+        while let Some(key) = reader.next_key()? {
+            match key {
+                "iss" => claims.iss = Some(reader.read_string()?),
+                "sub" => claims.sub = Some(reader.read_string()?),
+                "aud" => claims.aud = Some(reader.read_string_or_string_array()?),
+                "exp" => claims.exp = Some(reader.read_i64()?),
+                "nbf" => claims.nbf = Some(reader.read_i64()?),
+                "iat" => claims.iat = Some(reader.read_i64()?),
+                "jti" => claims.jti = Some(reader.read_string()?),
+                _ => reader.skip_value()?,
+            }
         }
-
-        Option::<OneOrMany>::deserialize(deserializer).map(|opt| match opt {
-            None => None,
-            Some(OneOrMany::One(s)) => Some(vec![s]),
-            Some(OneOrMany::Many(v)) => Some(v),
-        })
+        Ok(claims)
     }
 }
 

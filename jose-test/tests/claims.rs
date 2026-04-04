@@ -1,4 +1,5 @@
 /// Claims validation tests.
+use jose_core::json::{FromJson, ToJson};
 use jose_core::validation::Validate;
 use jose_json::jiff;
 use jose_json::{ForAudience, FromIssuer, HasExpiry, RegisteredClaims, Time};
@@ -82,17 +83,19 @@ fn for_audience_validates_array() {
 
 #[test]
 fn aud_deserializes_string_and_array() {
-    let single: RegisteredClaims = serde_json::from_str(r#"{"aud":"x"}"#).unwrap();
+    let single = RegisteredClaims::from_json_bytes(br#"{"aud":"x"}"#).unwrap();
     assert_eq!(single.aud, Some(vec!["x".into()]));
 
-    let array: RegisteredClaims = serde_json::from_str(r#"{"aud":["x","y"]}"#).unwrap();
+    let array = RegisteredClaims::from_json_bytes(br#"{"aud":["x","y"]}"#).unwrap();
     assert_eq!(array.aud, Some(vec!["x".into(), "y".into()]));
 
-    let single_json = serde_json::to_string(&single).unwrap();
-    assert!(single_json.contains(r#""aud":"x""#));
+    let single_json = single.to_json_bytes();
+    let single_str = std::str::from_utf8(&single_json).unwrap();
+    assert!(single_str.contains(r#""aud":"x""#));
 
-    let array_json = serde_json::to_string(&array).unwrap();
-    assert!(array_json.contains(r#""aud":["x","y"]"#));
+    let array_json = array.to_json_bytes();
+    let array_str = std::str::from_utf8(&array_json).unwrap();
+    assert!(array_str.contains(r#""aud":["x","y"]"#));
 }
 
 #[test]
