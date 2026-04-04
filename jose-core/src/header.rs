@@ -64,7 +64,7 @@ impl HeaderBuilder {
 /// Parse a base64url-encoded header into owned fields.
 pub fn parse_header_owned(header_b64: &str) -> Result<OwnedHeader, JoseError> {
     let bytes = crate::base64url::decode(header_b64)?;
-    serde_json::from_slice(&bytes).map_err(|_| JoseError::InvalidToken)
+    serde_json::from_slice(&bytes).map_err(|_| JoseError::InvalidToken("malformed header JSON"))
 }
 
 /// Owned version of a decoded JOSE header.

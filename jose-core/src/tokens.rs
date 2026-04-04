@@ -87,10 +87,10 @@ where
 {
     pub fn sign(self, key: &SigningKey<A>) -> Result<CompactJws<A, M>, JoseError> {
         let header_bytes = crate::base64url::decode(&self.header_b64)?;
-        let header: AlgHeader =
-            serde_json::from_slice(&header_bytes).map_err(|_| JoseError::InvalidToken)?;
+        let header: AlgHeader = serde_json::from_slice(&header_bytes)
+            .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?;
         if header.alg != A::ALG {
-            return Err(JoseError::InvalidToken);
+            return Err(JoseError::InvalidToken("header alg does not match type parameter"));
         }
 
         let payload_bytes = serde_json::to_vec(&self.claims)
@@ -161,16 +161,17 @@ impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.splitn(3, '.');
-        let header_b64 = parts.next().ok_or(JoseError::InvalidToken)?;
-        let payload_b64 = parts.next().ok_or(JoseError::InvalidToken)?;
-        let signature_b64 = parts.next().ok_or(JoseError::InvalidToken)?;
+        let header_b64 = parts.next().ok_or(JoseError::InvalidToken("missing header"))?;
+        let payload_b64 = parts.next().ok_or(JoseError::InvalidToken("missing payload"))?;
+        let signature_b64 = parts
+            .next()
+            .ok_or(JoseError::InvalidToken("missing signature"))?;
 
-        // Decode header to validate `alg`
         let header_bytes = crate::base64url::decode(header_b64)?;
-        let header: AlgHeader =
-            serde_json::from_slice(&header_bytes).map_err(|_| JoseError::InvalidToken)?;
+        let header: AlgHeader = serde_json::from_slice(&header_bytes)
+            .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?;
         if header.alg != A::ALG {
-            return Err(JoseError::InvalidToken);
+            return Err(JoseError::InvalidToken("alg mismatch"));
         }
 
         let signature = crate::base64url::decode(signature_b64)?;

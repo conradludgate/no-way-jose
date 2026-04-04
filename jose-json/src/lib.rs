@@ -106,7 +106,7 @@ impl Validate for HasExpiry {
     type Claims = RegisteredClaims;
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         if claims.exp.is_none() {
-            return Err(JoseError::ClaimsError);
+            return Err(JoseError::ClaimsError("missing exp claim"));
         }
         Ok(())
     }
@@ -137,12 +137,12 @@ impl Validate for Time {
         if let Some(exp) = claims.exp
             && exp < self.now
         {
-            return Err(JoseError::ClaimsError);
+            return Err(JoseError::ClaimsError("token expired"));
         }
         if let Some(nbf) = claims.nbf
             && self.now < nbf
         {
-            return Err(JoseError::ClaimsError);
+            return Err(JoseError::ClaimsError("token not yet valid"));
         }
         Ok(())
     }
@@ -154,7 +154,7 @@ impl<T: AsRef<str>> Validate for FromIssuer<T> {
     type Claims = RegisteredClaims;
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         if claims.iss.as_deref() != Some(self.0.as_ref()) {
-            return Err(JoseError::ClaimsError);
+            return Err(JoseError::ClaimsError("issuer mismatch"));
         }
         Ok(())
     }
@@ -167,7 +167,7 @@ impl<T: AsRef<str>> Validate for ForAudience<T> {
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         match &claims.aud {
             Some(auds) if auds.iter().any(|a| a == self.0.as_ref()) => Ok(()),
-            _ => Err(JoseError::ClaimsError),
+            _ => Err(JoseError::ClaimsError("audience mismatch")),
         }
     }
 }

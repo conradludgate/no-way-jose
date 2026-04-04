@@ -32,9 +32,9 @@ pub type UnsignedToken<A, M> = tokens::UnsignedToken<A, M>;
 pub enum JoseError {
     Base64DecodeError,
     InvalidKey,
-    InvalidToken,
+    InvalidToken(&'static str),
     CryptoError,
-    ClaimsError,
+    ClaimsError(&'static str),
     PayloadError(Box<dyn Error + Send + Sync>),
 }
 
@@ -52,9 +52,9 @@ impl core::fmt::Display for JoseError {
         match self {
             JoseError::Base64DecodeError => f.write_str("could not base64url-decode the token"),
             JoseError::InvalidKey => f.write_str("could not parse the key"),
-            JoseError::InvalidToken => f.write_str("could not parse the token"),
+            JoseError::InvalidToken(msg) => write!(f, "invalid token: {msg}"),
             JoseError::CryptoError => f.write_str("signature or decryption verification failed"),
-            JoseError::ClaimsError => f.write_str("token claims failed validation"),
+            JoseError::ClaimsError(msg) => write!(f, "claims validation failed: {msg}"),
             JoseError::PayloadError(x) => write!(f, "payload encoding error: {x}"),
         }
     }
