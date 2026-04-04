@@ -15,6 +15,8 @@ pub struct Header<'a> {
     pub typ: Option<&'a str>,
     #[serde(default)]
     pub cty: Option<&'a str>,
+    #[serde(default)]
+    pub crit: Option<alloc::vec::Vec<&'a str>>,
 }
 
 /// Builds a JOSE header and returns it as a base64url-encoded string.
@@ -79,4 +81,6 @@ pub struct OwnedHeader {
     pub typ: Option<String>,
     #[serde(default)]
     pub cty: Option<String>,
+    #[serde(default)]
+    pub crit: Option<alloc::vec::Vec<String>>,
 }

@@ -173,6 +173,10 @@ impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
         if header.alg != A::ALG {
             return Err(JoseError::InvalidToken("alg mismatch"));
         }
+        // RFC 7515 §4.1.11: reject tokens with unrecognized critical extensions
+        if header.crit.is_some() {
+            return Err(JoseError::InvalidToken("unsupported crit extension"));
+        }
 
         let signature = crate::base64url::decode(signature_b64)?;
 
@@ -190,4 +194,6 @@ impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
 #[derive(serde::Deserialize)]
 struct AlgHeader<'a> {
     alg: &'a str,
+    #[serde(default)]
+    crit: Option<alloc::vec::Vec<&'a str>>,
 }
