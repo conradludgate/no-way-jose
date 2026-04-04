@@ -8,9 +8,9 @@ A type-safe Rust JOSE (JWS/JWE/JWT/JWK) library inspired by the
 | RFC  | Title                                              | Status      |
 |------|----------------------------------------------------|-------------|
 | 7515 | JSON Web Signature (JWS)                           | Done        |
-| 7516 | JSON Web Encryption (JWE)                          | Planned     |
+| 7516 | JSON Web Encryption (JWE)                          | Partial     |
 | 7517 | JSON Web Key (JWK)                                 | Planned     |
-| 7518 | JSON Web Algorithms (JWA)                          | Done (JWS)  |
+| 7518 | JSON Web Algorithms (JWA)                          | Partial     |
 | 7519 | JSON Web Token (JWT)                               | Done        |
 | 7520 | Examples of Protecting Content Using JOSE           | Test vectors|
 | 7638 | JSON Web Key (JWK) Thumbprint                      | Planned     |
@@ -21,8 +21,10 @@ A type-safe Rust JOSE (JWS/JWE/JWT/JWK) library inspired by the
 
 ```
 no-way-jose/
-  jose-core/     Core traits, token types, base64url (no_std, no crypto deps)
+  jose-core/     Core traits, token types, Dir key mgmt, base64url (no_std, no crypto deps)
   jose-json/     JSON Payload, registered JWT claims, validators
+  jose-aes-gcm/  A128GCM, A256GCM (JWE content encryption)
+  jose-aes-kw/   A128KW, A192KW, A256KW (JWE key wrapping)
   jose-ecdsa/    ES256, ES384 (ECDSA JWS)
   jose-eddsa/    EdDSA Ed25519 (JWS)
   jose-hmac/     HS256, HS384, HS512 (HMAC JWS)
@@ -50,7 +52,7 @@ JwsAlgorithm          Algorithm marker (ALG constant)
 
 Purpose               Wire-format discriminant (Signed / Encrypted)
   ├─ Signed<A>        3-part compact: header.payload.signature
-  └─ Encrypted<KM,CE> 5-part compact: header.ek.iv.ct.tag  (future)
+  └─ Encrypted<KM,CE> 5-part compact: header.ek.iv.ct.tag
 
 HasKey<K>             Maps algorithm → concrete key type
 Signer / Verifier     Crypto entry points (impl by algorithm crates)
@@ -63,11 +65,17 @@ Validate              Claims validation (composable)
 ```
 UnsealedToken::new(claims)
   │
-  ├── .sign(key)   ──►  CompactToken<Signed<A>, M>  ──►  Display  ──►  wire
-  │                                                           │
-  │                      FromStr  ◄──  wire  ◄────────────────┘
-  │                         │
-  └── ◄── .verify(key, v) ─┘
+  ├── .sign(key)      ──►  CompactToken<Signed<A>, M>       ──►  Display  ──►  wire
+  │                                                                  │
+  │                         FromStr  ◄──  wire  ◄────────────────────┘
+  │                            │
+  ├── ◄── .verify(key, v) ────┘
+  │
+  ├── .encrypt(key)   ──►  CompactToken<Encrypted<KM,CE>, M>  ──►  Display  ──►  wire
+  │                                                                     │
+  │                         FromStr  ◄──  wire  ◄───────────────────────┘
+  │                            │
+  └── ◄── .decrypt(key, v) ───┘
 ```
 
 ### JSON handling
@@ -90,14 +98,13 @@ extraneous whitespace.
 ### Traits (jose-core)
 
 - [x] `JwsAlgorithm`
-- [ ] `JweKeyManagement` (future)
-- [ ] `JweContentEncryption` (future)
-- [x] `Purpose` / `Signed<A>`
-- [ ] `Encrypted<KM, CE>` (future)
-- [x] `HasKey<K>` / `KeyPurpose`
-- [x] `Key<A, K>` / `SigningKey<A>` / `VerifyingKey<A>`
+- [x] `JweKeyManagement` / `JweContentEncryption`
+- [x] `KeyEncryptor` / `KeyDecryptor` / `ContentEncryptor` / `ContentDecryptor`
+- [x] `Purpose` / `Signed<A>` / `Encrypted<KM, CE>`
+- [x] `HasKey<K>` / `KeyPurpose` (`Signing`, `Verifying`, `Encrypting`, `Decrypting`)
+- [x] `Key<A, K>` / `SigningKey<A>` / `VerifyingKey<A>` / `EncryptionKey<KM>` / `DecryptionKey<KM>`
 - [x] `Signer` / `Verifier`
-- [ ] `ContentEncrypt` / `KeyManage` (future)
+- [x] `Dir` key management (direct key agreement)
 - [x] `ToJson` / `FromJson` (custom, no serde dependency)
 - [x] `Validate` / `NoValidation`
 - [x] `JoseError`
@@ -106,11 +113,11 @@ extraneous whitespace.
 
 - [x] `CompactToken<P, M>`
 - [x] `UnsealedToken<P, M>`
-- [x] `SignedData`
-- [ ] `EncryptedData` (future)
+- [x] `SignedData` / `EncryptedData`
 - [x] `CompactJws<A, M>` / `UnsignedToken<A, M>` aliases
+- [x] `CompactJwe<KM, CE, M>` alias
 - [x] `UntypedCompactJws<M>` (dynamic algorithm path)
-- [x] `FromStr` / `Display` for JWS compact serialization
+- [x] `FromStr` / `Display` for JWS 3-part and JWE 5-part compact serialization
 - [x] Base64url encoding/decoding
 
 ### Header (jose-core)
@@ -138,7 +145,7 @@ extraneous whitespace.
 - [x] `ForAudience` validator
 - [x] `Time` validator
 
-### Algorithms
+### JWS Algorithms
 
 - [x] `Es256` (jose-ecdsa) — P-256 / SHA-256
 - [x] `Es384` (jose-ecdsa) — P-384 / SHA-384
@@ -147,6 +154,18 @@ extraneous whitespace.
 - [x] `Hs384` (jose-hmac) — HMAC-SHA-384
 - [x] `Hs512` (jose-hmac) — HMAC-SHA-512
 - [x] `Rs256` (jose-rsa) — RSASSA-PKCS1-v1_5 / SHA-256
+
+### JWE Key Management Algorithms
+
+- [x] `Dir` (jose-core) — Direct key agreement
+- [x] `A128Kw` (jose-aes-kw) — AES-128 Key Wrap
+- [x] `A192Kw` (jose-aes-kw) — AES-192 Key Wrap
+- [x] `A256Kw` (jose-aes-kw) — AES-256 Key Wrap
+
+### JWE Content Encryption Algorithms
+
+- [x] `A128Gcm` (jose-aes-gcm) — AES-128-GCM
+- [x] `A256Gcm` (jose-aes-gcm) — AES-256-GCM
 
 ### Tests (jose-test)
 
@@ -162,12 +181,17 @@ extraneous whitespace.
 - [x] `UntypedCompactJws` dynamic dispatch
 - [x] `require_typ` validation
 - [x] `crit` header rejection
+- [x] JWE dir + A256GCM round-trip, wrong key, tampered ciphertext, serialization
+- [x] RFC 7520 Section 5.8 — A128KW + A128GCM JWE test vector
+- [x] JWE A128KW + A128GCM round-trip
+- [x] JWE A256KW + A256GCM round-trip
+- [x] JWE wrong KEK, wrong KEK length rejection
 
 ## Future Ideas
 
 - **More JWS algorithms**: `Es512`, `Rs384`–`Rs512`, `Ps256`–`Ps512`
-- **JWE support**: `Encrypted<KM, CE>` purpose with AES-GCM, AES-CBC-HS content
-  encryption and RSA-OAEP, AES-KW, ECDH-ES key management
+- **More JWE key management**: RSA-OAEP, ECDH-ES, AES-GCM-KW, PBES2
+- **More JWE content encryption**: `A128CBC-HS256`, `A256CBC-HS512`
 - **JWK / JWK Sets**: `Jwk`, `JwkSet`, `ToJwk`/`FromJwk` traits, JWK Thumbprint (RFC 7638)
 - **Serde feature flag**: optional `serde` dep in `jose-core` providing blanket
   `ToJson`/`FromJson` for `Serialize`/`DeserializeOwned`
