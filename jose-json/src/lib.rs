@@ -20,7 +20,7 @@ pub struct RegisteredClaims {
 }
 
 impl ToJson for RegisteredClaims {
-    fn to_json_bytes(&self) -> Vec<u8> {
+    fn write_json(&self, buf: &mut Vec<u8>) {
         let mut w = JsonWriter::new();
         if let Some(iss) = &self.iss {
             w.string("iss", iss);
@@ -43,7 +43,7 @@ impl ToJson for RegisteredClaims {
         if let Some(jti) = &self.jti {
             w.string("jti", jti);
         }
-        w.finish()
+        buf.extend_from_slice(&w.finish());
     }
 }
 

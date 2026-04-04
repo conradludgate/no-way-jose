@@ -4,7 +4,13 @@ use alloc::vec::Vec;
 use crate::JoseError;
 
 pub trait ToJson {
-    fn to_json_bytes(&self) -> Vec<u8>;
+    fn write_json(&self, buf: &mut Vec<u8>);
+
+    fn to_json_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        self.write_json(&mut buf);
+        buf
+    }
 }
 
 pub trait FromJson: Sized {
@@ -15,8 +21,8 @@ pub trait FromJson: Sized {
 pub struct RawJson(pub Vec<u8>);
 
 impl ToJson for RawJson {
-    fn to_json_bytes(&self) -> Vec<u8> {
-        self.0.clone()
+    fn write_json(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self.0);
     }
 }
 
