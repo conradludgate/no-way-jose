@@ -43,7 +43,19 @@ pub struct Signing;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Verifying;
 
+/// Key used for JWE encryption (wrapping/providing CEK).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Encrypting;
+
+/// Key used for JWE decryption (unwrapping/receiving CEK).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Decrypting;
+
 impl Sealed for Signing {}
 impl Sealed for Verifying {}
+impl Sealed for Encrypting {}
+impl Sealed for Decrypting {}
 impl KeyPurpose for Signing {}
 impl KeyPurpose for Verifying {}
+impl KeyPurpose for Encrypting {}
+impl KeyPurpose for Decrypting {}
