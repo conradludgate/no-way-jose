@@ -12,6 +12,7 @@ pub struct HeaderBuilder {
 
 struct BuilderHeader {
     alg: &'static str,
+    enc: Option<&'static str>,
     kid: Option<String>,
     typ: Option<String>,
     extra: BTreeMap<String, String>,
@@ -22,11 +23,17 @@ impl HeaderBuilder {
         HeaderBuilder {
             header: BuilderHeader {
                 alg,
+                enc: None,
                 kid: None,
                 typ: None,
                 extra: BTreeMap::new(),
             },
         }
+    }
+
+    pub fn enc(mut self, enc: &'static str) -> Self {
+        self.header.enc = Some(enc);
+        self
     }
 
     pub fn kid(mut self, kid: impl Into<String>) -> Self {
@@ -49,6 +56,9 @@ impl BuilderHeader {
     fn to_json_bytes(&self) -> Vec<u8> {
         let mut w = JsonWriter::new();
         w.string("alg", self.alg);
+        if let Some(enc) = self.enc {
+            w.string("enc", enc);
+        }
         if let Some(kid) = &self.kid {
             w.string("kid", kid);
         }
@@ -81,7 +91,9 @@ pub struct OwnedHeader {
 }
 
 impl FromJson for OwnedHeader {
-    fn from_json_bytes(bytes: &[u8]) -> Result<Self, alloc::boxed::Box<dyn core::error::Error + Send + Sync>> {
+    fn from_json_bytes(
+        bytes: &[u8],
+    ) -> Result<Self, alloc::boxed::Box<dyn core::error::Error + Send + Sync>> {
         let mut reader = JsonReader::new(bytes)?;
         let mut alg = None;
         let mut enc = None;
