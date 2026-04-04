@@ -1,4 +1,6 @@
-use jose_aes_gcm::A256Gcm;
+use base64ct::{Base64UrlUnpadded, Encoding};
+use jose_aes_gcm::{A128Gcm, A256Gcm};
+use jose_aes_kw;
 use jose_core::JoseError;
 use jose_core::dir;
 use jose_core::json::{FromJson, JsonReader, JsonWriter, RawJson, ToJson};
@@ -208,4 +210,141 @@ fn dir_rejects_wrong_key_length() {
     let token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, Claims>::new(claims);
     let result = token.encrypt(&enc_key);
     assert!(result.is_err());
+}
+
+// ====================================================================
+// AES Key Wrap tests
+// ====================================================================
+
+/// RFC 7520 Section 5.8 — A128KW + A128GCM compact token.
+/// Whitespace removed from the RFC representation.
+const RFC7520_A128KW_A128GCM_TOKEN: &str = "\
+eyJhbGciOiJBMTI4S1ciLCJraWQiOiI4MWIyMDk2NS04MzMyLTQzZDktYTQ2OC\
+04MjE2MGFkOTFhYzgiLCJlbmMiOiJBMTI4R0NNIn0\
+.\
+CBI6oDw8MydIx1IBntf_lQcw2MmJKIQx\
+.\
+Qx0pmsDa8KnJc9Jo\
+.\
+AwliP-KmWgsZ37BvzCefNen6VTbRK3QMA4TkvRkH0tP1bTdhtFJgJxeVmJkLD6\
+1A1hnWGetdg11c9ADsnWgL56NyxwSYjU1ZEHcGkd3EkU0vjHi9gTlb90qSYFfe\
+F0LwkcTtjbYKCsiNJQkcIp1yeM03OmuiYSoYJVSpf7ej6zaYcMv3WwdxDFl8RE\
+wOhNImk2Xld2JXq6BR53TSFkyT7PwVLuq-1GwtGHlQeg7gDT6xW0JqHDPn_H-p\
+uQsmthc9Zg0ojmJfqqFvETUxLAF-KjcBTS5dNy6egwkYtOt8EIHK-oEsKYtZRa\
+a8Z7MOZ7UGxGIMvEmxrGCPeJa14slv2-gaqK0kEThkaSqdYw0FkQZF\
+.\
+ER7MWJZ1FBI_NKvn7Zb1Lw";
+
+/// RFC 7520 Figure 72 plaintext (Tolkien quote with EN DASH U+2013).
+fn rfc7520_plaintext() -> Vec<u8> {
+    let s = "You can trust us to stick with you through thick and \
+             thin\u{2013}to the bitter end. And you can trust us to \
+             keep any secret of yours\u{2013}closer than you keep it \
+             yourself. But you cannot trust us to let you face trouble \
+             alone, and go off without a word. We are your friends, Frodo.";
+    s.into()
+}
+
+#[test]
+fn rfc7520_a128kw_a128gcm_decrypt() {
+    let kek_bytes = Base64UrlUnpadded::decode_vec("GZy6sIZ6wl9NJOKB-jnmVQ").unwrap();
+    let dec_key = jose_aes_kw::a128kw::decryption_key(kek_bytes).unwrap();
+
+    let token: CompactJwe<jose_aes_kw::A128Kw, A128Gcm, RawJson> =
+        RFC7520_A128KW_A128GCM_TOKEN.parse().unwrap();
+    let unsealed = token.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.0, rfc7520_plaintext());
+}
+
+#[test]
+fn a128kw_a128gcm_roundtrip() {
+    let kek = vec![0x42u8; 16];
+    let enc_key = jose_aes_kw::a128kw::encryption_key(kek.clone()).unwrap();
+    let dec_key = jose_aes_kw::a128kw::decryption_key(kek).unwrap();
+
+    let claims = Claims {
+        sub: "a128kw".into(),
+        admin: true,
+    };
+
+    let token = UnsealedToken::<Encrypted<jose_aes_kw::A128Kw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let serialized = compact.to_string();
+    assert_eq!(serialized.matches('.').count(), 4);
+
+    let parsed: CompactJwe<jose_aes_kw::A128Kw, A128Gcm, Claims> = serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "a128kw");
+    assert!(unsealed.claims.admin);
+}
+
+#[test]
+fn a256kw_a256gcm_roundtrip() {
+    let kek = vec![0x77u8; 32];
+    let enc_key = jose_aes_kw::a256kw::encryption_key(kek.clone()).unwrap();
+    let dec_key = jose_aes_kw::a256kw::decryption_key(kek).unwrap();
+
+    let claims = Claims {
+        sub: "a256kw".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<jose_aes_kw::A256Kw, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let serialized = compact.to_string();
+    let parsed: CompactJwe<jose_aes_kw::A256Kw, A256Gcm, Claims> = serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "a256kw");
+    assert!(!unsealed.claims.admin);
+}
+
+#[test]
+fn a128kw_wrong_kek_fails() {
+    let enc_key = jose_aes_kw::a128kw::encryption_key(vec![0x42u8; 16]).unwrap();
+    let wrong_key = jose_aes_kw::a128kw::decryption_key(vec![0xffu8; 16]).unwrap();
+
+    let claims = Claims {
+        sub: "wrong".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<jose_aes_kw::A128Kw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let result = compact.decrypt(&wrong_key, &no_validation());
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn a128kw_rejects_wrong_kek_length() {
+    let result = jose_aes_kw::a128kw::encryption_key(vec![0u8; 15]);
+    assert!(result.is_err());
+}
+
+#[test]
+fn a256kw_rejects_wrong_kek_length() {
+    let result = jose_aes_kw::a256kw::encryption_key(vec![0u8; 31]);
+    assert!(result.is_err());
+}
+
+#[test]
+fn a128kw_header_has_alg_and_enc() {
+    let enc_key = jose_aes_kw::a128kw::encryption_key(vec![0x42u8; 16]).unwrap();
+
+    let claims = Claims {
+        sub: "hdr".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<jose_aes_kw::A128Kw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let header = compact.header().unwrap();
+    assert_eq!(header.alg, "A128KW");
+    assert_eq!(header.enc.as_deref(), Some("A128GCM"));
 }

@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 jose-aes-gcm = { workspace = true }
+jose-aes-kw = { workspace = true }
 jose-core = { workspace = true }
 jose-ecdsa = { workspace = true }
 jose-eddsa = { workspace = true }
