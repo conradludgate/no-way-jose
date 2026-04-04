@@ -253,6 +253,53 @@ fn es256_roundtrip() {
     assert!(verified.claims.admin);
 }
 
+// -- RFC 8037 A.4/A.5: EdDSA Ed25519 --
+
+const EDDSA_TOKEN: &str = "\
+    eyJhbGciOiJFZERTQSJ9.\
+    RXhhbXBsZSBvZiBFZDI1NTE5IHNpZ25pbmc.\
+    hgyY0il_MGCjP0JzlnLWG1PPOt7-09PGcvMg3AIbQR6dWbhijcNR4ki4iylGjg5BhVsPt9g7sVvpAr_MuM0KAg";
+
+#[test]
+fn eddsa_verify_rfc8037() {
+    let d_bytes = Base64UrlUnpadded::decode_vec("nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A").unwrap();
+    let d: [u8; 32] = d_bytes.try_into().unwrap();
+    let sk = jose_eddsa::signing_key_from_bytes(&d);
+    let vk = jose_eddsa::verifying_key_from_signing(&sk);
+
+    let token: jose_core::CompactJws<jose_eddsa::EdDsa, RawJson> = EDDSA_TOKEN.parse().unwrap();
+    let header = token.header().unwrap();
+    assert_eq!(header.alg, "EdDSA");
+
+    let _unsealed = token
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+}
+
+#[test]
+fn eddsa_roundtrip() {
+    let d_bytes = Base64UrlUnpadded::decode_vec("nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A").unwrap();
+    let d: [u8; 32] = d_bytes.try_into().unwrap();
+    let sk = jose_eddsa::signing_key_from_bytes(&d);
+    let vk = jose_eddsa::verifying_key_from_signing(&sk);
+
+    let claims = RoundtripClaims {
+        sub: "eddsa".into(),
+        name: "Test".into(),
+    };
+    let token_str = jose_core::UnsignedToken::<jose_eddsa::EdDsa, _>::new(claims)
+        .sign(&sk)
+        .unwrap()
+        .to_string();
+
+    let parsed: jose_core::CompactJws<jose_eddsa::EdDsa, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "eddsa");
+}
+
 // -- ES384 roundtrip --
 
 #[test]
