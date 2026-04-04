@@ -223,9 +223,12 @@ fn require_typ_validates() {
             .to_string();
 
     let token: jose_core::CompactJws<jose_hmac::Hs256> = token_str.parse().unwrap();
-
     assert!(token.require_typ("JWT").is_ok());
+
+    let token: jose_core::CompactJws<jose_hmac::Hs256> = token_str.parse().unwrap();
     assert!(token.require_typ("jwt").is_ok());
+
+    let token: jose_core::CompactJws<jose_hmac::Hs256> = token_str.parse().unwrap();
     assert!(token.require_typ("at+jwt").is_err());
 }
 

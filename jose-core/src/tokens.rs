@@ -39,7 +39,7 @@ impl<P: Purpose, M> CompactToken<P, M> {
     }
 
     /// Validate that the header's `typ` field matches the expected value (RFC 8725 §3.11).
-    pub fn require_typ(&self, expected: &str) -> Result<&Self, JoseError> {
+    pub fn require_typ(self, expected: &str) -> Result<Self, JoseError> {
         let header = self.header()?;
         match header.typ.as_deref() {
             Some(t) if t.eq_ignore_ascii_case(expected) => Ok(self),
@@ -231,7 +231,7 @@ impl<M> UntypedCompactJws<M> {
         &self.header_b64
     }
 
-    pub fn require_typ(&self, expected: &str) -> Result<&Self, JoseError> {
+    pub fn require_typ(self, expected: &str) -> Result<Self, JoseError> {
         let header = self.header()?;
         match header.typ.as_deref() {
             Some(t) if t.eq_ignore_ascii_case(expected) => Ok(self),
