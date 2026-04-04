@@ -24,6 +24,32 @@ pub struct UnsealedToken<P: Purpose, M> {
     _marker: PhantomData<P>,
 }
 
+// -- Header access --
+
+impl<P: Purpose, M> CompactToken<P, M> {
+    /// Decode and return the JOSE header.
+    pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
+        crate::header::parse_header_owned(&self.header_b64)
+    }
+
+    /// Return the raw base64url-encoded header.
+    pub fn raw_header_b64(&self) -> &str {
+        &self.header_b64
+    }
+}
+
+impl<P: Purpose, M> UnsealedToken<P, M> {
+    /// Decode and return the JOSE header.
+    pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
+        crate::header::parse_header_owned(&self.header_b64)
+    }
+
+    /// Return the raw base64url-encoded header.
+    pub fn raw_header_b64(&self) -> &str {
+        &self.header_b64
+    }
+}
+
 // -- Type aliases mirroring paseto --
 
 pub type CompactJws<A, M = Box<serde_json::value::RawValue>> = CompactToken<Signed<A>, M>;
@@ -32,10 +58,9 @@ pub type UnsignedToken<A, M> = UnsealedToken<Signed<A>, M>;
 // -- UnsealedToken constructors --
 
 impl<A: JwsAlgorithm, M> UnsealedToken<Signed<A>, M> {
-    /// Create a new unsigned token with the given claims and a minimal header.
+    /// Create a new unsigned token with the given claims and a minimal `{"alg":"..."}` header.
     pub fn new(claims: M) -> Self {
-        let header_json = alloc::format!(r#"{{"alg":"{}"}}"#, A::ALG);
-        let header_b64 = crate::base64url::encode(header_json.as_bytes());
+        let header_b64 = crate::header::HeaderBuilder::new(A::ALG).build();
         UnsealedToken {
             header_b64,
             claims,
