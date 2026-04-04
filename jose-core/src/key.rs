@@ -11,6 +11,7 @@ impl<A: HasKey<K>, K: KeyPurpose> Key<A, K> {
         Self(inner)
     }
 
+    #[doc(hidden)]
     pub fn inner(&self) -> &KeyInner<A, K> {
         &self.0
     }
