@@ -62,7 +62,7 @@ fn from_issuer_validates() {
 #[test]
 fn for_audience_validates() {
     let claims = RegisteredClaims {
-        aud: Some("my-app".into()),
+        aud: Some(vec!["my-app".into()]),
         ..Default::default()
     };
     assert!(ForAudience("my-app").validate(&claims).is_ok());
@@ -70,10 +70,36 @@ fn for_audience_validates() {
 }
 
 #[test]
+fn for_audience_validates_array() {
+    let claims = RegisteredClaims {
+        aud: Some(vec!["app-a".into(), "app-b".into()]),
+        ..Default::default()
+    };
+    assert!(ForAudience("app-a").validate(&claims).is_ok());
+    assert!(ForAudience("app-b").validate(&claims).is_ok());
+    assert!(ForAudience("app-c").validate(&claims).is_err());
+}
+
+#[test]
+fn aud_deserializes_string_and_array() {
+    let single: RegisteredClaims = serde_json::from_str(r#"{"aud":"x"}"#).unwrap();
+    assert_eq!(single.aud, Some(vec!["x".into()]));
+
+    let array: RegisteredClaims = serde_json::from_str(r#"{"aud":["x","y"]}"#).unwrap();
+    assert_eq!(array.aud, Some(vec!["x".into(), "y".into()]));
+
+    let single_json = serde_json::to_string(&single).unwrap();
+    assert!(single_json.contains(r#""aud":"x""#));
+
+    let array_json = serde_json::to_string(&array).unwrap();
+    assert!(array_json.contains(r#""aud":["x","y"]"#));
+}
+
+#[test]
 fn composable_validators() {
     let claims = RegisteredClaims {
         iss: Some("example.com".into()),
-        aud: Some("my-app".into()),
+        aud: Some(vec!["my-app".into()]),
         exp: Some(9999999999),
         nbf: Some(0),
         ..Default::default()
