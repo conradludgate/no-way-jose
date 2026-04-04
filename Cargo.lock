@@ -225,6 +225,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "jose-hmac"
+version = "0.1.0"
+dependencies = [
+ "hmac",
+ "jose-core",
+ "sha2",
+]
+
+[[package]]
 name = "jose-json"
 version = "0.1.0"
 dependencies = [

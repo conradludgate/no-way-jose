@@ -3,15 +3,19 @@ resolver = "3"
 members = [
     "jose-core",
     "jose-ecdsa",
+    "jose-hmac",
     "jose-json",
 ]
 
 [workspace.dependencies]
 jose-core = { path = "jose-core", version = "0.1.0" }
 jose-ecdsa = { path = "jose-ecdsa", version = "0.1.0" }
+jose-hmac = { path = "jose-hmac", version = "0.1.0" }
 jose-json = { path = "jose-json", version = "0.1.0" }
 base64ct = { version = "1", default-features = false, features = ["alloc"] }
+hmac = { version = "0.12", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+sha2 = { version = "0.10", default-features = false }
 jiff = { version = "0.2" }
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, features = ["alloc", "raw_value"] }
