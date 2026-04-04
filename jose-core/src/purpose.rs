@@ -1,3 +1,5 @@
+use alloc::string::String;
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use crate::algorithm::JwsAlgorithm;
@@ -17,8 +19,8 @@ impl<A: JwsAlgorithm> Purpose for Signed<A> {
     type SealedData = SignedData;
 }
 
-/// Wire-format data for a JWS compact token (payload + signature).
+/// Wire-format data for a JWS compact token.
 pub struct SignedData {
-    pub(crate) payload: alloc::boxed::Box<[u8]>,
-    pub(crate) signature: alloc::vec::Vec<u8>,
+    pub(crate) payload_b64: String,
+    pub(crate) signature: Vec<u8>,
 }

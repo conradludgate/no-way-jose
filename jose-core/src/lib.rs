@@ -6,8 +6,10 @@ extern crate alloc;
 extern crate std;
 
 pub mod algorithm;
+pub(crate) mod base64url;
 pub mod key;
 pub mod purpose;
+pub mod tokens;
 
 mod sealed {
     pub trait Sealed {}
@@ -16,9 +18,11 @@ mod sealed {
 use alloc::boxed::Box;
 use core::error::Error;
 
-/// Type aliases for JWS tokens.
 pub type SigningKey<A> = key::Key<A, key::Signing>;
 pub type VerifyingKey<A> = key::Key<A, key::Verifying>;
+
+pub type CompactJws<A, M = Box<serde_json::value::RawValue>> = tokens::CompactJws<A, M>;
+pub type UnsignedToken<A, M> = tokens::UnsignedToken<A, M>;
 
 #[derive(Debug)]
 #[non_exhaustive]
