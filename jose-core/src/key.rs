@@ -1,9 +1,9 @@
 use crate::sealed::Sealed;
 
-pub(crate) type KeyInner<A, K> = <A as HasKey<K>>::Key;
+pub type KeyInner<A, K> = <A as HasKey<K>>::Key;
 
 /// Generic key type, parameterized by algorithm and purpose.
-pub struct Key<A: HasKey<K>, K: KeyPurpose>(pub(crate) KeyInner<A, K>);
+pub struct Key<A: HasKey<K>, K: KeyPurpose>(pub KeyInner<A, K>);
 
 impl<A: HasKey<K>, K: KeyPurpose> Clone for Key<A, K>
 where
