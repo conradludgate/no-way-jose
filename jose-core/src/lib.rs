@@ -8,6 +8,7 @@ extern crate std;
 pub mod algorithm;
 pub(crate) mod base64url;
 pub mod header;
+pub mod json;
 pub mod key;
 pub mod purpose;
 pub mod tokens;
