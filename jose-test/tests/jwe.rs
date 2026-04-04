@@ -1,6 +1,5 @@
 use base64ct::{Base64UrlUnpadded, Encoding};
 use jose_aes_gcm::{A128Gcm, A256Gcm};
-use jose_aes_kw;
 use jose_core::JoseError;
 use jose_core::dir;
 use jose_core::json::{FromJson, JsonReader, JsonWriter, RawJson, ToJson};
