@@ -125,3 +125,21 @@ fn es256_token_rejected_as_hs256() {
         ES256_TOKEN.parse();
     assert!(result.is_err());
 }
+
+#[test]
+fn require_typ_validates() {
+    let token: jose_core::CompactJws<jose_hmac::Hs256, serde_json::Value> =
+        HS256_TOKEN.parse().unwrap();
+
+    assert!(token.require_typ("JWT").is_ok());
+    assert!(token.require_typ("jwt").is_ok());
+    assert!(token.require_typ("at+jwt").is_err());
+}
+
+#[test]
+fn require_typ_rejects_missing() {
+    let token: jose_core::CompactJws<jose_ecdsa::Es256, serde_json::Value> =
+        ES256_TOKEN.parse().unwrap();
+
+    assert!(token.require_typ("JWT").is_err());
+}

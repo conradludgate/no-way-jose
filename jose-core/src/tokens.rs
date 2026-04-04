@@ -36,6 +36,15 @@ impl<P: Purpose, M> CompactToken<P, M> {
     pub fn raw_header_b64(&self) -> &str {
         &self.header_b64
     }
+
+    /// Validate that the header's `typ` field matches the expected value (RFC 8725 §3.11).
+    pub fn require_typ(&self, expected: &str) -> Result<&Self, JoseError> {
+        let header = self.header()?;
+        match header.typ.as_deref() {
+            Some(t) if t.eq_ignore_ascii_case(expected) => Ok(self),
+            _ => Err(JoseError::InvalidToken("typ mismatch")),
+        }
+    }
 }
 
 impl<P: Purpose, M> UnsealedToken<P, M> {
