@@ -169,6 +169,66 @@ fn es256_roundtrip() {
     assert!(verified.claims.admin);
 }
 
+// -- HS384 / HS512 roundtrips --
+
+#[test]
+fn hs384_roundtrip() {
+    let key_bytes = vec![0xABu8; 48];
+    let key = jose_hmac::hs384::symmetric_key(key_bytes.clone()).unwrap();
+    let vk = jose_hmac::hs384::verifying_key(key_bytes).unwrap();
+
+    let claims = RoundtripClaims {
+        sub: "hs384".into(),
+        name: "Test".into(),
+    };
+    let token_str = jose_core::UnsignedToken::<jose_hmac::Hs384, _>::new(claims)
+        .sign(&key)
+        .unwrap()
+        .to_string();
+
+    let parsed: jose_core::CompactJws<jose_hmac::Hs384, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "hs384");
+}
+
+#[test]
+fn hs512_roundtrip() {
+    let key_bytes = vec![0xCDu8; 64];
+    let key = jose_hmac::hs512::symmetric_key(key_bytes.clone()).unwrap();
+    let vk = jose_hmac::hs512::verifying_key(key_bytes).unwrap();
+
+    let claims = RoundtripClaims {
+        sub: "hs512".into(),
+        name: "Test".into(),
+    };
+    let token_str = jose_core::UnsignedToken::<jose_hmac::Hs512, _>::new(claims)
+        .sign(&key)
+        .unwrap()
+        .to_string();
+
+    let parsed: jose_core::CompactJws<jose_hmac::Hs512, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "hs512");
+}
+
+#[test]
+fn hs384_rejects_short_key() {
+    assert!(jose_hmac::hs384::symmetric_key(vec![0u8; 47]).is_err());
+    assert!(jose_hmac::hs384::symmetric_key(vec![0u8; 48]).is_ok());
+}
+
+#[test]
+fn hs512_rejects_short_key() {
+    assert!(jose_hmac::hs512::symmetric_key(vec![0u8; 63]).is_err());
+    assert!(jose_hmac::hs512::symmetric_key(vec![0u8; 64]).is_ok());
+}
+
 // -- Algorithm mismatch rejection --
 
 #[test]
