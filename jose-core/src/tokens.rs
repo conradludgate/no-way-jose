@@ -86,6 +86,13 @@ where
     M: serde::Serialize,
 {
     pub fn sign(self, key: &SigningKey<A>) -> Result<CompactJws<A, M>, JoseError> {
+        let header_bytes = crate::base64url::decode(&self.header_b64)?;
+        let header: AlgHeader =
+            serde_json::from_slice(&header_bytes).map_err(|_| JoseError::InvalidToken)?;
+        if header.alg != A::ALG {
+            return Err(JoseError::InvalidToken);
+        }
+
         let payload_bytes = serde_json::to_vec(&self.claims)
             .map_err(|e| JoseError::PayloadError(alloc::boxed::Box::new(e)))?;
         let payload_b64 = crate::base64url::encode(&payload_bytes);
