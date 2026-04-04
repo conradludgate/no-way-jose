@@ -4,6 +4,7 @@ use core::marker::PhantomData;
 
 use crate::algorithm::{JwsAlgorithm, Signer, Verifier};
 use crate::purpose::{Purpose, Signed, SignedData};
+use crate::validation::Validate;
 use crate::{JoseError, SigningKey, VerifyingKey};
 
 /// A parsed but unverified/undecrypted compact-serialized token.
@@ -86,16 +87,19 @@ where
     A: Verifier,
     M: serde::de::DeserializeOwned,
 {
-    pub fn verify(self, key: &VerifyingKey<A>) -> Result<UnsealedToken<Signed<A>, M>, JoseError> {
+    pub fn verify(
+        self,
+        key: &VerifyingKey<A>,
+        v: &impl Validate<Claims = M>,
+    ) -> Result<UnsealedToken<Signed<A>, M>, JoseError> {
         let signing_input = alloc::format!("{}.{}", self.header_b64, self.data.payload_b64);
         A::verify(&key.0, signing_input.as_bytes(), &self.data.signature)?;
 
-        let payload_bytes =
-            crate::base64url::decode(&self.data.payload_b64)?;
-        let claims: M =
-            serde_json::from_slice(&payload_bytes).map_err(|e| {
-                JoseError::PayloadError(alloc::boxed::Box::new(e))
-            })?;
+        let payload_bytes = crate::base64url::decode(&self.data.payload_b64)?;
+        let claims: M = serde_json::from_slice(&payload_bytes)
+            .map_err(|e| JoseError::PayloadError(alloc::boxed::Box::new(e)))?;
+
+        v.validate(&claims)?;
 
         Ok(UnsealedToken {
             header_b64: self.header_b64,

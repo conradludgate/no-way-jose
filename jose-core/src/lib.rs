@@ -10,6 +10,7 @@ pub(crate) mod base64url;
 pub mod key;
 pub mod purpose;
 pub mod tokens;
+pub mod validation;
 
 mod sealed {
     pub trait Sealed {}
