@@ -38,6 +38,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aes-kw"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69fa2b352dcefb5f7f3a5fb840e02665d311d878955380515e4fd50095dd3d8c"
+dependencies = [
+ "aes",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -355,6 +364,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "jose-aes-kw"
+version = "0.1.0"
+dependencies = [
+ "aes-kw",
+ "getrandom",
+ "jose-core",
+]
+
+[[package]]
 name = "jose-core"
 version = "0.1.0"
 dependencies = [
@@ -410,6 +428,7 @@ version = "0.1.0"
 dependencies = [
  "base64ct",
  "jose-aes-gcm",
+ "jose-aes-kw",
  "jose-core",
  "jose-ecdsa",
  "jose-eddsa",

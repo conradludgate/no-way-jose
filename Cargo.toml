@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "jose-aes-gcm",
+    "jose-aes-kw",
     "jose-core",
     "jose-ecdsa",
     "jose-eddsa",
@@ -13,6 +14,7 @@ members = [
 
 [workspace.dependencies]
 jose-aes-gcm = { path = "jose-aes-gcm", version = "0.1.0" }
+jose-aes-kw = { path = "jose-aes-kw", version = "0.1.0" }
 jose-core = { path = "jose-core", version = "0.1.0" }
 jose-ecdsa = { path = "jose-ecdsa", version = "0.1.0" }
 jose-eddsa = { path = "jose-eddsa", version = "0.1.0" }
@@ -27,5 +29,6 @@ p384 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 rsa = { version = "0.9", default-features = false }
 sha2 = { version = "0.10", default-features = false, features = ["oid"] }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
+aes-kw = { version = "0.2", default-features = false, features = ["alloc"] }
 getrandom = { version = "0.3" }
 jiff = { version = "0.2" }
