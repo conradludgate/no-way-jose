@@ -75,57 +75,58 @@ deserialization. A borrowed `Header<'a>` view struct deserializes on demand.
 
 ### Traits (jose-core)
 
-- [ ] `JwsAlgorithm`
+- [x] `JwsAlgorithm`
 - [ ] `JweKeyManagement` (future)
 - [ ] `JweContentEncryption` (future)
-- [ ] `Purpose` / `Signed<A>`
+- [x] `Purpose` / `Signed<A>`
 - [ ] `Encrypted<KM, CE>` (future)
-- [ ] `HasKey<K>` / `KeyPurpose`
-- [ ] `Key<A, K>` / `SigningKey<A>` / `VerifyingKey<A>`
-- [ ] `Signer` / `Verifier`
+- [x] `HasKey<K>` / `KeyPurpose`
+- [x] `Key<A, K>` / `SigningKey<A>` / `VerifyingKey<A>`
+- [x] `Signer` / `Verifier`
 - [ ] `ContentEncrypt` / `KeyManage` (future)
-- [ ] `Payload`
-- [ ] `Validate` / `NoValidation`
-- [ ] `JoseError`
+- [ ] `Payload` (using serde Serialize/DeserializeOwned directly)
+- [x] `Validate` / `NoValidation`
+- [x] `JoseError`
 
 ### Token types (jose-core)
 
-- [ ] `CompactToken<P, M>`
-- [ ] `UnsealedToken<P, M>`
-- [ ] `SignedData`
+- [x] `CompactToken<P, M>`
+- [x] `UnsealedToken<P, M>`
+- [x] `SignedData`
 - [ ] `EncryptedData` (future)
-- [ ] `CompactJws<A, M>` / `UnsignedToken<A, M>` aliases
+- [x] `CompactJws<A, M>` / `UnsignedToken<A, M>` aliases
 - [ ] `UntypedJws<M>` (dynamic algorithm path)
-- [ ] `FromStr` / `Display` for JWS compact serialization
-- [ ] Base64url encoding/decoding
+- [x] `FromStr` / `Display` for JWS compact serialization
+- [x] Base64url encoding/decoding
 
 ### Header (jose-core)
 
-- [ ] `Header<'a>` view struct
-- [ ] `HeaderBuilder`
-- [ ] `raw_header()` accessor
+- [x] `Header<'a>` view struct / `OwnedHeader`
+- [x] `HeaderBuilder`
+- [x] `raw_header_b64()` accessor
 
 ### Claims (jose-json)
 
-- [ ] `Json<M>` payload wrapper
-- [ ] `RegisteredClaims`
-- [ ] `HasExpiry` validator
-- [ ] `FromIssuer` validator
-- [ ] `ForAudience` validator
+- [ ] `Json<M>` payload wrapper (using serde directly for now)
+- [x] `RegisteredClaims`
+- [x] `HasExpiry` validator
+- [x] `FromIssuer` validator
+- [x] `ForAudience` validator
+- [x] `Time` validator
 
 ### Algorithms
 
-- [ ] `Es256` (jose-ecdsa) — P-256 / SHA-256
-- [ ] `Hs256` (jose-hmac) — HMAC-SHA-256
+- [x] `Es256` (jose-ecdsa) — P-256 / SHA-256
+- [x] `Hs256` (jose-hmac) — HMAC-SHA-256
 
 ### Tests (jose-test)
 
-- [ ] RFC 7515 Appendix A.3 — ES256 JWS test vector
-- [ ] RFC 7515 Appendix A.1 — HS256 JWS test vector
+- [x] RFC 7515 Appendix A.3 — ES256 JWS test vector
+- [x] RFC 7515 Appendix A.1 — HS256 JWS test vector
 - [ ] RFC 7520 Section 4 — ECDSA test vectors
-- [ ] Sign/verify round-trip (ES256, HS256)
-- [ ] Algorithm mismatch rejection
-- [ ] Claims validation (expiry, issuer, audience)
+- [x] Sign/verify round-trip (ES256, HS256)
+- [x] Algorithm mismatch rejection
+- [x] Claims validation (expiry, issuer, audience)
 
 ## Future Ideas
 
