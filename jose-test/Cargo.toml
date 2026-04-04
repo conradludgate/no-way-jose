@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+jose-aes-gcm = { workspace = true }
 jose-core = { workspace = true }
 jose-ecdsa = { workspace = true }
 jose-eddsa = { workspace = true }
