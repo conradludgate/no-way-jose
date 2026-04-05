@@ -900,6 +900,175 @@ fn pbes2_header_contains_p2s_and_p2c() {
 }
 
 // ====================================================================
+// Coverage: A192 variants, A192CBC-HS384, P-384 ECDH, dir+A128GCM
+// ====================================================================
+
+#[test]
+fn dir_a128gcm_roundtrip() {
+    let key = vec![0x42u8; 16];
+    let enc_key = dir::encryption_key(key.clone());
+    let dec_key = dir::decryption_key(key);
+
+    let claims = Claims {
+        sub: "dir128".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<dir::Dir, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "dir128");
+}
+
+#[test]
+fn a192kw_a128gcm_roundtrip() {
+    let kek = vec![0xABu8; 24];
+    let enc_key = no_way_jose_aes_kw::a192kw::encryption_key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_kw::a192kw::decryption_key(kek).unwrap();
+
+    let claims = Claims {
+        sub: "a192kw".into(),
+        admin: true,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_aes_kw::A192Kw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "a192kw");
+    assert!(unsealed.claims.admin);
+}
+
+#[test]
+fn dir_a192cbc_hs384_roundtrip() {
+    let key = vec![0x77u8; 48];
+    let enc_key = dir::encryption_key(key.clone());
+    let dec_key = dir::decryption_key(key);
+
+    let claims = Claims {
+        sub: "cbc192".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<dir::Dir, no_way_jose_aes_cbc_hs::A192CbcHs384>, Claims>::new(
+            claims,
+        );
+    let compact = token.encrypt(&enc_key).unwrap();
+    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "cbc192");
+}
+
+#[test]
+fn a192gcmkw_a256gcm_roundtrip() {
+    let kek = vec![0xCDu8; 24];
+    let enc_key = no_way_jose_aes_gcm_kw::a192gcmkw::encryption_key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_gcm_kw::a192gcmkw::decryption_key(kek).unwrap();
+
+    let claims = Claims {
+        sub: "gcmkw192".into(),
+        admin: true,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_aes_gcm_kw::A192GcmKw, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "gcmkw192");
+    assert!(unsealed.claims.admin);
+}
+
+fn test_p384_keypair() -> (
+    no_way_jose_ecdh_es::EcPublicKey,
+    no_way_jose_ecdh_es::EcPrivateKey,
+) {
+    let secret = p384::SecretKey::random(&mut rand_core::OsRng);
+    let public = secret.public_key();
+    (
+        no_way_jose_ecdh_es::EcPublicKey::P384(public),
+        no_way_jose_ecdh_es::EcPrivateKey::P384(secret),
+    )
+}
+
+#[test]
+fn ecdh_es_a192kw_p384_roundtrip() {
+    let (pub_key, priv_key) = test_p384_keypair();
+    let enc_key = no_way_jose_ecdh_es::ecdh_es_a192kw::encryption_key(pub_key);
+    let dec_key = no_way_jose_ecdh_es::ecdh_es_a192kw::decryption_key(priv_key);
+
+    let claims = Claims {
+        sub: "p384-kw".into(),
+        admin: true,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEsA192Kw, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "p384-kw");
+    assert!(unsealed.claims.admin);
+}
+
+#[test]
+fn ecdh_es_a256kw_a128cbc_hs256_roundtrip() {
+    let (pub_key, priv_key) = test_p256_keypair();
+    let enc_key = no_way_jose_ecdh_es::ecdh_es_a256kw::encryption_key(pub_key);
+    let dec_key = no_way_jose_ecdh_es::ecdh_es_a256kw::decryption_key(priv_key);
+
+    let claims = Claims {
+        sub: "ecdh256kw".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEsA256Kw, A128CbcHs256>, Claims>::new(
+            claims,
+        );
+    let compact = token.encrypt(&enc_key).unwrap();
+    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "ecdh256kw");
+}
+
+#[test]
+fn ecdh_es_direct_p384_a256gcm_roundtrip() {
+    let (pub_key, priv_key) = test_p384_keypair();
+    let enc_key = no_way_jose_ecdh_es::ecdh_es::encryption_key(pub_key);
+    let dec_key = no_way_jose_ecdh_es::ecdh_es::decryption_key(priv_key);
+
+    let claims = Claims {
+        sub: "p384-direct".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEs, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "p384-direct");
+}
+
+#[test]
+fn pbes2_hs384_a192kw_roundtrip() {
+    let password = b"a-decent-password";
+    let enc_key = no_way_jose_pbes2::pbes2_hs384_a192kw::encryption_key(password.to_vec());
+    let dec_key = no_way_jose_pbes2::pbes2_hs384_a192kw::decryption_key(password.to_vec());
+
+    let claims = Claims {
+        sub: "pbes2-384".into(),
+        admin: true,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_pbes2::Pbes2Hs384A192Kw, A256Gcm>, Claims>::new(
+            claims,
+        );
+    let compact = token.encrypt(&enc_key).unwrap();
+    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "pbes2-384");
+    assert!(unsealed.claims.admin);
+}
+
+// ====================================================================
 // RFC 7520 test vectors
 // ====================================================================
 
