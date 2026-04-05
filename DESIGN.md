@@ -221,10 +221,41 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] JWE RSA-OAEP + A256GCM, RSA-OAEP-256 + A128GCM round-trip
 - [x] JWE RSA1_5 + A128CBC-HS256 round-trip
 - [x] JWE A128GCMKW + A128GCM, A256GCMKW + A256GCM round-trip
-- [x] JWE ECDH-ES + A256GCM (direct), ECDH-ES+A128KW + A128GCM round-trip
-- [x] JWE PBES2-HS256+A128KW + A128GCM, PBES2-HS512+A256KW + A256GCM round-trip
+- [x] JWE dir + A128GCM, dir + A192CBC-HS384 round-trip
+- [x] JWE A192KW + A128GCM round-trip
+- [x] JWE A192GCMKW + A256GCM round-trip
+- [x] JWE ECDH-ES + A256GCM (direct, P-256 and P-384), ECDH-ES+A128KW + A128GCM round-trip
+- [x] JWE ECDH-ES+A192KW (P-384), ECDH-ES+A256KW + A128CBC-HS256 round-trip
+- [x] JWE PBES2-HS256+A128KW + A128GCM, PBES2-HS384+A192KW, PBES2-HS512+A256KW + A256GCM round-trip
 - [x] JWE wrong key / wrong KEK / wrong password rejection
 - [x] JWE header parameter verification (iv/tag for GCM-KW, epk for ECDH-ES, p2s/p2c for PBES2)
+
+### `no_std` support
+
+All algorithm crates (`no-way-jose-hmac`, `no-way-jose-ecdsa`, `no-way-jose-eddsa`,
+`no-way-jose-rsa`, `no-way-jose-aes-gcm`, `no-way-jose-aes-cbc-hs`, `no-way-jose-aes-kw`,
+`no-way-jose-aes-gcm-kw`, `no-way-jose-ecdh-es`, `no-way-jose-pbes2`) and `no-way-jose-core`
+are `#![no_std]` with `extern crate alloc`. Each algorithm crate re-exports `no_way_jose_core`
+for downstream convenience.
+
+### Dependency versions
+
+Cryptographic dependencies track the latest RustCrypto releases (RC where stable
+is not yet available). Key dependency versions as of the latest update:
+
+| Crate | Version | Notes |
+|-------|---------|-------|
+| `aes` | 0.9.0-rc.4 | |
+| `aes-gcm` | 0.11.0-rc.3 | |
+| `aes-kw` | 0.3.0-rc.2 | `KwAes{128,192,256}` types |
+| `cbc` | 0.2.0-rc.4 | |
+| `ed25519-dalek` | 3.0.0-pre.6 | |
+| `getrandom` | 0.4 | Provides `SysRng` (replaces `OsRng`) |
+| `hmac` | 0.13.0-rc.6 | |
+| `p256` / `p384` | 0.14.0-rc.7/8 | |
+| `pbkdf2` | 0.13.0-rc.9 | |
+| `rsa` | 0.10.0-rc.17 | Uses `BoxedUint` (crypto-bigint) |
+| `sha1` / `sha2` | 0.11 | |
 
 ## Future Ideas
 
@@ -234,7 +265,7 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
   `ToJson`/`FromJson` for `Serialize`/`DeserializeOwned`
 - **Header caching**: avoid re-decoding the header in `FromStr` → `header()` → `verify()`
 - **Alternate crypto backends**: aws-lc-rs, ring, libsodium
-- **`no_std` support**: no-way-jose-core is designed for it; algorithm crates may vary
+- **`no_std` end-to-end**: core and algorithm crates are `#![no_std]`; verify in a real embedded target
 - **JSON serialization mode**: JWS/JWE JSON serialization (non-compact), multiple signatures
 - **Benchmarks**: Criterion benchmarks comparing against other Rust JOSE libraries
 - **X25519 ECDH-ES**: extend no-way-jose-ecdh-es to support X25519 (via x25519-dalek)
