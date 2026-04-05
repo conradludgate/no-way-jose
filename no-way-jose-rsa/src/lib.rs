@@ -14,6 +14,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, RsaParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 /// RS256: RSASSA-PKCS1-v1_5 using SHA-256 (RFC 7518 Section 3.3).
@@ -81,6 +82,157 @@ pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
 }
 
 // ====================================================================
+// JWK support helpers
+// ====================================================================
+
+fn rsa_pubkey_to_jwk(key: &rsa::RsaPublicKey, alg: &str) -> Jwk {
+    use rsa::traits::PublicKeyParts;
+    Jwk {
+        kty: "RSA".into(),
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        params: JwkParams::Rsa(RsaParams {
+            n: key.n_bytes().to_vec(),
+            e: key.e_bytes().to_vec(),
+            d: None,
+            p: None,
+            q: None,
+            dp: None,
+            dq: None,
+            qi: None,
+        }),
+    }
+}
+
+fn rsa_privkey_to_jwk(key: &rsa::RsaPrivateKey, alg: &str) -> Jwk {
+    use rsa::traits::{PrivateKeyParts, PublicKeyParts};
+    let primes = key.primes();
+    let mut jwk = Jwk {
+        kty: "RSA".into(),
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        params: JwkParams::Rsa(RsaParams {
+            n: key.n_bytes().to_vec(),
+            e: key.e_bytes().to_vec(),
+            d: Some(boxed_uint_to_be_bytes(key.d())),
+            p: primes.first().map(boxed_uint_to_be_bytes),
+            q: primes.get(1).map(boxed_uint_to_be_bytes),
+            dp: key.dp().map(boxed_uint_to_be_bytes),
+            dq: key.dq().map(boxed_uint_to_be_bytes),
+            qi: None,
+        }),
+    };
+    if let Some(qi) = key.crt_coefficient() {
+        if let JwkParams::Rsa(ref mut p) = jwk.params {
+            p.qi = Some(boxed_uint_to_be_bytes(&qi));
+        }
+    }
+    jwk
+}
+
+fn boxed_uint_to_be_bytes(v: &rsa::BoxedUint) -> Vec<u8> {
+    let bytes = v.to_be_bytes();
+    let start = bytes.iter().position(|&b| b != 0).unwrap_or(bytes.len());
+    bytes[start..].to_vec()
+}
+
+fn boxed_uint_from_be_bytes(bytes: &[u8]) -> rsa::BoxedUint {
+    let bits = (bytes.len() as u32 * 8).next_multiple_of(64);
+    rsa::BoxedUint::from_be_slice(bytes, bits).expect("valid byte length")
+}
+
+fn validate_rsa_jwk(jwk: &Jwk, expected_alg: &str) -> Result<(), JoseError> {
+    if jwk.kty != "RSA" {
+        return Err(JoseError::InvalidKey);
+    }
+    if let Some(alg) = &jwk.alg {
+        if alg != expected_alg {
+            return Err(JoseError::InvalidKey);
+        }
+    }
+    Ok(())
+}
+
+fn rsa_pubkey_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPublicKey, JoseError> {
+    match &jwk.params {
+        JwkParams::Rsa(p) => {
+            let n = boxed_uint_from_be_bytes(&p.n);
+            let e = boxed_uint_from_be_bytes(&p.e);
+            rsa::RsaPublicKey::new_with_max_size(n, e, 16384).map_err(|_| JoseError::InvalidKey)
+        }
+        _ => Err(JoseError::InvalidKey),
+    }
+}
+
+fn rsa_privkey_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPrivateKey, JoseError> {
+    match &jwk.params {
+        JwkParams::Rsa(p) => {
+            let n = boxed_uint_from_be_bytes(&p.n);
+            let e = boxed_uint_from_be_bytes(&p.e);
+            let d = boxed_uint_from_be_bytes(p.d.as_ref().ok_or(JoseError::InvalidKey)?);
+            let mut primes = Vec::new();
+            if let Some(p_val) = &p.p {
+                primes.push(boxed_uint_from_be_bytes(p_val));
+            }
+            if let Some(q) = &p.q {
+                primes.push(boxed_uint_from_be_bytes(q));
+            }
+            rsa::RsaPrivateKey::from_components(n, e, d, primes).map_err(|_| JoseError::InvalidKey)
+        }
+        _ => Err(JoseError::InvalidKey),
+    }
+}
+
+macro_rules! rsa_jwk_impls {
+    ($name:ident, $alg:literal, signing) => {
+        impl JwkKeyConvert<Signing> for $name {
+            fn key_to_jwk(key: &rsa::RsaPrivateKey) -> Jwk {
+                rsa_privkey_to_jwk(key, $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPrivateKey, JoseError> {
+                validate_rsa_jwk(jwk, $alg)?;
+                rsa_privkey_from_jwk(jwk)
+            }
+        }
+        impl JwkKeyConvert<Verifying> for $name {
+            fn key_to_jwk(key: &rsa::RsaPublicKey) -> Jwk {
+                rsa_pubkey_to_jwk(key, $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPublicKey, JoseError> {
+                validate_rsa_jwk(jwk, $alg)?;
+                rsa_pubkey_from_jwk(jwk)
+            }
+        }
+    };
+    ($name:ident, $alg:literal, encrypting) => {
+        impl JwkKeyConvert<Encrypting> for $name {
+            fn key_to_jwk(key: &rsa::RsaPublicKey) -> Jwk {
+                rsa_pubkey_to_jwk(key, $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPublicKey, JoseError> {
+                validate_rsa_jwk(jwk, $alg)?;
+                rsa_pubkey_from_jwk(jwk)
+            }
+        }
+        impl JwkKeyConvert<Decrypting> for $name {
+            fn key_to_jwk(key: &rsa::RsaPrivateKey) -> Jwk {
+                rsa_privkey_to_jwk(key, $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPrivateKey, JoseError> {
+                validate_rsa_jwk(jwk, $alg)?;
+                rsa_privkey_from_jwk(jwk)
+            }
+        }
+    };
+}
+
+rsa_jwk_impls!(Rs256, "RS256", signing);
+
+// ====================================================================
 // PS256: RSA-PSS
 // ====================================================================
 
@@ -126,6 +278,8 @@ impl Verifier for Ps256 {
             .map_err(|_| JoseError::CryptoError)
     }
 }
+
+rsa_jwk_impls!(Ps256, "PS256", signing);
 
 pub mod ps256 {
     pub type SigningKey = no_way_jose_core::SigningKey<super::Ps256>;
@@ -232,6 +386,10 @@ rsa_kw_algorithm!(
     rsa::Oaep::<sha2::Sha256>::new(),
     "RSA-OAEP with SHA-256 key encryption (RFC 7518 §4.3)."
 );
+
+rsa_jwk_impls!(Rsa1_5, "RSA1_5", encrypting);
+rsa_jwk_impls!(RsaOaep, "RSA-OAEP", encrypting);
+rsa_jwk_impls!(RsaOaep256, "RSA-OAEP-256", encrypting);
 
 pub mod rsa1_5 {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Rsa1_5>;
