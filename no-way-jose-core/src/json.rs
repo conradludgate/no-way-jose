@@ -509,6 +509,52 @@ impl<'a> JsonReader<'a> {
     }
 }
 
+/// Read a string-valued field from a compact JSON header object.
+pub fn read_header_string(header: &[u8], field: &str) -> Result<String, JoseError> {
+    let mut reader =
+        JsonReader::new(header).map_err(|_| JoseError::InvalidToken("malformed header"))?;
+    while let Some(key) = reader
+        .next_key()
+        .map_err(|_| JoseError::InvalidToken("malformed header"))?
+    {
+        if key == field {
+            return reader
+                .read_string()
+                .map_err(|_| JoseError::InvalidToken("malformed header field"));
+        }
+        reader
+            .skip_value()
+            .map_err(|_| JoseError::InvalidToken("malformed header"))?;
+    }
+    Err(JoseError::InvalidToken("missing required header field"))
+}
+
+/// Read an integer-valued field from a compact JSON header object.
+pub fn read_header_i64(header: &[u8], field: &str) -> Result<i64, JoseError> {
+    let mut reader =
+        JsonReader::new(header).map_err(|_| JoseError::InvalidToken("malformed header"))?;
+    while let Some(key) = reader
+        .next_key()
+        .map_err(|_| JoseError::InvalidToken("malformed header"))?
+    {
+        if key == field {
+            return reader
+                .read_i64()
+                .map_err(|_| JoseError::InvalidToken("malformed header field"));
+        }
+        reader
+            .skip_value()
+            .map_err(|_| JoseError::InvalidToken("malformed header"))?;
+    }
+    Err(JoseError::InvalidToken("missing required header field"))
+}
+
+/// Read a base64url-encoded string field from a compact JSON header and decode it.
+pub fn read_header_b64(header: &[u8], field: &str) -> Result<Vec<u8>, JoseError> {
+    let val = read_header_string(header, field)?;
+    crate::base64url::decode(&val)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
