@@ -247,6 +247,7 @@ dependencies = [
  "ff",
  "generic-array",
  "group",
+ "hkdf",
  "rand_core",
  "sec1",
  "subtle",
@@ -322,6 +323,15 @@ dependencies = [
  "ff",
  "rand_core",
  "subtle",
+]
+
+[[package]]
+name = "hkdf"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
+dependencies = [
+ "hmac",
 ]
 
 [[package]]
@@ -468,6 +478,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "no-way-jose-ecdh-es"
+version = "0.1.0"
+dependencies = [
+ "aes-kw",
+ "base64ct",
+ "getrandom 0.3.4",
+ "no-way-jose-core",
+ "p256",
+ "p384",
+ "rand_core",
+ "sha2",
+]
+
+[[package]]
 name = "no-way-jose-ecdsa"
 version = "0.1.0"
 dependencies = [
@@ -515,10 +539,13 @@ dependencies = [
  "no-way-jose-aes-kw",
  "no-way-jose-claims",
  "no-way-jose-core",
+ "no-way-jose-ecdh-es",
  "no-way-jose-ecdsa",
  "no-way-jose-eddsa",
  "no-way-jose-hmac",
  "no-way-jose-rsa",
+ "p256",
+ "rand_core",
  "rsa",
 ]
 

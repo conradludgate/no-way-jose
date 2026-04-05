@@ -682,3 +682,115 @@ fn a128gcmkw_header_contains_iv_and_tag() {
     assert!(header_str.contains("\"iv\""));
     assert!(header_str.contains("\"tag\""));
 }
+
+// ====================================================================
+// ECDH-ES tests
+// ====================================================================
+
+fn test_p256_keypair() -> (
+    no_way_jose_ecdh_es::EcPublicKey,
+    no_way_jose_ecdh_es::EcPrivateKey,
+) {
+    let secret = p256::SecretKey::random(&mut rand_core::OsRng);
+    let public = secret.public_key();
+    (
+        no_way_jose_ecdh_es::EcPublicKey::P256(public),
+        no_way_jose_ecdh_es::EcPrivateKey::P256(secret),
+    )
+}
+
+#[test]
+fn ecdh_es_a128kw_a128gcm_roundtrip() {
+    let (pub_key, priv_key) = test_p256_keypair();
+    let enc_key = no_way_jose_ecdh_es::ecdh_es_a128kw::encryption_key(pub_key);
+    let dec_key = no_way_jose_ecdh_es::ecdh_es_a128kw::decryption_key(priv_key);
+
+    let claims = Claims {
+        sub: "ecdh-kw".into(),
+        admin: true,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEsA128Kw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let header = compact.header().unwrap();
+    assert_eq!(header.alg, "ECDH-ES+A128KW");
+    assert_eq!(header.enc.as_deref(), Some("A128GCM"));
+
+    let serialized = compact.to_string();
+    let parsed: CompactJwe<no_way_jose_ecdh_es::EcdhEsA128Kw, A128Gcm, Claims> =
+        serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "ecdh-kw");
+    assert!(unsealed.claims.admin);
+}
+
+#[test]
+fn ecdh_es_direct_a256gcm_roundtrip() {
+    let (pub_key, priv_key) = test_p256_keypair();
+    let enc_key = no_way_jose_ecdh_es::ecdh_es::encryption_key(pub_key);
+    let dec_key = no_way_jose_ecdh_es::ecdh_es::decryption_key(priv_key);
+
+    let claims = Claims {
+        sub: "ecdh-direct".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEs, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let header = compact.header().unwrap();
+    assert_eq!(header.alg, "ECDH-ES");
+
+    let serialized = compact.to_string();
+    let parsed: CompactJwe<no_way_jose_ecdh_es::EcdhEs, A256Gcm, Claims> =
+        serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "ecdh-direct");
+    assert!(!unsealed.claims.admin);
+}
+
+#[test]
+fn ecdh_es_wrong_key_fails() {
+    let (pub_key, _) = test_p256_keypair();
+    let (_, wrong_priv) = test_p256_keypair();
+    let enc_key = no_way_jose_ecdh_es::ecdh_es_a128kw::encryption_key(pub_key);
+    let wrong_dec = no_way_jose_ecdh_es::ecdh_es_a128kw::decryption_key(wrong_priv);
+
+    let claims = Claims {
+        sub: "wrong".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEsA128Kw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let result = compact.decrypt(&wrong_dec, &no_validation());
+    assert!(result.is_err());
+}
+
+#[test]
+fn ecdh_es_header_contains_epk() {
+    let (pub_key, _) = test_p256_keypair();
+    let enc_key = no_way_jose_ecdh_es::ecdh_es_a128kw::encryption_key(pub_key);
+
+    let claims = Claims {
+        sub: "epk".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEsA128Kw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let serialized = compact.to_string();
+    let header_b64 = serialized.split('.').next().unwrap();
+    let header_bytes = Base64UrlUnpadded::decode_vec(header_b64).unwrap();
+    let header_str = core::str::from_utf8(&header_bytes).unwrap();
+    assert!(header_str.contains("\"epk\""));
+    assert!(header_str.contains("\"P-256\""));
+}

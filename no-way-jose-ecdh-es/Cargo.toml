@@ -1,0 +1,14 @@
+[package]
+name = "no-way-jose-ecdh-es"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+no-way-jose-core = { workspace = true }
+p256 = { workspace = true }
+p384 = { workspace = true }
+rand_core = { workspace = true }
+aes-kw = { workspace = true }
+sha2 = { workspace = true }
+base64ct = { workspace = true }
+getrandom = { workspace = true }

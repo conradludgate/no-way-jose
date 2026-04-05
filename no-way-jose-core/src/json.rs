@@ -173,6 +173,16 @@ impl<'a> JsonReader<'a> {
         })
     }
 
+    /// Current byte offset into the input buffer.
+    pub fn current_pos(&self) -> usize {
+        self.pos
+    }
+
+    /// The raw input slice.
+    pub fn input_bytes(&self) -> &'a [u8] {
+        self.input
+    }
+
     fn peek(&self) -> Option<u8> {
         self.input.get(self.pos).copied()
     }
