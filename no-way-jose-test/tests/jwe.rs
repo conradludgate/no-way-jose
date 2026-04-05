@@ -1,4 +1,5 @@
 use base64ct::{Base64UrlUnpadded, Encoding};
+use no_way_jose_aes_cbc_hs::{A128CbcHs256, A256CbcHs512};
 use no_way_jose_aes_gcm::{A128Gcm, A256Gcm};
 use no_way_jose_core::JoseError;
 use no_way_jose_core::dir;
@@ -352,4 +353,121 @@ fn a128kw_header_has_alg_and_enc() {
     let header = compact.header().unwrap();
     assert_eq!(header.alg, "A128KW");
     assert_eq!(header.enc.as_deref(), Some("A128GCM"));
+}
+
+// ====================================================================
+// AES-CBC-HS tests
+// ====================================================================
+
+#[test]
+fn dir_a128cbc_hs256_roundtrip() {
+    let key = vec![0x42u8; 32];
+    let enc_key = dir::encryption_key(key.clone());
+    let dec_key = dir::decryption_key(key);
+
+    let claims = Claims {
+        sub: "cbc-hs".into(),
+        admin: true,
+    };
+
+    let token = UnsealedToken::<Encrypted<dir::Dir, A128CbcHs256>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let serialized = compact.to_string();
+
+    let parsed: CompactJwe<dir::Dir, A128CbcHs256, Claims> = serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "cbc-hs");
+    assert!(unsealed.claims.admin);
+}
+
+#[test]
+fn dir_a256cbc_hs512_roundtrip() {
+    let key = vec![0x77u8; 64];
+    let enc_key = dir::encryption_key(key.clone());
+    let dec_key = dir::decryption_key(key);
+
+    let claims = Claims {
+        sub: "cbc512".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<dir::Dir, A256CbcHs512>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let serialized = compact.to_string();
+
+    let parsed: CompactJwe<dir::Dir, A256CbcHs512, Claims> = serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "cbc512");
+    assert!(!unsealed.claims.admin);
+}
+
+#[test]
+fn a128cbc_hs256_wrong_key_fails() {
+    let enc_key = dir::encryption_key(vec![0x42u8; 32]);
+    let wrong_key = dir::decryption_key(vec![0xffu8; 32]);
+
+    let claims = Claims {
+        sub: "wrong".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<dir::Dir, A128CbcHs256>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let result = compact.decrypt(&wrong_key, &no_validation());
+    assert!(result.is_err());
+}
+
+#[test]
+fn a128cbc_hs256_tampered_ciphertext_fails() {
+    let key = vec![0x42u8; 32];
+    let enc_key = dir::encryption_key(key.clone());
+    let dec_key = dir::decryption_key(key);
+
+    let claims = Claims {
+        sub: "tamper".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<dir::Dir, A128CbcHs256>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let serialized = compact.to_string();
+    let parts: Vec<&str> = serialized.splitn(5, '.').collect();
+    let mut ct_bytes = Base64UrlUnpadded::decode_vec(parts[3]).unwrap();
+    ct_bytes[0] ^= 0xff;
+    let tampered_ct = Base64UrlUnpadded::encode_string(&ct_bytes);
+    let tampered = format!(
+        "{}.{}.{}.{}.{}",
+        parts[0], parts[1], parts[2], tampered_ct, parts[4]
+    );
+
+    let parsed: CompactJwe<dir::Dir, A128CbcHs256, Claims> = tampered.parse().unwrap();
+    let result = parsed.decrypt(&dec_key, &no_validation());
+    assert!(result.is_err());
+}
+
+#[test]
+fn a128kw_a128cbc_hs256_roundtrip() {
+    let kek = vec![0x42u8; 16];
+    let enc_key = no_way_jose_aes_kw::a128kw::encryption_key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_kw::a128kw::decryption_key(kek).unwrap();
+
+    let claims = Claims {
+        sub: "kw-cbc".into(),
+        admin: true,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_aes_kw::A128Kw, A128CbcHs256>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let serialized = compact.to_string();
+    let parsed: CompactJwe<no_way_jose_aes_kw::A128Kw, A128CbcHs256, Claims> =
+        serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "kw-cbc");
+    assert!(unsealed.claims.admin);
 }

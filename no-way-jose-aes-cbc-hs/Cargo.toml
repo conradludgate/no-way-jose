@@ -1,0 +1,12 @@
+[package]
+name = "no-way-jose-aes-cbc-hs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+no-way-jose-core = { workspace = true }
+aes = { workspace = true }
+cbc = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+getrandom = { workspace = true }

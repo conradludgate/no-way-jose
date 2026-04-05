@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "no-way-jose-aes-cbc-hs",
     "no-way-jose-aes-gcm",
     "no-way-jose-aes-kw",
     "no-way-jose-core",
@@ -13,6 +14,7 @@ members = [
 ]
 
 [workspace.dependencies]
+no-way-jose-aes-cbc-hs = { path = "no-way-jose-aes-cbc-hs", version = "0.1.0" }
 no-way-jose-aes-gcm = { path = "no-way-jose-aes-gcm", version = "0.1.0" }
 no-way-jose-aes-kw = { path = "no-way-jose-aes-kw", version = "0.1.0" }
 no-way-jose-core = { path = "no-way-jose-core", version = "0.1.0" }
@@ -28,6 +30,8 @@ p256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 rsa = { version = "0.9", default-features = false }
 sha2 = { version = "0.10", default-features = false, features = ["oid"] }
+aes = { version = "0.8", default-features = false }
+cbc = { version = "0.1", default-features = false, features = ["alloc", "block-padding"] }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
 aes-kw = { version = "0.2", default-features = false, features = ["alloc"] }
 getrandom = { version = "0.3" }
