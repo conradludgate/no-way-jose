@@ -79,7 +79,9 @@ pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
 // ====================================================================
 
 use no_way_jose_core::__private::Sealed;
-use no_way_jose_core::jwe_algorithm::{JweKeyManagement, KeyDecryptor, KeyEncryptor};
+use no_way_jose_core::jwe_algorithm::{
+    JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
+};
 use no_way_jose_core::key::{Decrypting, Encrypting};
 
 macro_rules! rsa_kw_algorithm {
@@ -106,7 +108,7 @@ macro_rules! rsa_kw_algorithm {
             fn encrypt_cek(
                 key: &rsa::RsaPublicKey,
                 cek_len: usize,
-            ) -> Result<(Vec<u8>, Vec<u8>), JoseError> {
+            ) -> Result<KeyEncryptionResult, JoseError> {
                 let mut cek = vec![0u8; cek_len];
                 getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
 
@@ -115,7 +117,11 @@ macro_rules! rsa_kw_algorithm {
                     .encrypt(&mut rng, $pad_encrypt, &cek)
                     .map_err(|_| JoseError::CryptoError)?;
 
-                Ok((encrypted_key, cek))
+                Ok(KeyEncryptionResult {
+                    encrypted_key,
+                    cek,
+                    extra_headers: Vec::new(),
+                })
             }
         }
 
@@ -123,6 +129,7 @@ macro_rules! rsa_kw_algorithm {
             fn decrypt_cek(
                 key: &rsa::RsaPrivateKey,
                 encrypted_key: &[u8],
+                _header: &[u8],
             ) -> Result<Vec<u8>, JoseError> {
                 key.decrypt($pad_decrypt, encrypted_key)
                     .map_err(|_| JoseError::CryptoError)

@@ -1,3 +1,4 @@
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::__private::Sealed;
@@ -17,22 +18,34 @@ pub trait JweContentEncryption: Sealed + Send + Sync + Sized + 'static {
     const TAG_LEN: usize;
 }
 
+/// Output of key encryption: the wrapped CEK and any extra JWE header parameters
+/// produced by the key management algorithm.
+pub struct KeyEncryptionResult {
+    pub encrypted_key: Vec<u8>,
+    pub cek: Vec<u8>,
+    /// Extra header parameters as `(key, raw_json_value)` pairs.
+    /// Algorithms like AES-GCM-KW, ECDH-ES, and PBES2 use this to inject
+    /// `iv`/`tag`, `epk`/`apu`/`apv`, or `p2s`/`p2c` into the JWE header.
+    pub extra_headers: Vec<(String, Vec<u8>)>,
+}
+
 /// Encrypt/wrap a Content Encryption Key using a key management algorithm.
 pub trait KeyEncryptor: JweKeyManagement + HasKey<Encrypting> {
-    /// Returns `(encrypted_key, cek)`.
-    /// For `dir`, encrypted_key is empty and cek equals the key material.
     fn encrypt_cek(
         key: &KeyInner<Self, Encrypting>,
         cek_len: usize,
-    ) -> Result<(Vec<u8>, Vec<u8>), JoseError>;
+    ) -> Result<KeyEncryptionResult, JoseError>;
 }
 
 /// Decrypt/unwrap a Content Encryption Key using a key management algorithm.
 pub trait KeyDecryptor: JweKeyManagement + HasKey<Decrypting> {
     /// Recover the CEK from the `encrypted_key` field of a JWE token.
+    /// `header` contains the raw JSON header bytes for algorithms that need
+    /// to extract additional parameters (e.g. `iv`/`tag` for AES-GCM-KW).
     fn decrypt_cek(
         key: &KeyInner<Self, Decrypting>,
         encrypted_key: &[u8],
+        header: &[u8],
     ) -> Result<Vec<u8>, JoseError>;
 }
 

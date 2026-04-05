@@ -349,16 +349,22 @@ where
             ));
         }
 
-        let (encrypted_key, cek) = KM::encrypt_cek(key.inner(), CE::KEY_LEN)?;
+        let result = KM::encrypt_cek(key.inner(), CE::KEY_LEN)?;
+
+        let header_b64 = if result.extra_headers.is_empty() {
+            self.header_b64
+        } else {
+            rebuild_header_with_extras(&header_bytes, &result.extra_headers)
+        };
 
         let plaintext = self.claims.to_json_bytes();
-        let aad = self.header_b64.as_bytes();
-        let output = CE::encrypt(&cek, aad, &plaintext)?;
+        let aad = header_b64.as_bytes();
+        let output = CE::encrypt(&result.cek, aad, &plaintext)?;
 
         Ok(CompactToken {
-            header_b64: self.header_b64,
+            header_b64,
             data: EncryptedData {
-                encrypted_key,
+                encrypted_key: result.encrypted_key,
                 iv: output.iv,
                 ciphertext: output.ciphertext,
                 tag: output.tag,
@@ -381,7 +387,8 @@ where
         key: &DecryptionKey<KM>,
         v: &impl Validate<Claims = M>,
     ) -> Result<UnsealedToken<Encrypted<KM, CE>, M>, JoseError> {
-        let cek = KM::decrypt_cek(key.inner(), &self.data.encrypted_key)?;
+        let header_bytes = crate::base64url::decode(&self.header_b64)?;
+        let cek = KM::decrypt_cek(key.inner(), &self.data.encrypted_key, &header_bytes)?;
 
         let aad = self.header_b64.as_bytes();
         let plaintext = CE::decrypt(
@@ -473,6 +480,19 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
             _marker: PhantomData,
         })
     }
+}
+
+/// Splice extra key-value pairs into an existing compact JSON header and re-encode as base64url.
+fn rebuild_header_with_extras(header_bytes: &[u8], extras: &[(String, Vec<u8>)]) -> String {
+    let mut buf = Vec::with_capacity(header_bytes.len() + extras.len() * 32);
+    buf.extend_from_slice(&header_bytes[..header_bytes.len() - 1]); // strip closing '}'
+    for (key, value) in extras {
+        buf.push(b',');
+        crate::json::write_json_key(&mut buf, key);
+        buf.extend_from_slice(value);
+    }
+    buf.push(b'}');
+    crate::base64url::encode(&buf)
 }
 
 /// Extract `alg` and `enc` from a JWE JOSE header JSON object.

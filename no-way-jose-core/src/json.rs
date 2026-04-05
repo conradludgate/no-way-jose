@@ -105,10 +105,22 @@ impl JsonWriter {
         }
     }
 
+    /// Write a pre-formed raw JSON value (no escaping or quoting applied).
+    pub fn raw_value(&mut self, key: &str, raw_json: &[u8]) {
+        self.write_key(key);
+        self.buf.extend_from_slice(raw_json);
+    }
+
     pub fn finish(mut self) -> Vec<u8> {
         self.buf.push(b'}');
         self.buf
     }
+}
+
+/// Write a JSON object key followed by `:` into `buf`. Used by header rebuild logic.
+pub(crate) fn write_json_key(buf: &mut Vec<u8>, key: &str) {
+    write_escaped_string(buf, key);
+    buf.push(b':');
 }
 
 fn write_escaped_string(buf: &mut Vec<u8>, s: &str) {

@@ -16,7 +16,9 @@ use alloc::vec::Vec;
 
 use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::JoseError;
-use no_way_jose_core::jwe_algorithm::{JweKeyManagement, KeyDecryptor, KeyEncryptor};
+use no_way_jose_core::jwe_algorithm::{
+    JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
+};
 use no_way_jose_core::key::{Decrypting, Encrypting, HasKey};
 
 fn make_kek(bytes: impl Into<Vec<u8>>, expected_len: usize) -> Result<Vec<u8>, JoseError> {
@@ -48,7 +50,10 @@ macro_rules! aes_kw_algorithm {
         }
 
         impl KeyEncryptor for $name {
-            fn encrypt_cek(key: &Vec<u8>, cek_len: usize) -> Result<(Vec<u8>, Vec<u8>), JoseError> {
+            fn encrypt_cek(
+                key: &Vec<u8>,
+                cek_len: usize,
+            ) -> Result<KeyEncryptionResult, JoseError> {
                 let kek =
                     <$kek_type>::try_from(key.as_slice()).map_err(|_| JoseError::InvalidKey)?;
 
@@ -56,12 +61,20 @@ macro_rules! aes_kw_algorithm {
                 getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
 
                 let wrapped = kek.wrap_vec(&cek).map_err(|_| JoseError::CryptoError)?;
-                Ok((wrapped, cek))
+                Ok(KeyEncryptionResult {
+                    encrypted_key: wrapped,
+                    cek,
+                    extra_headers: Vec::new(),
+                })
             }
         }
 
         impl KeyDecryptor for $name {
-            fn decrypt_cek(key: &Vec<u8>, encrypted_key: &[u8]) -> Result<Vec<u8>, JoseError> {
+            fn decrypt_cek(
+                key: &Vec<u8>,
+                encrypted_key: &[u8],
+                _header: &[u8],
+            ) -> Result<Vec<u8>, JoseError> {
                 let kek =
                     <$kek_type>::try_from(key.as_slice()).map_err(|_| JoseError::InvalidKey)?;
 
