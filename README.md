@@ -69,6 +69,7 @@ let claims = RegisteredClaims::new(
         no_way_jose_claims::jiff::Timestamp::now(),
         SignedDuration::from_hours(1),
     )
+    .unwrap()
     .from_issuer("my-service")
     .for_audience("my-app");
 
@@ -96,14 +97,18 @@ assert_eq!(verified.claims.iss.as_deref(), Some("my-service"));
 
 ```
 no-way-jose/
-  no-way-jose-core/     Core traits, token types, base64url, Dir key mgmt (no_std)
-  no-way-jose-claims/   RegisteredClaims and JWT validators
-  no-way-jose-ecdsa/    ES256, ES384 (ECDSA)
-  no-way-jose-eddsa/    EdDSA Ed25519
-  no-way-jose-hmac/     HS256, HS384, HS512 (HMAC)
-  no-way-jose-rsa/      RS256 (RSA PKCS#1 v1.5)
-  no-way-jose-aes-gcm/  A128GCM, A256GCM (JWE content encryption)
-  no-way-jose-aes-kw/   A128KW, A192KW, A256KW (JWE key wrapping)
+  no-way-jose-core/       Core traits, token types, base64url, dir key mgmt (no_std)
+  no-way-jose-claims/     RegisteredClaims and JWT validators
+  no-way-jose-hmac/       HS256, HS384, HS512 (HMAC)
+  no-way-jose-ecdsa/      ES256, ES384 (ECDSA)
+  no-way-jose-eddsa/      EdDSA Ed25519
+  no-way-jose-rsa/        RS256 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE)
+  no-way-jose-aes-gcm/    A128GCM, A256GCM (JWE content encryption, no_std)
+  no-way-jose-aes-cbc-hs/ A128CBC-HS256, A192CBC-HS384, A256CBC-HS512 (JWE CE, no_std)
+  no-way-jose-aes-kw/     A128KW, A192KW, A256KW (JWE key wrapping, no_std)
+  no-way-jose-aes-gcm-kw/ A128GCMKW, A192GCMKW, A256GCMKW (JWE key wrapping, no_std)
+  no-way-jose-ecdh-es/    ECDH-ES, ECDH-ES+A128KW/A192KW/A256KW (JWE KA, no_std)
+  no-way-jose-pbes2/      PBES2-HS256+A128KW, HS384+A192KW, HS512+A256KW (JWE, no_std)
 ```
 
 ## How-to guides
@@ -293,6 +298,19 @@ match untyped.alg() {
 | A128KW | AES-128 Key Wrap | `no-way-jose-aes-kw` | 7518 §4.4 |
 | A192KW | AES-192 Key Wrap | `no-way-jose-aes-kw` | 7518 §4.4 |
 | A256KW | AES-256 Key Wrap | `no-way-jose-aes-kw` | 7518 §4.4 |
+| A128GCMKW | AES-128-GCM Key Wrap | `no-way-jose-aes-gcm-kw` | 7518 §4.7 |
+| A192GCMKW | AES-192-GCM Key Wrap | `no-way-jose-aes-gcm-kw` | 7518 §4.7 |
+| A256GCMKW | AES-256-GCM Key Wrap | `no-way-jose-aes-gcm-kw` | 7518 §4.7 |
+| RSA1_5 | RSA PKCS#1 v1.5 | `no-way-jose-rsa` | 7518 §4.2 |
+| RSA-OAEP | RSA-OAEP SHA-1 | `no-way-jose-rsa` | 7518 §4.3 |
+| RSA-OAEP-256 | RSA-OAEP SHA-256 | `no-way-jose-rsa` | 7518 §4.3 |
+| ECDH-ES | ECDH-ES direct | `no-way-jose-ecdh-es` | 7518 §4.6 |
+| ECDH-ES+A128KW | ECDH-ES + AES-128 Wrap | `no-way-jose-ecdh-es` | 7518 §4.6 |
+| ECDH-ES+A192KW | ECDH-ES + AES-192 Wrap | `no-way-jose-ecdh-es` | 7518 §4.6 |
+| ECDH-ES+A256KW | ECDH-ES + AES-256 Wrap | `no-way-jose-ecdh-es` | 7518 §4.6 |
+| PBES2-HS256+A128KW | PBES2 + AES-128 Wrap | `no-way-jose-pbes2` | 7518 §4.8 |
+| PBES2-HS384+A192KW | PBES2 + AES-192 Wrap | `no-way-jose-pbes2` | 7518 §4.8 |
+| PBES2-HS512+A256KW | PBES2 + AES-256 Wrap | `no-way-jose-pbes2` | 7518 §4.8 |
 
 ### JWE content encryption
 
@@ -300,6 +318,9 @@ match untyped.alg() {
 |-----------|------|-------|-----|
 | A128GCM | AES-128-GCM | `no-way-jose-aes-gcm` | 7518 §5.3 |
 | A256GCM | AES-256-GCM | `no-way-jose-aes-gcm` | 7518 §5.3 |
+| A128CBC-HS256 | AES-128-CBC + HMAC-SHA-256 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
+| A192CBC-HS384 | AES-192-CBC + HMAC-SHA-384 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
+| A256CBC-HS512 | AES-256-CBC + HMAC-SHA-512 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
 
 ## Security considerations
 
