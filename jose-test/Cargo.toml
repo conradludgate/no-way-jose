@@ -12,6 +12,6 @@ jose-ecdsa = { workspace = true }
 jose-eddsa = { workspace = true }
 jose-hmac = { workspace = true }
 jose-rsa = { workspace = true }
-jose-json = { workspace = true }
+jose-claims = { workspace = true }
 base64ct = { workspace = true }
 rsa = { workspace = true }

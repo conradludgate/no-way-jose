@@ -373,6 +373,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "jose-claims"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "jose-core",
+]
+
+[[package]]
 name = "jose-core"
 version = "0.1.0"
 dependencies = [
@@ -406,14 +414,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jose-json"
-version = "0.1.0"
-dependencies = [
- "jiff",
- "jose-core",
-]
-
-[[package]]
 name = "jose-rsa"
 version = "0.1.0"
 dependencies = [
@@ -429,11 +429,11 @@ dependencies = [
  "base64ct",
  "jose-aes-gcm",
  "jose-aes-kw",
+ "jose-claims",
  "jose-core",
  "jose-ecdsa",
  "jose-eddsa",
  "jose-hmac",
- "jose-json",
  "jose-rsa",
  "rsa",
 ]

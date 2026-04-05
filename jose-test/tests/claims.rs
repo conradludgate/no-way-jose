@@ -1,8 +1,8 @@
 /// Claims validation tests.
 use jose_core::json::{FromJson, ToJson};
 use jose_core::validation::Validate;
-use jose_json::jiff;
-use jose_json::{ForAudience, FromIssuer, HasExpiry, RegisteredClaims, Time};
+use jose_claims::jiff;
+use jose_claims::{ForAudience, FromIssuer, HasExpiry, RegisteredClaims, Time};
 
 #[test]
 fn has_expiry_passes_when_present() {

@@ -22,7 +22,7 @@ A type-safe Rust JOSE (JWS/JWE/JWT/JWK) library inspired by the
 ```
 no-way-jose/
   jose-core/     Core traits, token types, Dir key mgmt, base64url (no_std, no crypto deps)
-  jose-json/     JSON Payload, registered JWT claims, validators
+  jose-claims/   Registered JWT claims and validators
   jose-aes-gcm/  A128GCM, A256GCM (JWE content encryption)
   jose-aes-kw/   A128KW, A192KW, A256KW (JWE key wrapping)
   jose-ecdsa/    ES256, ES384 (ECDSA JWS)
@@ -136,7 +136,7 @@ extraneous whitespace.
 - [x] Sealed trait via `#[doc(hidden)] pub mod __private`
 - [x] `HeaderBuilder` uses `JsonWriter` (no JSON injection)
 
-### Claims (jose-json)
+### Claims (jose-claims)
 
 - [x] `RawJson` default payload type
 - [x] `RegisteredClaims`
