@@ -100,6 +100,16 @@ impl<A: JwsAlgorithm, M> UnsealedToken<Signed<A>, M> {
             _marker: PhantomData,
         }
     }
+
+    /// Start building an unsigned token with optional header fields.
+    #[must_use]
+    pub fn builder(claims: M) -> TokenBuilder<Signed<A>, M> {
+        TokenBuilder {
+            header: crate::header::HeaderBuilder::new(A::ALG),
+            claims,
+            _marker: PhantomData,
+        }
+    }
 }
 
 // -- Signing --
@@ -348,6 +358,16 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> UnsealedToken<Encrypted<
             _marker: PhantomData,
         }
     }
+
+    /// Start building an encrypted token with optional header fields.
+    #[must_use]
+    pub fn builder(claims: M) -> TokenBuilder<Encrypted<KM, CE>, M> {
+        TokenBuilder {
+            header: crate::header::HeaderBuilder::new(KM::ALG).enc(CE::ENC),
+            claims,
+            _marker: PhantomData,
+        }
+    }
 }
 
 // -- Encryption --
@@ -516,6 +536,46 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
             },
             _marker: PhantomData,
         })
+    }
+}
+
+// ====================================================================
+// Token builder
+// ====================================================================
+
+/// Fluent builder for constructing tokens with optional header fields.
+///
+/// Obtained via [`UnsealedToken::builder`]. Call [`build`](Self::build) to
+/// produce the final [`UnsealedToken`].
+pub struct TokenBuilder<P: Purpose, M> {
+    header: crate::header::HeaderBuilder,
+    claims: M,
+    _marker: PhantomData<P>,
+}
+
+impl<P: Purpose, M> TokenBuilder<P, M> {
+    /// Set the `kid` (Key ID) header parameter.
+    #[must_use]
+    pub fn kid(mut self, kid: impl Into<String>) -> Self {
+        self.header = self.header.kid(kid);
+        self
+    }
+
+    /// Set the `typ` (Type) header parameter (e.g. `"JWT"`).
+    #[must_use]
+    pub fn typ(mut self, typ: impl Into<String>) -> Self {
+        self.header = self.header.typ(typ);
+        self
+    }
+
+    /// Finalize and return the [`UnsealedToken`].
+    #[must_use]
+    pub fn build(self) -> UnsealedToken<P, M> {
+        UnsealedToken {
+            header_b64: self.header.build(),
+            claims: self.claims,
+            _marker: PhantomData,
+        }
     }
 }
 

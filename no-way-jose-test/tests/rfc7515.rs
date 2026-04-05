@@ -659,3 +659,37 @@ fn untyped_dynamic_dispatch() {
         assert!(result.is_ok());
     }
 }
+
+// -- Token builder --
+
+#[test]
+fn jws_builder_kid_and_typ() {
+    let key =
+        no_way_jose_hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec()).unwrap();
+    let vk = no_way_jose_hmac::verifying_key(b"super-secret-key-for-testing-256".to_vec()).unwrap();
+
+    let claims = RoundtripClaims {
+        sub: "builder-test".into(),
+        name: "Builder".into(),
+    };
+
+    let compact = no_way_jose_core::UnsignedToken::<no_way_jose_hmac::Hs256, _>::builder(claims)
+        .kid("my-key-id")
+        .typ("JWT")
+        .build()
+        .sign(&key)
+        .unwrap();
+
+    let token_str = compact.to_string();
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_hmac::Hs256, RoundtripClaims> =
+        token_str.parse().unwrap();
+
+    let header = parsed.header().unwrap();
+    assert_eq!(header.kid.as_deref(), Some("my-key-id"));
+    assert_eq!(header.typ.as_deref(), Some("JWT"));
+
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "builder-test");
+}

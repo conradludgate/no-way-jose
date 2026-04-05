@@ -55,6 +55,9 @@ pub type UnsignedToken<A, M> = tokens::UnsignedToken<A, M>;
 /// A parsed JWS token whose algorithm is determined at runtime.
 pub type UntypedCompactJws<M = json::RawJson> = tokens::UntypedCompactJws<M>;
 
+/// Fluent builder for constructing tokens with optional header fields (kid, typ).
+pub type TokenBuilder<P, M> = tokens::TokenBuilder<P, M>;
+
 /// Key used for JWE encryption (wrapping or providing the CEK).
 pub type EncryptionKey<KM> = key::Key<KM, key::Encrypting>;
 
