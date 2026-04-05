@@ -17,6 +17,7 @@ pub use no_way_jose_core;
 use alloc::vec::Vec;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::jwk::{EcParams, Jwk, JwkKeyConvert, JwkParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 // -- ES256 --
@@ -57,6 +58,64 @@ impl Verifier for Es256 {
             p256::ecdsa::Signature::from_slice(signature).map_err(|_| JoseError::CryptoError)?;
         key.verify(signing_input, &sig)
             .map_err(|_| JoseError::CryptoError)
+    }
+}
+
+impl JwkKeyConvert<Signing> for Es256 {
+    fn key_to_jwk(key: &p256::ecdsa::SigningKey) -> Jwk {
+        let vk = key.verifying_key();
+        let point = vk.to_sec1_point(false);
+        Jwk {
+            kty: "EC".into(),
+            kid: None,
+            alg: Some("ES256".into()),
+            use_: None,
+            key_ops: None,
+            params: JwkParams::Ec(EcParams {
+                crv: "P-256".into(),
+                x: point.x().unwrap().to_vec(),
+                y: point.y().unwrap().to_vec(),
+                d: Some(key.to_bytes().to_vec()),
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> Result<p256::ecdsa::SigningKey, JoseError> {
+        validate_ec_jwk(jwk, "ES256", "P-256")?;
+        match &jwk.params {
+            JwkParams::Ec(p) => {
+                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
+                p256::ecdsa::SigningKey::from_slice(d).map_err(|_| JoseError::InvalidKey)
+            }
+            _ => Err(JoseError::InvalidKey),
+        }
+    }
+}
+
+impl JwkKeyConvert<Verifying> for Es256 {
+    fn key_to_jwk(key: &p256::ecdsa::VerifyingKey) -> Jwk {
+        let point = key.to_sec1_point(false);
+        Jwk {
+            kty: "EC".into(),
+            kid: None,
+            alg: Some("ES256".into()),
+            use_: None,
+            key_ops: None,
+            params: JwkParams::Ec(EcParams {
+                crv: "P-256".into(),
+                x: point.x().unwrap().to_vec(),
+                y: point.y().unwrap().to_vec(),
+                d: None,
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> Result<p256::ecdsa::VerifyingKey, JoseError> {
+        validate_ec_jwk(jwk, "ES256", "P-256")?;
+        match &jwk.params {
+            JwkParams::Ec(p) => p256_verifying_key_from_xy(&p.x, &p.y),
+            _ => Err(JoseError::InvalidKey),
+        }
     }
 }
 
@@ -123,6 +182,95 @@ impl Verifier for Es384 {
         key.verify(signing_input, &sig)
             .map_err(|_| JoseError::CryptoError)
     }
+}
+
+impl JwkKeyConvert<Signing> for Es384 {
+    fn key_to_jwk(key: &p384::ecdsa::SigningKey) -> Jwk {
+        let vk = key.verifying_key();
+        let point = vk.to_sec1_point(false);
+        Jwk {
+            kty: "EC".into(),
+            kid: None,
+            alg: Some("ES384".into()),
+            use_: None,
+            key_ops: None,
+            params: JwkParams::Ec(EcParams {
+                crv: "P-384".into(),
+                x: point.x().unwrap().to_vec(),
+                y: point.y().unwrap().to_vec(),
+                d: Some(key.to_bytes().to_vec()),
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> Result<p384::ecdsa::SigningKey, JoseError> {
+        validate_ec_jwk(jwk, "ES384", "P-384")?;
+        match &jwk.params {
+            JwkParams::Ec(p) => {
+                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
+                p384::ecdsa::SigningKey::from_slice(d).map_err(|_| JoseError::InvalidKey)
+            }
+            _ => Err(JoseError::InvalidKey),
+        }
+    }
+}
+
+impl JwkKeyConvert<Verifying> for Es384 {
+    fn key_to_jwk(key: &p384::ecdsa::VerifyingKey) -> Jwk {
+        let point = key.to_sec1_point(false);
+        Jwk {
+            kty: "EC".into(),
+            kid: None,
+            alg: Some("ES384".into()),
+            use_: None,
+            key_ops: None,
+            params: JwkParams::Ec(EcParams {
+                crv: "P-384".into(),
+                x: point.x().unwrap().to_vec(),
+                y: point.y().unwrap().to_vec(),
+                d: None,
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> Result<p384::ecdsa::VerifyingKey, JoseError> {
+        validate_ec_jwk(jwk, "ES384", "P-384")?;
+        match &jwk.params {
+            JwkParams::Ec(p) => p384_verifying_key_from_xy(&p.x, &p.y),
+            _ => Err(JoseError::InvalidKey),
+        }
+    }
+}
+
+fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> Result<(), JoseError> {
+    if jwk.kty != "EC" {
+        return Err(JoseError::InvalidKey);
+    }
+    if let Some(alg) = &jwk.alg {
+        if alg != expected_alg {
+            return Err(JoseError::InvalidKey);
+        }
+    }
+    match &jwk.params {
+        JwkParams::Ec(p) if p.crv == expected_crv => Ok(()),
+        _ => Err(JoseError::InvalidKey),
+    }
+}
+
+fn p256_verifying_key_from_xy(x: &[u8], y: &[u8]) -> Result<p256::ecdsa::VerifyingKey, JoseError> {
+    let mut sec1 = Vec::with_capacity(1 + x.len() + y.len());
+    sec1.push(0x04);
+    sec1.extend_from_slice(x);
+    sec1.extend_from_slice(y);
+    p256::ecdsa::VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| JoseError::InvalidKey)
+}
+
+fn p384_verifying_key_from_xy(x: &[u8], y: &[u8]) -> Result<p384::ecdsa::VerifyingKey, JoseError> {
+    let mut sec1 = Vec::with_capacity(1 + x.len() + y.len());
+    sec1.push(0x04);
+    sec1.extend_from_slice(x);
+    sec1.extend_from_slice(y);
+    p384::ecdsa::VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| JoseError::InvalidKey)
 }
 
 pub mod es384 {
