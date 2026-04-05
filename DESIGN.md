@@ -32,7 +32,8 @@ no-way-jose/
   no-way-jose-eddsa/       EdDSA Ed25519 (JWS)
   no-way-jose-hmac/        HS256, HS384, HS512 (HMAC JWS)
   no-way-jose-pbes2/       PBES2-HS256+A128KW, HS384+A192KW, HS512+A256KW (password-based JWE + header params)
-  no-way-jose-rsa/         RS256 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE key management)
+  no-way-jose-rsa/         RS256, PS256 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE key management)
+  no-way-jose-graviola/    Alternate crypto backend using graviola (ES256, ES384, EdDSA, HS256/384/512, RS256, PS256, A128GCM, A256GCM)
   no-way-jose-test/        Integration tests (unpublished)
 ```
 
@@ -169,6 +170,7 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] `Hs384` (no-way-jose-hmac) — HMAC-SHA-384
 - [x] `Hs512` (no-way-jose-hmac) — HMAC-SHA-512
 - [x] `Rs256` (no-way-jose-rsa) — RSASSA-PKCS1-v1_5 / SHA-256
+- [x] `Ps256` (no-way-jose-rsa) — RSASSA-PSS / SHA-256
 
 ### JWE Key Management Algorithms
 
@@ -257,15 +259,27 @@ is not yet available). Key dependency versions as of the latest update:
 | `rsa` | 0.10.0-rc.17 | Uses `BoxedUint` (crypto-bigint) |
 | `sha1` / `sha2` | 0.11 | |
 
+## Deliberate Limitations
+
+- **Compact serialization only.** JWS/JWE JSON Serialization (RFC 7515 §7.2,
+  RFC 7516 §7.2) is not supported. The only real-world consumer is ACME
+  (RFC 8555, flattened format); the general multi-signature variant sees
+  negligible adoption. All standard JWT/OAuth/OIDC flows use compact
+  serialization exclusively.
+- **No `serde` dependency.** Header and payload encoding use a custom
+  `JsonReader`/`JsonWriter` in `no-way-jose-core`. This keeps the core
+  `no_std`-compatible and avoids pulling in a large dependency tree.
+- **Strict JSON parsing.** Whitespace between JSON tokens is rejected.
+  JWTs should use compact JSON; lenient parsing would mask malformed tokens.
+
 ## Future Ideas
 
-- **More JWS algorithms**: `Es512`, `Rs384`–`Rs512`, `Ps256`–`Ps512`
+- **More JWS algorithms**: `Es512`, `Rs384`–`Rs512`, `Ps384`–`Ps512`
 - **JWK / JWK Sets**: `Jwk`, `JwkSet`, `ToJwk`/`FromJwk` traits, JWK Thumbprint (RFC 7638)
 - **Serde feature flag**: optional `serde` dep in `no-way-jose-core` providing blanket
   `ToJson`/`FromJson` for `Serialize`/`DeserializeOwned`
 - **Header caching**: avoid re-decoding the header in `FromStr` → `header()` → `verify()`
-- **Alternate crypto backends**: aws-lc-rs, ring, libsodium
+- **Alternate crypto backends**: aws-lc-rs, ring, libsodium (graviola already available)
 - **`no_std` end-to-end**: core and algorithm crates are `#![no_std]`; verify in a real embedded target
-- **JSON serialization mode**: JWS/JWE JSON serialization (non-compact), multiple signatures
 - **Benchmarks**: Criterion benchmarks comparing against other Rust JOSE libraries
 - **X25519 ECDH-ES**: extend no-way-jose-ecdh-es to support X25519 (via x25519-dalek)

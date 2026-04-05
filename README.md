@@ -102,13 +102,14 @@ no-way-jose/
   no-way-jose-hmac/       HS256, HS384, HS512 (HMAC)
   no-way-jose-ecdsa/      ES256, ES384 (ECDSA)
   no-way-jose-eddsa/      EdDSA Ed25519
-  no-way-jose-rsa/        RS256 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE)
+  no-way-jose-rsa/        RS256, PS256 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE)
   no-way-jose-aes-gcm/    A128GCM, A256GCM (JWE content encryption)
   no-way-jose-aes-cbc-hs/ A128CBC-HS256, A192CBC-HS384, A256CBC-HS512 (JWE CE)
   no-way-jose-aes-kw/     A128KW, A192KW, A256KW (JWE key wrapping)
   no-way-jose-aes-gcm-kw/ A128GCMKW, A192GCMKW, A256GCMKW (JWE key wrapping)
   no-way-jose-ecdh-es/    ECDH-ES, ECDH-ES+A128KW/A192KW/A256KW (JWE KA)
   no-way-jose-pbes2/      PBES2-HS256+A128KW, HS384+A192KW, HS512+A256KW (JWE)
+  no-way-jose-graviola/   Alternate crypto backend (graviola)
 ```
 
 All crates except `no-way-jose-claims` are `#![no_std]` with `extern crate alloc`.
@@ -291,6 +292,7 @@ match untyped.alg() {
 | ES384 | ECDSA P-384 | `no-way-jose-ecdsa` | 7518 §3.4 |
 | EdDSA | Ed25519 | `no-way-jose-eddsa` | 8037 |
 | RS256 | RSASSA-PKCS1-v1_5 | `no-way-jose-rsa` | 7518 §3.3 |
+| PS256 | RSASSA-PSS SHA-256 | `no-way-jose-rsa` | 7518 §3.5 |
 
 ### JWE key management
 
@@ -323,6 +325,22 @@ match untyped.alg() {
 | A128CBC-HS256 | AES-128-CBC + HMAC-SHA-256 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
 | A192CBC-HS384 | AES-192-CBC + HMAC-SHA-384 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
 | A256CBC-HS512 | AES-256-CBC + HMAC-SHA-512 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
+
+### Alternate crypto backend (graviola)
+
+`no-way-jose-graviola` provides the same JWS algorithms (ES256, ES384, EdDSA,
+HS256/384/512, RS256, PS256) and AES-GCM content encryption (A128GCM, A256GCM)
+using the [graviola](https://crates.io/crates/graviola) library -- a crypto
+library with formally verified assembler. Tokens produced by either backend are
+interchangeable on the wire.
+
+Graviola is limited to aarch64 and x86\_64 with specific CPU features.
+
+## Limitations
+
+- **Compact serialization only.** JWS/JWE JSON Serialization (RFC 7515 §7.2,
+  RFC 7516 §7.2) is not supported. The only significant protocol using it is
+  ACME (RFC 8555). All standard JWT/OAuth/OIDC flows use compact serialization.
 
 ## Security considerations
 
