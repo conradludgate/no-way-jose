@@ -20,11 +20,12 @@ extern crate alloc;
 extern crate std;
 
 pub mod algorithm;
-pub(crate) mod base64url;
+pub mod base64url;
 pub mod dir;
 pub mod header;
 pub mod json;
 pub mod jwe_algorithm;
+pub mod jwk;
 pub mod key;
 pub mod purpose;
 pub mod tokens;
