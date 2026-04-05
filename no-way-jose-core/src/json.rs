@@ -3,9 +3,12 @@ use alloc::vec::Vec;
 
 use crate::JoseError;
 
+/// Serialize a value as compact JSON bytes.
 pub trait ToJson {
+    /// Write this value's JSON representation into `buf`.
     fn write_json(&self, buf: &mut Vec<u8>);
 
+    /// Convenience wrapper that allocates and returns the JSON bytes.
     fn to_json_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         self.write_json(&mut buf);
@@ -13,6 +16,7 @@ pub trait ToJson {
     }
 }
 
+/// Deserialize a value from compact JSON bytes.
 pub trait FromJson: Sized {
     fn from_json_bytes(
         bytes: &[u8],

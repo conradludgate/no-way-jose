@@ -1,5 +1,6 @@
 use crate::__private::Sealed;
 
+/// The concrete key type for algorithm `A` with purpose `K`.
 pub type KeyInner<A, K> = <A as HasKey<K>>::Key;
 
 /// Generic key type, parameterized by algorithm and purpose.

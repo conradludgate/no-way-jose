@@ -1,3 +1,13 @@
+//! HMAC-based JWS algorithms: [`Hs256`], [`Hs384`], [`Hs512`].
+//!
+//! HMAC is a symmetric algorithm -- the same secret key is used for both
+//! signing and verification. Key constructors enforce minimum lengths
+//! (32 / 48 / 64 bytes respectively, per RFC 7518 Section 3.2).
+//!
+//! The root-level [`symmetric_key`] and [`verifying_key`] functions are
+//! convenience aliases for HS256. For other variants use the [`hs384`] or
+//! [`hs512`] submodules.
+
 pub use no_way_jose_core;
 
 use hmac::{Hmac, Mac};
@@ -134,14 +144,17 @@ pub mod hs512 {
     }
 }
 
-// Backwards-compatible re-exports for Hs256.
+/// HS256 signing key (convenience alias).
 pub type SigningKey = hs256::SigningKey;
+/// HS256 verifying key (convenience alias).
 pub type VerifyingKey = hs256::VerifyingKey;
 
+/// Create an HS256 signing key. Requires at least 32 bytes.
 pub fn symmetric_key(bytes: impl Into<Vec<u8>>) -> Result<SigningKey, JoseError> {
     hs256::symmetric_key(bytes)
 }
 
+/// Create an HS256 verifying key. Requires at least 32 bytes.
 pub fn verifying_key(bytes: impl Into<Vec<u8>>) -> Result<VerifyingKey, JoseError> {
     hs256::verifying_key(bytes)
 }

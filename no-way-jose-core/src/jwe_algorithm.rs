@@ -29,6 +29,7 @@ pub trait KeyEncryptor: JweKeyManagement + HasKey<Encrypting> {
 
 /// Decrypt/unwrap a Content Encryption Key using a key management algorithm.
 pub trait KeyDecryptor: JweKeyManagement + HasKey<Decrypting> {
+    /// Recover the CEK from the `encrypted_key` field of a JWE token.
     fn decrypt_cek(
         key: &KeyInner<Self, Decrypting>,
         encrypted_key: &[u8],
@@ -43,6 +44,7 @@ pub trait ContentEncryptor: JweContentEncryption {
 
 /// Decrypt ciphertext using a content encryption algorithm.
 pub trait ContentDecryptor: JweContentEncryption {
+    /// Decrypt and authenticate the ciphertext using the CEK, IV, AAD, and tag.
     fn decrypt(
         cek: &[u8],
         iv: &[u8],

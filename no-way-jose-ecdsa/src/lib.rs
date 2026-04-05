@@ -1,3 +1,13 @@
+//! ECDSA-based JWS algorithms: [`Es256`] (P-256) and [`Es384`] (P-384).
+//!
+//! ECDSA is an asymmetric algorithm -- a private key signs and the
+//! corresponding public key verifies. Keys can be constructed from raw scalar
+//! bytes ([`signing_key_from_bytes`]) or SEC1-encoded public keys
+//! ([`verifying_key_from_sec1`]).
+//!
+//! The root-level key functions target ES256. For ES384 use the [`es384`]
+//! submodule.
+
 pub use no_way_jose_core;
 
 use no_way_jose_core::JoseError;
@@ -45,21 +55,26 @@ impl Verifier for Es256 {
     }
 }
 
+/// ES256 signing key.
 pub type SigningKey = no_way_jose_core::SigningKey<Es256>;
+/// ES256 verifying key.
 pub type VerifyingKey = no_way_jose_core::VerifyingKey<Es256>;
 
+/// Create an ES256 signing key from a raw P-256 scalar (32 bytes).
 pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, JoseError> {
     p256::ecdsa::SigningKey::from_slice(bytes)
         .map(no_way_jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
+/// Create an ES256 verifying key from SEC1-encoded public key bytes.
 pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
     p256::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
         .map(no_way_jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
+/// Derive the ES256 verifying key from a signing key.
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(*key.inner().verifying_key())
 }

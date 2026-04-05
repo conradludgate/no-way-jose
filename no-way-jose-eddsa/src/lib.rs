@@ -1,3 +1,9 @@
+//! EdDSA JWS algorithm using Ed25519 ([`EdDsa`]).
+//!
+//! EdDSA is an asymmetric algorithm with small, fast keys. Keys are
+//! constructed from 32-byte seeds ([`signing_key_from_bytes`]) or raw
+//! public key bytes ([`verifying_key_from_bytes`]).
+
 pub use no_way_jose_core;
 
 use no_way_jose_core::JoseError;
@@ -43,19 +49,24 @@ impl Verifier for EdDsa {
     }
 }
 
+/// EdDSA signing key.
 pub type SigningKey = no_way_jose_core::SigningKey<EdDsa>;
+/// EdDSA verifying key.
 pub type VerifyingKey = no_way_jose_core::VerifyingKey<EdDsa>;
 
+/// Create an EdDSA signing key from a 32-byte Ed25519 seed.
 pub fn signing_key_from_bytes(bytes: &[u8; 32]) -> SigningKey {
     no_way_jose_core::key::Key::new(ed25519_dalek::SigningKey::from_bytes(bytes))
 }
 
+/// Create an EdDSA verifying key from 32-byte Ed25519 public key bytes.
 pub fn verifying_key_from_bytes(bytes: &[u8; 32]) -> Result<VerifyingKey, JoseError> {
     ed25519_dalek::VerifyingKey::from_bytes(bytes)
         .map(no_way_jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
+/// Derive the EdDSA verifying key from a signing key.
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(key.inner().verifying_key())
 }

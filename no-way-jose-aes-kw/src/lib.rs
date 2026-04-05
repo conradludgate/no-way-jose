@@ -1,3 +1,12 @@
+//! AES Key Wrap algorithms for JWE: [`A128Kw`], [`A192Kw`], [`A256Kw`].
+//!
+//! With key wrapping, a Key Encryption Key (KEK) wraps a randomly generated
+//! Content Encryption Key (CEK) that is transmitted inside the JWE token.
+//! Key constructors enforce exact KEK lengths (16 / 24 / 32 bytes).
+//!
+//! Use the [`a128kw`], [`a192kw`], or [`a256kw`] submodules to create
+//! encryption and decryption keys.
+
 #![no_std]
 
 extern crate alloc;

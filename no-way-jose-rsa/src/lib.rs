@@ -1,3 +1,9 @@
+//! RSA PKCS#1 v1.5 JWS algorithm: [`Rs256`].
+//!
+//! RSA is an asymmetric algorithm. Keys are constructed from the `rsa` crate's
+//! [`rsa::RsaPrivateKey`] and [`rsa::RsaPublicKey`] types via [`signing_key`]
+//! and [`verifying_key`].
+
 pub use no_way_jose_core;
 
 use no_way_jose_core::JoseError;
@@ -48,17 +54,22 @@ impl Verifier for Rs256 {
     }
 }
 
+/// RS256 signing key.
 pub type SigningKey = no_way_jose_core::SigningKey<Rs256>;
+/// RS256 verifying key.
 pub type VerifyingKey = no_way_jose_core::VerifyingKey<Rs256>;
 
+/// Create an RS256 signing key from an RSA private key.
 pub fn signing_key(private_key: rsa::RsaPrivateKey) -> SigningKey {
     no_way_jose_core::key::Key::new(private_key)
 }
 
+/// Create an RS256 verifying key from an RSA public key.
 pub fn verifying_key(public_key: rsa::RsaPublicKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(public_key)
 }
 
+/// Derive the RS256 verifying key from a signing key.
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(rsa::RsaPublicKey::from(key.inner()))
 }

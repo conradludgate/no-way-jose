@@ -1,3 +1,10 @@
+//! AES-GCM content encryption algorithms for JWE: [`A128Gcm`] and [`A256Gcm`].
+//!
+//! These implement the `ContentEncryptor` / `ContentDecryptor` traits from
+//! `no-way-jose-core`. They are used as the `CE` type parameter in
+//! `CompactJwe<KM, CE, M>` and paired with a key management algorithm
+//! (e.g. `Dir`, `A128Kw`).
+
 #![no_std]
 
 extern crate alloc;

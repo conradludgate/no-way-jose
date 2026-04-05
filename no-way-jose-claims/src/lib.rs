@@ -1,3 +1,20 @@
+//! JWT registered claims and composable validators.
+//!
+//! Provides [`RegisteredClaims`] (RFC 7519 Section 4.1) with builder methods
+//! and ready-made validators: [`HasExpiry`], [`Time`], [`FromIssuer`], and
+//! [`ForAudience`]. Validators implement [`Validate`] and compose with
+//! `and_then`:
+//!
+//! ```rust,ignore
+//! let v = HasExpiry
+//!     .and_then(Time::valid_now())
+//!     .and_then(FromIssuer("auth.example.com"))
+//!     .and_then(ForAudience("my-api"));
+//! ```
+//!
+//! Timestamp fields (`exp`, `nbf`, `iat`) use [`jiff::Timestamp`] and
+//! serialize as integer seconds (NumericDate) on the wire.
+
 pub use jiff;
 pub use no_way_jose_core::validation::Validate;
 
@@ -73,6 +90,7 @@ impl FromJson for RegisteredClaims {
 }
 
 impl RegisteredClaims {
+    /// Create claims with `iat` and `nbf` set to `now`, and `exp` set to `now + ttl`.
     pub fn new(now: jiff::Timestamp, ttl: jiff::SignedDuration) -> Self {
         Self {
             iss: None,
@@ -108,6 +126,7 @@ impl RegisteredClaims {
 
 // -- Validators --
 
+/// Validates that the `exp` claim is present.
 pub struct HasExpiry;
 
 impl Validate for HasExpiry {
@@ -120,17 +139,21 @@ impl Validate for HasExpiry {
     }
 }
 
+/// Validates that the token is not expired (`exp`) and not used before its
+/// `nbf` time. Either field may be absent, in which case that check is skipped.
 pub struct Time {
     now: jiff::Timestamp,
 }
 
 impl Time {
+    /// Create a validator using the current system time.
     pub fn valid_now() -> Self {
         Self {
             now: jiff::Timestamp::now(),
         }
     }
 
+    /// Create a validator pinned to a specific timestamp (useful for testing).
     pub fn valid_at(ts: jiff::Timestamp) -> Self {
         Self { now: ts }
     }
@@ -154,6 +177,7 @@ impl Validate for Time {
     }
 }
 
+/// Validates that `iss` matches the expected issuer string.
 pub struct FromIssuer<T: AsRef<str>>(pub T);
 
 impl<T: AsRef<str>> Validate for FromIssuer<T> {
@@ -166,6 +190,7 @@ impl<T: AsRef<str>> Validate for FromIssuer<T> {
     }
 }
 
+/// Validates that `aud` contains the expected audience string.
 pub struct ForAudience<T: AsRef<str>>(pub T);
 
 impl<T: AsRef<str>> Validate for ForAudience<T> {
