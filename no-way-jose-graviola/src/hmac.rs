@@ -1,10 +1,17 @@
 use graviola::hashing::hmac::Hmac;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OctParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 #[derive(Clone)]
 pub struct HmacKey(Vec<u8>);
+
+impl HmacKey {
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
 
 fn make_key(bytes: impl Into<Vec<u8>>, min_len: usize) -> Result<HmacKey, JoseError> {
     let bytes = bytes.into();
@@ -52,7 +59,53 @@ macro_rules! hmac_algorithm {
                 mac.verify(signature).map_err(|_| JoseError::CryptoError)
             }
         }
+
+        impl JwkKeyConvert<Signing> for $name {
+            fn key_to_jwk(key: &HmacKey) -> Jwk {
+                oct_to_jwk(key.as_bytes(), $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<HmacKey, JoseError> {
+                oct_from_jwk(jwk, $alg, $min_key_len)
+            }
+        }
+
+        impl JwkKeyConvert<Verifying> for $name {
+            fn key_to_jwk(key: &HmacKey) -> Jwk {
+                oct_to_jwk(key.as_bytes(), $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<HmacKey, JoseError> {
+                oct_from_jwk(jwk, $alg, $min_key_len)
+            }
+        }
     };
+}
+
+fn oct_to_jwk(key_bytes: &[u8], alg: &str) -> Jwk {
+    Jwk {
+        kty: "oct".into(),
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        params: JwkParams::Oct(OctParams {
+            k: key_bytes.to_vec(),
+        }),
+    }
+}
+
+fn oct_from_jwk(jwk: &Jwk, expected_alg: &str, min_len: usize) -> Result<HmacKey, JoseError> {
+    if jwk.kty != "oct" {
+        return Err(JoseError::InvalidKey);
+    }
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(JoseError::InvalidKey);
+    }
+    match &jwk.params {
+        JwkParams::Oct(p) => make_key(p.k.clone(), min_len),
+        _ => Err(JoseError::InvalidKey),
+    }
 }
 
 hmac_algorithm!(

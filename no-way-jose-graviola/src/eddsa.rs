@@ -1,6 +1,7 @@
 use graviola::signing::eddsa;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OkpParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 /// `EdDSA`: Edwards-curve Digital Signature Algorithm using Ed25519 (graviola backend).
@@ -34,6 +35,76 @@ impl Verifier for EdDsa {
     ) -> Result<(), JoseError> {
         key.verify(signature, signing_input)
             .map_err(|_| JoseError::CryptoError)
+    }
+}
+
+impl JwkKeyConvert<Signing> for EdDsa {
+    fn key_to_jwk(key: &eddsa::Ed25519SigningKey) -> Jwk {
+        Jwk {
+            kty: "OKP".into(),
+            kid: None,
+            alg: Some("EdDSA".into()),
+            use_: None,
+            key_ops: None,
+            params: JwkParams::Okp(OkpParams {
+                crv: "Ed25519".into(),
+                x: key.public_key().as_bytes().to_vec(),
+                d: Some(key.as_seed().to_vec()),
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> Result<eddsa::Ed25519SigningKey, JoseError> {
+        validate_okp_jwk(jwk)?;
+        match &jwk.params {
+            JwkParams::Okp(p) => {
+                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
+                eddsa::Ed25519SigningKey::from_bytes(d).map_err(|_| JoseError::InvalidKey)
+            }
+            _ => Err(JoseError::InvalidKey),
+        }
+    }
+}
+
+impl JwkKeyConvert<Verifying> for EdDsa {
+    fn key_to_jwk(key: &eddsa::Ed25519VerifyingKey) -> Jwk {
+        Jwk {
+            kty: "OKP".into(),
+            kid: None,
+            alg: Some("EdDSA".into()),
+            use_: None,
+            key_ops: None,
+            params: JwkParams::Okp(OkpParams {
+                crv: "Ed25519".into(),
+                x: key.as_bytes().to_vec(),
+                d: None,
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> Result<eddsa::Ed25519VerifyingKey, JoseError> {
+        validate_okp_jwk(jwk)?;
+        match &jwk.params {
+            JwkParams::Okp(p) => {
+                eddsa::Ed25519VerifyingKey::from_bytes(&p.x).map_err(|_| JoseError::InvalidKey)
+            }
+            _ => Err(JoseError::InvalidKey),
+        }
+    }
+}
+
+fn validate_okp_jwk(jwk: &Jwk) -> Result<(), JoseError> {
+    if jwk.kty != "OKP" {
+        return Err(JoseError::InvalidKey);
+    }
+    if let Some(alg) = &jwk.alg
+        && alg != "EdDSA"
+    {
+        return Err(JoseError::InvalidKey);
+    }
+    match &jwk.params {
+        JwkParams::Okp(p) if p.crv == "Ed25519" => Ok(()),
+        _ => Err(JoseError::InvalidKey),
     }
 }
 

@@ -2,6 +2,7 @@ use graviola::hashing::{Sha256, Sha384};
 use graviola::signing::ecdsa;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::jwk::{EcParams, Jwk, JwkKeyConvert, JwkParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 macro_rules! ecdsa_algorithm {
@@ -65,6 +66,114 @@ ecdsa_algorithm!(
     Sha384,
     96,
     "ES384: ECDSA using P-384 and SHA-384 (graviola backend)."
+);
+
+// -- JWK support --
+
+macro_rules! ecdsa_jwk_impls {
+    ($name:ident, $alg:literal, $crv:literal, $curve:ty, $privkey:ty, $pubkey:ty, $scalar_len:literal) => {
+        impl JwkKeyConvert<Signing> for $name {
+            fn key_to_jwk(key: &ecdsa::SigningKey<$curve>) -> Jwk {
+                let d = key.private_key.as_bytes();
+                let point = key.private_key.public_key_uncompressed();
+                Jwk {
+                    kty: "EC".into(),
+                    kid: None,
+                    alg: Some($alg.into()),
+                    use_: None,
+                    key_ops: None,
+                    params: JwkParams::Ec(EcParams {
+                        crv: $crv.into(),
+                        x: point[1..1 + $scalar_len].to_vec(),
+                        y: point[1 + $scalar_len..].to_vec(),
+                        d: Some(d.to_vec()),
+                    }),
+                }
+            }
+
+            fn key_from_jwk(jwk: &Jwk) -> Result<ecdsa::SigningKey<$curve>, JoseError> {
+                validate_ec_jwk(jwk, $alg, $crv)?;
+                match &jwk.params {
+                    JwkParams::Ec(p) => {
+                        let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
+                        let private_key =
+                            <$privkey>::from_bytes(d).map_err(|_| JoseError::InvalidKey)?;
+                        Ok(ecdsa::SigningKey { private_key })
+                    }
+                    _ => Err(JoseError::InvalidKey),
+                }
+            }
+        }
+
+        impl JwkKeyConvert<Verifying> for $name {
+            fn key_to_jwk(key: &ecdsa::VerifyingKey<$curve>) -> Jwk {
+                let point = key.public_key.as_bytes_uncompressed();
+                Jwk {
+                    kty: "EC".into(),
+                    kid: None,
+                    alg: Some($alg.into()),
+                    use_: None,
+                    key_ops: None,
+                    params: JwkParams::Ec(EcParams {
+                        crv: $crv.into(),
+                        x: point[1..1 + $scalar_len].to_vec(),
+                        y: point[1 + $scalar_len..].to_vec(),
+                        d: None,
+                    }),
+                }
+            }
+
+            fn key_from_jwk(jwk: &Jwk) -> Result<ecdsa::VerifyingKey<$curve>, JoseError> {
+                validate_ec_jwk(jwk, $alg, $crv)?;
+                match &jwk.params {
+                    JwkParams::Ec(p) => {
+                        let mut uncompressed = Vec::with_capacity(1 + p.x.len() + p.y.len());
+                        uncompressed.push(0x04);
+                        uncompressed.extend_from_slice(&p.x);
+                        uncompressed.extend_from_slice(&p.y);
+                        let public_key = <$pubkey>::from_x962_uncompressed(&uncompressed)
+                            .map_err(|_| JoseError::InvalidKey)?;
+                        Ok(ecdsa::VerifyingKey { public_key })
+                    }
+                    _ => Err(JoseError::InvalidKey),
+                }
+            }
+        }
+    };
+}
+
+fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> Result<(), JoseError> {
+    if jwk.kty != "EC" {
+        return Err(JoseError::InvalidKey);
+    }
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(JoseError::InvalidKey);
+    }
+    match &jwk.params {
+        JwkParams::Ec(p) if p.crv == expected_crv => Ok(()),
+        _ => Err(JoseError::InvalidKey),
+    }
+}
+
+ecdsa_jwk_impls!(
+    Es256,
+    "ES256",
+    "P-256",
+    ecdsa::P256,
+    graviola::key_agreement::p256::StaticPrivateKey,
+    graviola::key_agreement::p256::PublicKey,
+    32
+);
+ecdsa_jwk_impls!(
+    Es384,
+    "ES384",
+    "P-384",
+    ecdsa::P384,
+    graviola::key_agreement::p384::StaticPrivateKey,
+    graviola::key_agreement::p384::PublicKey,
+    48
 );
 
 pub type SigningKey = no_way_jose_core::SigningKey<Es256>;

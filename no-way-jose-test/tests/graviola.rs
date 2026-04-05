@@ -1,4 +1,5 @@
 use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, ToJson};
+use no_way_jose_core::jwk::{FromJwk, JwkParams, ToJwk};
 use no_way_jose_core::validation::NoValidation;
 use no_way_jose_core::{JoseError, UnsignedToken};
 
@@ -270,4 +271,148 @@ fn graviola_aes_gcm_interop_encrypt_grav_decrypt_rc() {
         serialized.parse().unwrap();
     let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
     assert_eq!(unsealed.claims.sub, "interop");
+}
+
+// ====================================================================
+// JWK round-trip tests
+// ====================================================================
+
+#[test]
+fn graviola_ecdsa_es256_jwk_roundtrip() {
+    use graviola::signing::ecdsa;
+
+    let key = graviola::key_agreement::p256::StaticPrivateKey::new_random().unwrap();
+    let pub_bytes = key.public_key_uncompressed();
+    let sk: no_way_jose_graviola::ecdsa::SigningKey =
+        no_way_jose_core::key::Key::new(ecdsa::SigningKey { private_key: key });
+    let vk = no_way_jose_graviola::ecdsa::verifying_key_from_x962(&pub_bytes).unwrap();
+
+    let sk_jwk = sk.to_jwk();
+    assert_eq!(sk_jwk.kty, "EC");
+    assert_eq!(sk_jwk.alg.as_deref(), Some("ES256"));
+    match &sk_jwk.params {
+        JwkParams::Ec(p) => {
+            assert_eq!(p.crv, "P-256");
+            assert!(p.d.is_some());
+        }
+        _ => panic!("expected EC params"),
+    }
+
+    let vk_jwk = vk.to_jwk();
+    match &vk_jwk.params {
+        JwkParams::Ec(p) => assert!(p.d.is_none()),
+        _ => panic!("expected EC params"),
+    }
+
+    let sk2: no_way_jose_graviola::ecdsa::SigningKey = FromJwk::from_jwk(&sk_jwk).unwrap();
+    let vk2: no_way_jose_graviola::ecdsa::VerifyingKey = FromJwk::from_jwk(&vk_jwk).unwrap();
+
+    let token = UnsignedToken::<no_way_jose_graviola::ecdsa::Es256, _>::new(test_claims())
+        .sign(&sk2)
+        .unwrap();
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_graviola::ecdsa::Es256, Claims> =
+        token.to_string().parse().unwrap();
+    parsed.verify(&vk2, &no_validation()).unwrap();
+}
+
+#[test]
+fn graviola_ecdsa_es384_jwk_roundtrip() {
+    use graviola::signing::ecdsa;
+
+    let key = graviola::key_agreement::p384::StaticPrivateKey::new_random().unwrap();
+    let pub_bytes = key.public_key_uncompressed();
+    let sk: no_way_jose_core::SigningKey<no_way_jose_graviola::ecdsa::Es384> =
+        no_way_jose_core::key::Key::new(ecdsa::SigningKey { private_key: key });
+    let vk = no_way_jose_graviola::ecdsa::es384::verifying_key_from_x962(&pub_bytes).unwrap();
+
+    let sk_jwk = sk.to_jwk();
+    assert_eq!(sk_jwk.alg.as_deref(), Some("ES384"));
+    match &sk_jwk.params {
+        JwkParams::Ec(p) => assert_eq!(p.crv, "P-384"),
+        _ => panic!("expected EC params"),
+    }
+
+    let sk2: no_way_jose_core::SigningKey<no_way_jose_graviola::ecdsa::Es384> =
+        FromJwk::from_jwk(&sk_jwk).unwrap();
+    let vk2: no_way_jose_core::VerifyingKey<no_way_jose_graviola::ecdsa::Es384> =
+        FromJwk::from_jwk(&vk.to_jwk()).unwrap();
+
+    let token = UnsignedToken::<no_way_jose_graviola::ecdsa::Es384, _>::new(test_claims())
+        .sign(&sk2)
+        .unwrap();
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_graviola::ecdsa::Es384, Claims> =
+        token.to_string().parse().unwrap();
+    parsed.verify(&vk2, &no_validation()).unwrap();
+}
+
+#[test]
+fn graviola_eddsa_jwk_roundtrip() {
+    let sk = no_way_jose_graviola::eddsa::signing_key_from_bytes(&[7u8; 32]).unwrap();
+    let vk = no_way_jose_graviola::eddsa::verifying_key_from_signing(&sk);
+
+    let sk_jwk = sk.to_jwk();
+    assert_eq!(sk_jwk.kty, "OKP");
+    assert_eq!(sk_jwk.alg.as_deref(), Some("EdDSA"));
+    match &sk_jwk.params {
+        JwkParams::Okp(p) => {
+            assert_eq!(p.crv, "Ed25519");
+            assert!(p.d.is_some());
+        }
+        _ => panic!("expected OKP params"),
+    }
+
+    let vk_jwk = vk.to_jwk();
+    match &vk_jwk.params {
+        JwkParams::Okp(p) => assert!(p.d.is_none()),
+        _ => panic!("expected OKP params"),
+    }
+
+    let sk2: no_way_jose_graviola::eddsa::SigningKey = FromJwk::from_jwk(&sk_jwk).unwrap();
+    let vk2: no_way_jose_graviola::eddsa::VerifyingKey = FromJwk::from_jwk(&vk_jwk).unwrap();
+
+    let token = UnsignedToken::<no_way_jose_graviola::eddsa::EdDsa, _>::new(test_claims())
+        .sign(&sk2)
+        .unwrap();
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_graviola::eddsa::EdDsa, Claims> =
+        token.to_string().parse().unwrap();
+    parsed.verify(&vk2, &no_validation()).unwrap();
+}
+
+#[test]
+fn graviola_hmac_jwk_roundtrip() {
+    let key_bytes = b"super-secret-key-for-testing-256".to_vec();
+    let sk = no_way_jose_graviola::hmac::symmetric_key(key_bytes).unwrap();
+
+    let jwk = sk.to_jwk();
+    assert_eq!(jwk.kty, "oct");
+    assert_eq!(jwk.alg.as_deref(), Some("HS256"));
+
+    let sk2: no_way_jose_graviola::hmac::SigningKey = FromJwk::from_jwk(&jwk).unwrap();
+    let vk2: no_way_jose_graviola::hmac::VerifyingKey = FromJwk::from_jwk(&jwk).unwrap();
+
+    let token = UnsignedToken::<no_way_jose_graviola::hmac::Hs256, _>::new(test_claims())
+        .sign(&sk2)
+        .unwrap();
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_graviola::hmac::Hs256, Claims> =
+        token.to_string().parse().unwrap();
+    parsed.verify(&vk2, &no_validation()).unwrap();
+}
+
+#[test]
+fn graviola_ecdsa_jwk_interop_with_rustcrypto() {
+    use graviola::signing::ecdsa;
+
+    let key = graviola::key_agreement::p256::StaticPrivateKey::new_random().unwrap();
+    let sk: no_way_jose_graviola::ecdsa::SigningKey =
+        no_way_jose_core::key::Key::new(ecdsa::SigningKey { private_key: key });
+    let sk_jwk = sk.to_jwk();
+
+    let rc_vk: no_way_jose_ecdsa::VerifyingKey = FromJwk::from_jwk(&sk_jwk).unwrap();
+
+    let token = UnsignedToken::<no_way_jose_graviola::ecdsa::Es256, _>::new(test_claims())
+        .sign(&sk)
+        .unwrap();
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_ecdsa::Es256, Claims> =
+        token.to_string().parse().unwrap();
+    parsed.verify(&rc_vk, &no_validation()).unwrap();
 }
