@@ -164,7 +164,7 @@ checksum = "42a0d26b245348befa0c121944541476763dcc46ede886c88f9d12e1697d27c3"
 dependencies = [
  "cpubits",
  "ctutils",
- "getrandom",
+ "getrandom 0.4.2",
  "hybrid-array",
  "num-traits",
  "rand_core",
@@ -179,7 +179,7 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77727bb15fa921304124b128af125e7e3b968275d1b108b379190264f4423710"
 dependencies = [
- "getrandom",
+ "getrandom 0.4.2",
  "hybrid-array",
  "rand_core",
 ]
@@ -337,13 +337,25 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "getrandom"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "r-efi 5.3.0",
+ "wasip2",
+]
+
+[[package]]
+name = "getrandom"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0de51e6874e94e7bf76d726fc5d13ba782deca734ff60d5bb2fb2607c7406555"
 dependencies = [
  "cfg-if",
  "libc",
- "r-efi",
+ "r-efi 6.0.0",
  "rand_core",
  "wasip2",
  "wasip3",
@@ -356,6 +368,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2eecf2d5dc9b66b732b97707a0210906b1d30523eb773193ab777c0c84b3e8d5"
 dependencies = [
  "polyval",
+]
+
+[[package]]
+name = "graviola"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4387e0458389da24c6fe732531e65595c7c4a32b027f98f4789e512e28224465"
+dependencies = [
+ "cfg-if",
+ "getrandom 0.3.4",
 ]
 
 [[package]]
@@ -519,7 +541,7 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "cbc",
- "getrandom",
+ "getrandom 0.4.2",
  "hmac",
  "no-way-jose-core",
  "sha2",
@@ -530,7 +552,7 @@ name = "no-way-jose-aes-gcm"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
- "getrandom",
+ "getrandom 0.4.2",
  "no-way-jose-core",
 ]
 
@@ -541,7 +563,7 @@ dependencies = [
  "aes",
  "aes-gcm",
  "base64ct",
- "getrandom",
+ "getrandom 0.4.2",
  "no-way-jose-core",
 ]
 
@@ -550,7 +572,7 @@ name = "no-way-jose-aes-kw"
 version = "0.1.0"
 dependencies = [
  "aes-kw",
- "getrandom",
+ "getrandom 0.4.2",
  "no-way-jose-core",
 ]
 
@@ -575,7 +597,7 @@ version = "0.1.0"
 dependencies = [
  "aes-kw",
  "base64ct",
- "getrandom",
+ "getrandom 0.4.2",
  "no-way-jose-core",
  "p256",
  "p384",
@@ -600,6 +622,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "no-way-jose-graviola"
+version = "0.1.0"
+dependencies = [
+ "graviola",
+ "no-way-jose-core",
+]
+
+[[package]]
 name = "no-way-jose-hmac"
 version = "0.1.0"
 dependencies = [
@@ -614,7 +644,7 @@ version = "0.1.0"
 dependencies = [
  "aes-kw",
  "base64ct",
- "getrandom",
+ "getrandom 0.4.2",
  "hmac",
  "no-way-jose-core",
  "pbkdf2",
@@ -625,7 +655,7 @@ dependencies = [
 name = "no-way-jose-rsa"
 version = "0.1.0"
 dependencies = [
- "getrandom",
+ "getrandom 0.4.2",
  "no-way-jose-core",
  "rsa",
  "sha1",
@@ -637,7 +667,8 @@ name = "no-way-jose-test"
 version = "0.1.0"
 dependencies = [
  "base64ct",
- "getrandom",
+ "getrandom 0.4.2",
+ "graviola",
  "no-way-jose-aes-cbc-hs",
  "no-way-jose-aes-gcm",
  "no-way-jose-aes-gcm-kw",
@@ -647,6 +678,7 @@ dependencies = [
  "no-way-jose-ecdh-es",
  "no-way-jose-ecdsa",
  "no-way-jose-eddsa",
+ "no-way-jose-graviola",
  "no-way-jose-hmac",
  "no-way-jose-pbes2",
  "no-way-jose-rsa",
@@ -776,6 +808,12 @@ checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "r-efi"
+version = "5.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "r-efi"

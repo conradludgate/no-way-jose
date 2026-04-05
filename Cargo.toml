@@ -9,6 +9,7 @@ members = [
     "no-way-jose-ecdh-es",
     "no-way-jose-ecdsa",
     "no-way-jose-eddsa",
+    "no-way-jose-graviola",
     "no-way-jose-hmac",
     "no-way-jose-claims",
     "no-way-jose-pbes2",
@@ -29,6 +30,8 @@ no-way-jose-hmac = { path = "no-way-jose-hmac", version = "0.1.0" }
 no-way-jose-pbes2 = { path = "no-way-jose-pbes2", version = "0.1.0" }
 no-way-jose-rsa = { path = "no-way-jose-rsa", version = "0.1.0" }
 no-way-jose-claims = { path = "no-way-jose-claims", version = "0.1.0" }
+no-way-jose-graviola = { path = "no-way-jose-graviola", version = "0.1.0" }
+graviola = "0.3"
 base64ct = { version = "1", default-features = false, features = ["alloc"] }
 ed25519-dalek = { version = "3.0.0-pre.6", default-features = false }
 hmac = { version = "0.13.0-rc.6", default-features = false }
