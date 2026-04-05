@@ -497,6 +497,31 @@ fn es384_roundtrip() {
     assert_eq!(verified.claims.sub, "es384");
 }
 
+#[test]
+fn es512_roundtrip() {
+    #[allow(deprecated)]
+    let sk =
+        p521::ecdsa::SigningKey::random(&mut getrandom::rand_core::UnwrapErr(getrandom::SysRng));
+    let sk = no_way_jose_ecdsa::es512::SigningKey::new(sk);
+    let vk = no_way_jose_ecdsa::es512::verifying_key_from_signing(&sk);
+
+    let claims = RoundtripClaims {
+        sub: "es512".into(),
+        name: "Test".into(),
+    };
+    let token_str = no_way_jose_core::UnsignedToken::<no_way_jose_ecdsa::Es512, _>::new(claims)
+        .sign(&sk)
+        .unwrap()
+        .to_string();
+
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_ecdsa::Es512, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "es512");
+}
+
 // -- HS384 / HS512 roundtrips --
 
 #[test]

@@ -1,12 +1,12 @@
-//! ECDSA-based JWS algorithms: [`Es256`] (P-256) and [`Es384`] (P-384).
+//! ECDSA-based JWS algorithms: [`Es256`] (P-256), [`Es384`] (P-384), and [`Es512`] (P-521).
 //!
 //! ECDSA is an asymmetric algorithm -- a private key signs and the
 //! corresponding public key verifies. Keys can be constructed from raw scalar
 //! bytes ([`signing_key_from_bytes`]) or SEC1-encoded public keys
 //! ([`verifying_key_from_sec1`]).
 //!
-//! The root-level key functions target ES256. For ES384 use the [`es384`]
-//! submodule.
+//! The root-level key functions target ES256. For ES384 and ES512 use the
+//! [`es384`] and [`es512`] submodules respectively.
 
 #![no_std]
 #![warn(clippy::pedantic)]
@@ -250,6 +250,105 @@ impl JwkKeyConvert<Verifying> for Es384 {
     }
 }
 
+// -- ES512 --
+
+/// ES512: ECDSA using P-521 and SHA-512 (RFC 7518 Section 3.4).
+pub struct Es512;
+
+impl no_way_jose_core::__private::Sealed for Es512 {}
+
+impl JwsAlgorithm for Es512 {
+    const ALG: &'static str = "ES512";
+}
+
+impl HasKey<Signing> for Es512 {
+    type Key = p521::ecdsa::SigningKey;
+}
+
+impl HasKey<Verifying> for Es512 {
+    type Key = p521::ecdsa::VerifyingKey;
+}
+
+impl Signer for Es512 {
+    fn sign(key: &p521::ecdsa::SigningKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
+        use p521::ecdsa::signature::Signer;
+        let sig: p521::ecdsa::Signature = key.sign(signing_input);
+        Ok(sig.to_bytes().to_vec())
+    }
+}
+
+impl Verifier for Es512 {
+    fn verify(
+        key: &p521::ecdsa::VerifyingKey,
+        signing_input: &[u8],
+        signature: &[u8],
+    ) -> Result<(), JoseError> {
+        use p521::ecdsa::signature::Verifier;
+        let sig =
+            p521::ecdsa::Signature::from_slice(signature).map_err(|_| JoseError::CryptoError)?;
+        key.verify(signing_input, &sig)
+            .map_err(|_| JoseError::CryptoError)
+    }
+}
+
+impl JwkKeyConvert<Signing> for Es512 {
+    fn key_to_jwk(key: &p521::ecdsa::SigningKey) -> Jwk {
+        let vk = key.verifying_key();
+        let point = vk.to_sec1_point(false);
+        Jwk {
+            kty: "EC".into(),
+            kid: None,
+            alg: Some("ES512".into()),
+            use_: None,
+            key_ops: None,
+            params: JwkParams::Ec(EcParams {
+                crv: "P-521".into(),
+                x: point.x().unwrap().to_vec(),
+                y: point.y().unwrap().to_vec(),
+                d: Some(key.to_bytes().to_vec()),
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> Result<p521::ecdsa::SigningKey, JoseError> {
+        validate_ec_jwk(jwk, "ES512", "P-521")?;
+        match &jwk.params {
+            JwkParams::Ec(p) => {
+                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
+                p521::ecdsa::SigningKey::from_slice(d).map_err(|_| JoseError::InvalidKey)
+            }
+            _ => Err(JoseError::InvalidKey),
+        }
+    }
+}
+
+impl JwkKeyConvert<Verifying> for Es512 {
+    fn key_to_jwk(key: &p521::ecdsa::VerifyingKey) -> Jwk {
+        let point = key.to_sec1_point(false);
+        Jwk {
+            kty: "EC".into(),
+            kid: None,
+            alg: Some("ES512".into()),
+            use_: None,
+            key_ops: None,
+            params: JwkParams::Ec(EcParams {
+                crv: "P-521".into(),
+                x: point.x().unwrap().to_vec(),
+                y: point.y().unwrap().to_vec(),
+                d: None,
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> Result<p521::ecdsa::VerifyingKey, JoseError> {
+        validate_ec_jwk(jwk, "ES512", "P-521")?;
+        match &jwk.params {
+            JwkParams::Ec(p) => p521_verifying_key_from_xy(&p.x, &p.y),
+            _ => Err(JoseError::InvalidKey),
+        }
+    }
+}
+
 fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> Result<(), JoseError> {
     if jwk.kty != "EC" {
         return Err(JoseError::InvalidKey);
@@ -281,6 +380,14 @@ fn p384_verifying_key_from_xy(x: &[u8], y: &[u8]) -> Result<p384::ecdsa::Verifyi
     p384::ecdsa::VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| JoseError::InvalidKey)
 }
 
+fn p521_verifying_key_from_xy(x: &[u8], y: &[u8]) -> Result<p521::ecdsa::VerifyingKey, JoseError> {
+    let mut sec1 = Vec::with_capacity(1 + x.len() + y.len());
+    sec1.push(0x04);
+    sec1.extend_from_slice(x);
+    sec1.extend_from_slice(y);
+    p521::ecdsa::VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| JoseError::InvalidKey)
+}
+
 pub mod es384 {
     use no_way_jose_core::JoseError;
 
@@ -299,6 +406,34 @@ pub mod es384 {
     /// Returns `JoseError::InvalidKey` if the SEC1 bytes are invalid.
     pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
         p384::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
+            .map(no_way_jose_core::key::Key::new)
+            .map_err(|_| JoseError::InvalidKey)
+    }
+
+    #[must_use]
+    pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
+        no_way_jose_core::key::Key::new(*key.inner().verifying_key())
+    }
+}
+
+pub mod es512 {
+    use no_way_jose_core::JoseError;
+
+    pub type SigningKey = no_way_jose_core::SigningKey<super::Es512>;
+    pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Es512>;
+
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the scalar bytes are invalid.
+    pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, JoseError> {
+        p521::ecdsa::SigningKey::from_slice(bytes)
+            .map(no_way_jose_core::key::Key::new)
+            .map_err(|_| JoseError::InvalidKey)
+    }
+
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the SEC1 bytes are invalid.
+    pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
+        p521::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
             .map(no_way_jose_core::key::Key::new)
             .map_err(|_| JoseError::InvalidKey)
     }

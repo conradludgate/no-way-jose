@@ -612,6 +612,7 @@ dependencies = [
  "no-way-jose-core",
  "p256",
  "p384",
+ "p521",
 ]
 
 [[package]]
@@ -685,6 +686,7 @@ dependencies = [
  "no-way-jose-rsa",
  "p256",
  "p384",
+ "p521",
  "rsa",
  "sha2",
 ]
@@ -720,6 +722,20 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "fiat-crypto",
+ "primefield",
+ "primeorder",
+ "sha2",
+]
+
+[[package]]
+name = "p521"
+version = "0.14.0-rc.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9eecc34c4c6e6596d5271fecf90ac4f16593fa198e77282214d0c22736aa9266"
+dependencies = [
+ "base16ct",
+ "ecdsa",
+ "elliptic-curve",
  "primefield",
  "primeorder",
  "sha2",

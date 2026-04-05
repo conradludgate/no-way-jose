@@ -7,3 +7,4 @@ edition = "2024"
 no-way-jose-core = { workspace = true }
 p256 = { workspace = true }
 p384 = { workspace = true }
+p521 = { workspace = true }
