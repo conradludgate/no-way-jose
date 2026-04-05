@@ -243,6 +243,29 @@ fn rs256_roundtrip() {
     assert_eq!(verified.claims.sub, "rs256");
 }
 
+#[test]
+fn ps256_roundtrip() {
+    let sk_inner = rfc7515_a2_rsa_private_key();
+    let sk = no_way_jose_rsa::ps256::signing_key(sk_inner);
+    let vk = no_way_jose_rsa::ps256::verifying_key_from_signing(&sk);
+
+    let claims = RoundtripClaims {
+        sub: "ps256".into(),
+        name: "Test".into(),
+    };
+    let token_str = no_way_jose_core::UnsignedToken::<no_way_jose_rsa::Ps256, _>::new(claims)
+        .sign(&sk)
+        .unwrap()
+        .to_string();
+
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_rsa::Ps256, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "ps256");
+}
+
 // -- Roundtrip tests --
 
 #[test]
