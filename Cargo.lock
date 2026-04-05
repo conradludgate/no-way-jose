@@ -685,6 +685,7 @@ dependencies = [
  "p256",
  "p384",
  "rsa",
+ "sha2",
 ]
 
 [[package]]
