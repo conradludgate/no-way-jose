@@ -4,8 +4,14 @@
 //! Keys are constructed from the `rsa` crate's [`rsa::RsaPrivateKey`] and
 //! [`rsa::RsaPublicKey`] types.
 
+#![no_std]
+
+extern crate alloc;
+
 pub use no_way_jose_core;
 
+use alloc::vec;
+use alloc::vec::Vec;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};

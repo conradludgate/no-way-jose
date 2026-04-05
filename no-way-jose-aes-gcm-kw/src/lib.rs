@@ -9,6 +9,8 @@
 
 extern crate alloc;
 
+pub use no_way_jose_core;
+
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;

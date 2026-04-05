@@ -8,8 +8,13 @@
 //! The root-level key functions target ES256. For ES384 use the [`es384`]
 //! submodule.
 
+#![no_std]
+
+extern crate alloc;
+
 pub use no_way_jose_core;
 
+use alloc::vec::Vec;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};

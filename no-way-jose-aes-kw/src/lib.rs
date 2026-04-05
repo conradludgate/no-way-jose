@@ -11,6 +11,8 @@
 
 extern crate alloc;
 
+pub use no_way_jose_core;
+
 use alloc::vec;
 use alloc::vec::Vec;
 

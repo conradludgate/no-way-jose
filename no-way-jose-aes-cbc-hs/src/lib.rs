@@ -8,6 +8,8 @@
 
 extern crate alloc;
 
+pub use no_way_jose_core;
+
 use alloc::vec::Vec;
 
 use cbc::cipher::block_padding::Pkcs7;

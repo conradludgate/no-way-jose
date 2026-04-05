@@ -8,8 +8,13 @@
 //! convenience aliases for HS256. For other variants use the [`hs384`] or
 //! [`hs512`] submodules.
 
+#![no_std]
+
+extern crate alloc;
+
 pub use no_way_jose_core;
 
+use alloc::vec::Vec;
 use hmac::{Hmac, Mac};
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
@@ -94,6 +99,8 @@ hmac_algorithm!(
 );
 
 pub mod hs256 {
+    use alloc::vec::Vec;
+
     pub type SigningKey = no_way_jose_core::SigningKey<super::Hs256>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Hs256>;
 
@@ -111,6 +118,8 @@ pub mod hs256 {
 }
 
 pub mod hs384 {
+    use alloc::vec::Vec;
+
     pub type SigningKey = no_way_jose_core::SigningKey<super::Hs384>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Hs384>;
 
@@ -128,6 +137,8 @@ pub mod hs384 {
 }
 
 pub mod hs512 {
+    use alloc::vec::Vec;
+
     pub type SigningKey = no_way_jose_core::SigningKey<super::Hs512>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Hs512>;
 

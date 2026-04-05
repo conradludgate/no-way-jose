@@ -4,8 +4,13 @@
 //! constructed from 32-byte seeds ([`signing_key_from_bytes`]) or raw
 //! public key bytes ([`verifying_key_from_bytes`]).
 
+#![no_std]
+
+extern crate alloc;
+
 pub use no_way_jose_core;
 
+use alloc::vec::Vec;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};

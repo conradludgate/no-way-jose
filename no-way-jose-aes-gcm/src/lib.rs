@@ -9,6 +9,8 @@
 
 extern crate alloc;
 
+pub use no_way_jose_core;
+
 use alloc::vec::Vec;
 
 use aes_gcm::aead::Aead;
