@@ -266,6 +266,102 @@ fn ps256_roundtrip() {
     assert_eq!(verified.claims.sub, "ps256");
 }
 
+#[test]
+fn rs384_roundtrip() {
+    let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
+    let sk_inner = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
+    let sk = no_way_jose_rsa::rs384::signing_key(sk_inner);
+    let vk = no_way_jose_rsa::rs384::verifying_key_from_signing(&sk);
+
+    let claims = RoundtripClaims {
+        sub: "rs384".into(),
+        name: "Test".into(),
+    };
+    let token_str = no_way_jose_core::UnsignedToken::<no_way_jose_rsa::Rs384, _>::new(claims)
+        .sign(&sk)
+        .unwrap()
+        .to_string();
+
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_rsa::Rs384, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "rs384");
+}
+
+#[test]
+fn rs512_roundtrip() {
+    let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
+    let sk_inner = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
+    let sk = no_way_jose_rsa::rs512::signing_key(sk_inner);
+    let vk = no_way_jose_rsa::rs512::verifying_key_from_signing(&sk);
+
+    let claims = RoundtripClaims {
+        sub: "rs512".into(),
+        name: "Test".into(),
+    };
+    let token_str = no_way_jose_core::UnsignedToken::<no_way_jose_rsa::Rs512, _>::new(claims)
+        .sign(&sk)
+        .unwrap()
+        .to_string();
+
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_rsa::Rs512, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "rs512");
+}
+
+#[test]
+fn ps384_roundtrip() {
+    let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
+    let sk_inner = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
+    let sk = no_way_jose_rsa::ps384::signing_key(sk_inner);
+    let vk = no_way_jose_rsa::ps384::verifying_key_from_signing(&sk);
+
+    let claims = RoundtripClaims {
+        sub: "ps384".into(),
+        name: "Test".into(),
+    };
+    let token_str = no_way_jose_core::UnsignedToken::<no_way_jose_rsa::Ps384, _>::new(claims)
+        .sign(&sk)
+        .unwrap()
+        .to_string();
+
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_rsa::Ps384, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "ps384");
+}
+
+#[test]
+fn ps512_roundtrip() {
+    let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
+    let sk_inner = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
+    let sk = no_way_jose_rsa::ps512::signing_key(sk_inner);
+    let vk = no_way_jose_rsa::ps512::verifying_key_from_signing(&sk);
+
+    let claims = RoundtripClaims {
+        sub: "ps512".into(),
+        name: "Test".into(),
+    };
+    let token_str = no_way_jose_core::UnsignedToken::<no_way_jose_rsa::Ps512, _>::new(claims)
+        .sign(&sk)
+        .unwrap()
+        .to_string();
+
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_rsa::Ps512, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "ps512");
+}
+
 // -- Roundtrip tests --
 
 #[test]

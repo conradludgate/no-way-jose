@@ -1,5 +1,5 @@
-//! RSA algorithms for JWS signing ([`Rs256`], [`Ps256`]) and JWE key management
-//! ([`Rsa1_5`], [`RsaOaep`], [`RsaOaep256`]).
+//! RSA algorithms for JWS signing ([`Rs256`], [`Rs384`], [`Rs512`], [`Ps256`], [`Ps384`],
+//! [`Ps512`]) and JWE key management ([`Rsa1_5`], [`RsaOaep`], [`RsaOaep256`]).
 //!
 //! Keys are constructed from the `rsa` crate's [`rsa::RsaPrivateKey`] and
 //! [`rsa::RsaPublicKey`] types.
@@ -18,49 +18,99 @@ use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, RsaParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
-/// RS256: RSASSA-PKCS1-v1_5 using SHA-256 (RFC 7518 Section 3.3).
-pub struct Rs256;
+macro_rules! rsa_jws_algorithm {
+    ($name:ident, $alg:literal, $signing_key:ty, $verifying_key:ty, $sig_type:ty, $doc:literal) => {
+        #[doc = $doc]
+        pub struct $name;
 
-impl no_way_jose_core::__private::Sealed for Rs256 {}
+        impl no_way_jose_core::__private::Sealed for $name {}
 
-impl JwsAlgorithm for Rs256 {
-    const ALG: &'static str = "RS256";
+        impl JwsAlgorithm for $name {
+            const ALG: &'static str = $alg;
+        }
+
+        impl HasKey<Signing> for $name {
+            type Key = rsa::RsaPrivateKey;
+        }
+
+        impl HasKey<Verifying> for $name {
+            type Key = rsa::RsaPublicKey;
+        }
+
+        impl Signer for $name {
+            fn sign(key: &rsa::RsaPrivateKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
+                use rsa::signature::{SignatureEncoding, Signer as _};
+                let signing_key = <$signing_key>::new(key.clone());
+                let sig = signing_key.sign(signing_input);
+                Ok(sig.to_vec())
+            }
+        }
+
+        impl Verifier for $name {
+            fn verify(
+                key: &rsa::RsaPublicKey,
+                signing_input: &[u8],
+                signature: &[u8],
+            ) -> Result<(), JoseError> {
+                use rsa::signature::Verifier as _;
+                let verifying_key = <$verifying_key>::new(key.clone());
+                let sig = <$sig_type>::try_from(signature).map_err(|_| JoseError::CryptoError)?;
+                verifying_key
+                    .verify(signing_input, &sig)
+                    .map_err(|_| JoseError::CryptoError)
+            }
+        }
+    };
 }
 
-impl HasKey<Signing> for Rs256 {
-    type Key = rsa::RsaPrivateKey;
-}
-
-impl HasKey<Verifying> for Rs256 {
-    type Key = rsa::RsaPublicKey;
-}
-
-impl Signer for Rs256 {
-    fn sign(key: &rsa::RsaPrivateKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
-        use rsa::pkcs1v15::SigningKey;
-        use rsa::signature::{SignatureEncoding, Signer};
-        let signing_key = SigningKey::<sha2::Sha256>::new(key.clone());
-        let sig = signing_key.sign(signing_input);
-        Ok(sig.to_vec())
-    }
-}
-
-impl Verifier for Rs256 {
-    fn verify(
-        key: &rsa::RsaPublicKey,
-        signing_input: &[u8],
-        signature: &[u8],
-    ) -> Result<(), JoseError> {
-        use rsa::pkcs1v15::VerifyingKey;
-        use rsa::signature::Verifier;
-        let verifying_key = VerifyingKey::<sha2::Sha256>::new(key.clone());
-        let sig =
-            rsa::pkcs1v15::Signature::try_from(signature).map_err(|_| JoseError::CryptoError)?;
-        verifying_key
-            .verify(signing_input, &sig)
-            .map_err(|_| JoseError::CryptoError)
-    }
-}
+rsa_jws_algorithm!(
+    Rs256,
+    "RS256",
+    rsa::pkcs1v15::SigningKey<sha2::Sha256>,
+    rsa::pkcs1v15::VerifyingKey<sha2::Sha256>,
+    rsa::pkcs1v15::Signature,
+    "RS256: RSASSA-PKCS1-v1_5 using SHA-256 (RFC 7518 Section 3.3)."
+);
+rsa_jws_algorithm!(
+    Rs384,
+    "RS384",
+    rsa::pkcs1v15::SigningKey<sha2::Sha384>,
+    rsa::pkcs1v15::VerifyingKey<sha2::Sha384>,
+    rsa::pkcs1v15::Signature,
+    "RS384: RSASSA-PKCS1-v1_5 using SHA-384 (RFC 7518 Section 3.3)."
+);
+rsa_jws_algorithm!(
+    Rs512,
+    "RS512",
+    rsa::pkcs1v15::SigningKey<sha2::Sha512>,
+    rsa::pkcs1v15::VerifyingKey<sha2::Sha512>,
+    rsa::pkcs1v15::Signature,
+    "RS512: RSASSA-PKCS1-v1_5 using SHA-512 (RFC 7518 Section 3.3)."
+);
+rsa_jws_algorithm!(
+    Ps256,
+    "PS256",
+    rsa::pss::SigningKey<sha2::Sha256>,
+    rsa::pss::VerifyingKey<sha2::Sha256>,
+    rsa::pss::Signature,
+    "PS256: RSASSA-PSS using SHA-256 and MGF1 with SHA-256 (RFC 7518 Section 3.5)."
+);
+rsa_jws_algorithm!(
+    Ps384,
+    "PS384",
+    rsa::pss::SigningKey<sha2::Sha384>,
+    rsa::pss::VerifyingKey<sha2::Sha384>,
+    rsa::pss::Signature,
+    "PS384: RSASSA-PSS using SHA-384 and MGF1 with SHA-384 (RFC 7518 Section 3.5)."
+);
+rsa_jws_algorithm!(
+    Ps512,
+    "PS512",
+    rsa::pss::SigningKey<sha2::Sha512>,
+    rsa::pss::VerifyingKey<sha2::Sha512>,
+    rsa::pss::Signature,
+    "PS512: RSASSA-PSS using SHA-512 and MGF1 with SHA-512 (RFC 7518 Section 3.5)."
+);
 
 /// RS256 signing key.
 pub type SigningKey = no_way_jose_core::SigningKey<Rs256>;
@@ -236,59 +286,95 @@ macro_rules! rsa_jwk_impls {
 }
 
 rsa_jwk_impls!(Rs256, "RS256", signing);
-
-// ====================================================================
-// PS256: RSA-PSS
-// ====================================================================
-
-/// PS256: RSASSA-PSS using SHA-256 and MGF1 with SHA-256 (RFC 7518 Section 3.5).
-pub struct Ps256;
-
-impl no_way_jose_core::__private::Sealed for Ps256 {}
-
-impl JwsAlgorithm for Ps256 {
-    const ALG: &'static str = "PS256";
-}
-
-impl HasKey<Signing> for Ps256 {
-    type Key = rsa::RsaPrivateKey;
-}
-
-impl HasKey<Verifying> for Ps256 {
-    type Key = rsa::RsaPublicKey;
-}
-
-impl Signer for Ps256 {
-    fn sign(key: &rsa::RsaPrivateKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
-        use rsa::pss::SigningKey;
-        use rsa::signature::{SignatureEncoding, Signer};
-        let signing_key = SigningKey::<sha2::Sha256>::new(key.clone());
-        let sig = signing_key.sign(signing_input);
-        Ok(sig.to_vec())
-    }
-}
-
-impl Verifier for Ps256 {
-    fn verify(
-        key: &rsa::RsaPublicKey,
-        signing_input: &[u8],
-        signature: &[u8],
-    ) -> Result<(), JoseError> {
-        use rsa::pss::VerifyingKey;
-        use rsa::signature::Verifier;
-        let verifying_key = VerifyingKey::<sha2::Sha256>::new(key.clone());
-        let sig = rsa::pss::Signature::try_from(signature).map_err(|_| JoseError::CryptoError)?;
-        verifying_key
-            .verify(signing_input, &sig)
-            .map_err(|_| JoseError::CryptoError)
-    }
-}
-
+rsa_jwk_impls!(Rs384, "RS384", signing);
+rsa_jwk_impls!(Rs512, "RS512", signing);
 rsa_jwk_impls!(Ps256, "PS256", signing);
+rsa_jwk_impls!(Ps384, "PS384", signing);
+rsa_jwk_impls!(Ps512, "PS512", signing);
 
 pub mod ps256 {
     pub type SigningKey = no_way_jose_core::SigningKey<super::Ps256>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Ps256>;
+
+    #[must_use]
+    pub fn signing_key(private_key: rsa::RsaPrivateKey) -> SigningKey {
+        no_way_jose_core::key::Key::new(private_key)
+    }
+
+    #[must_use]
+    pub fn verifying_key(public_key: rsa::RsaPublicKey) -> VerifyingKey {
+        no_way_jose_core::key::Key::new(public_key)
+    }
+
+    #[must_use]
+    pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
+        no_way_jose_core::key::Key::new(rsa::RsaPublicKey::from(key.inner()))
+    }
+}
+
+pub mod rs384 {
+    pub type SigningKey = no_way_jose_core::SigningKey<super::Rs384>;
+    pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Rs384>;
+
+    #[must_use]
+    pub fn signing_key(private_key: rsa::RsaPrivateKey) -> SigningKey {
+        no_way_jose_core::key::Key::new(private_key)
+    }
+
+    #[must_use]
+    pub fn verifying_key(public_key: rsa::RsaPublicKey) -> VerifyingKey {
+        no_way_jose_core::key::Key::new(public_key)
+    }
+
+    #[must_use]
+    pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
+        no_way_jose_core::key::Key::new(rsa::RsaPublicKey::from(key.inner()))
+    }
+}
+
+pub mod rs512 {
+    pub type SigningKey = no_way_jose_core::SigningKey<super::Rs512>;
+    pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Rs512>;
+
+    #[must_use]
+    pub fn signing_key(private_key: rsa::RsaPrivateKey) -> SigningKey {
+        no_way_jose_core::key::Key::new(private_key)
+    }
+
+    #[must_use]
+    pub fn verifying_key(public_key: rsa::RsaPublicKey) -> VerifyingKey {
+        no_way_jose_core::key::Key::new(public_key)
+    }
+
+    #[must_use]
+    pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
+        no_way_jose_core::key::Key::new(rsa::RsaPublicKey::from(key.inner()))
+    }
+}
+
+pub mod ps384 {
+    pub type SigningKey = no_way_jose_core::SigningKey<super::Ps384>;
+    pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Ps384>;
+
+    #[must_use]
+    pub fn signing_key(private_key: rsa::RsaPrivateKey) -> SigningKey {
+        no_way_jose_core::key::Key::new(private_key)
+    }
+
+    #[must_use]
+    pub fn verifying_key(public_key: rsa::RsaPublicKey) -> VerifyingKey {
+        no_way_jose_core::key::Key::new(public_key)
+    }
+
+    #[must_use]
+    pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
+        no_way_jose_core::key::Key::new(rsa::RsaPublicKey::from(key.inner()))
+    }
+}
+
+pub mod ps512 {
+    pub type SigningKey = no_way_jose_core::SigningKey<super::Ps512>;
+    pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Ps512>;
 
     #[must_use]
     pub fn signing_key(private_key: rsa::RsaPrivateKey) -> SigningKey {
