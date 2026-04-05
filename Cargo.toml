@@ -11,6 +11,7 @@ members = [
     "no-way-jose-eddsa",
     "no-way-jose-hmac",
     "no-way-jose-claims",
+    "no-way-jose-pbes2",
     "no-way-jose-rsa",
     "no-way-jose-test",
 ]
@@ -25,11 +26,13 @@ no-way-jose-ecdh-es = { path = "no-way-jose-ecdh-es", version = "0.1.0" }
 no-way-jose-ecdsa = { path = "no-way-jose-ecdsa", version = "0.1.0" }
 no-way-jose-eddsa = { path = "no-way-jose-eddsa", version = "0.1.0" }
 no-way-jose-hmac = { path = "no-way-jose-hmac", version = "0.1.0" }
+no-way-jose-pbes2 = { path = "no-way-jose-pbes2", version = "0.1.0" }
 no-way-jose-rsa = { path = "no-way-jose-rsa", version = "0.1.0" }
 no-way-jose-claims = { path = "no-way-jose-claims", version = "0.1.0" }
 base64ct = { version = "1", default-features = false, features = ["alloc"] }
 ed25519-dalek = { version = "2", default-features = false }
 hmac = { version = "0.12", default-features = false }
+pbkdf2 = { version = "0.12", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["ecdsa", "ecdh"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdsa", "ecdh"] }
 rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }

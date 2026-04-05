@@ -518,6 +518,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "no-way-jose-pbes2"
+version = "0.1.0"
+dependencies = [
+ "aes-kw",
+ "base64ct",
+ "getrandom 0.3.4",
+ "hmac",
+ "no-way-jose-core",
+ "pbkdf2",
+ "sha2",
+]
+
+[[package]]
 name = "no-way-jose-rsa"
 version = "0.1.0"
 dependencies = [
@@ -543,6 +556,7 @@ dependencies = [
  "no-way-jose-ecdsa",
  "no-way-jose-eddsa",
  "no-way-jose-hmac",
+ "no-way-jose-pbes2",
  "no-way-jose-rsa",
  "p256",
  "rand_core",
@@ -623,6 +637,15 @@ dependencies = [
  "elliptic-curve",
  "primeorder",
  "sha2",
+]
+
+[[package]]
+name = "pbkdf2"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
+dependencies = [
+ "digest",
 ]
 
 [[package]]

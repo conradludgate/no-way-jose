@@ -794,3 +794,106 @@ fn ecdh_es_header_contains_epk() {
     assert!(header_str.contains("\"epk\""));
     assert!(header_str.contains("\"P-256\""));
 }
+
+// ====================================================================
+// PBES2 tests
+// ====================================================================
+
+#[test]
+fn pbes2_hs256_a128kw_a128gcm_roundtrip() {
+    let password = b"supersecretpassword";
+    let enc_key = no_way_jose_pbes2::pbes2_hs256_a128kw::encryption_key(password.to_vec());
+    let dec_key = no_way_jose_pbes2::pbes2_hs256_a128kw::decryption_key(password.to_vec());
+
+    let claims = Claims {
+        sub: "pbes2".into(),
+        admin: true,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_pbes2::Pbes2Hs256A128Kw, A128Gcm>, Claims>::new(
+            claims,
+        );
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let header = compact.header().unwrap();
+    assert_eq!(header.alg, "PBES2-HS256+A128KW");
+    assert_eq!(header.enc.as_deref(), Some("A128GCM"));
+
+    let serialized = compact.to_string();
+    let parsed: CompactJwe<no_way_jose_pbes2::Pbes2Hs256A128Kw, A128Gcm, Claims> =
+        serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "pbes2");
+    assert!(unsealed.claims.admin);
+}
+
+#[test]
+fn pbes2_hs512_a256kw_a256gcm_roundtrip() {
+    let password = b"anotherpassword";
+    let enc_key = no_way_jose_pbes2::pbes2_hs512_a256kw::encryption_key(password.to_vec());
+    let dec_key = no_way_jose_pbes2::pbes2_hs512_a256kw::decryption_key(password.to_vec());
+
+    let claims = Claims {
+        sub: "pbes2-512".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_pbes2::Pbes2Hs512A256Kw, A256Gcm>, Claims>::new(
+            claims,
+        );
+    let compact = token.encrypt(&enc_key).unwrap();
+    let serialized = compact.to_string();
+
+    let parsed: CompactJwe<no_way_jose_pbes2::Pbes2Hs512A256Kw, A256Gcm, Claims> =
+        serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "pbes2-512");
+    assert!(!unsealed.claims.admin);
+}
+
+#[test]
+fn pbes2_wrong_password_fails() {
+    let enc_key = no_way_jose_pbes2::pbes2_hs256_a128kw::encryption_key(b"correct".to_vec());
+    let wrong_dec = no_way_jose_pbes2::pbes2_hs256_a128kw::decryption_key(b"wrong".to_vec());
+
+    let claims = Claims {
+        sub: "wrong".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_pbes2::Pbes2Hs256A128Kw, A128Gcm>, Claims>::new(
+            claims,
+        );
+    let compact = token.encrypt(&enc_key).unwrap();
+    let result = compact.decrypt(&wrong_dec, &no_validation());
+    assert!(result.is_err());
+}
+
+#[test]
+fn pbes2_header_contains_p2s_and_p2c() {
+    let password = b"test";
+    let enc_key = no_way_jose_pbes2::pbes2_hs256_a128kw::encryption_key(password.to_vec());
+
+    let claims = Claims {
+        sub: "hdr".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_pbes2::Pbes2Hs256A128Kw, A128Gcm>, Claims>::new(
+            claims,
+        );
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let serialized = compact.to_string();
+    let header_b64 = serialized.split('.').next().unwrap();
+    let header_bytes = Base64UrlUnpadded::decode_vec(header_b64).unwrap();
+    let header_str = core::str::from_utf8(&header_bytes).unwrap();
+    assert!(header_str.contains("\"p2s\""));
+    assert!(header_str.contains("\"p2c\""));
+}

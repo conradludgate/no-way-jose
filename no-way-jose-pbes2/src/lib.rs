@@ -1,0 +1,243 @@
+//! PBES2 password-based encryption algorithms for JWE (RFC 7518 §4.8):
+//! [`Pbes2Hs256A128Kw`], [`Pbes2Hs384A192Kw`], [`Pbes2Hs512A256Kw`].
+//!
+//! Derives a key from a password using PBKDF2-HMAC, then wraps a random CEK
+//! with AES Key Wrap. The salt (`p2s`) and iteration count (`p2c`) are stored
+//! in the JWE protected header.
+
+#![no_std]
+
+extern crate alloc;
+
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
+
+use base64ct::{Base64UrlUnpadded, Encoding};
+
+use no_way_jose_core::__private::Sealed;
+use no_way_jose_core::JoseError;
+use no_way_jose_core::jwe_algorithm::{
+    JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
+};
+use no_way_jose_core::key::{Decrypting, Encrypting, HasKey};
+
+const DEFAULT_ITER_COUNT: u32 = 310_000;
+const SALT_LEN: usize = 16;
+
+/// Build the PBES2 salt value: UTF8(alg) || 0x00 || random_salt (RFC 7518 §4.8.1.1).
+fn pbes2_salt_input(alg: &str, random_salt: &[u8]) -> Vec<u8> {
+    let mut salt = Vec::with_capacity(alg.len() + 1 + random_salt.len());
+    salt.extend_from_slice(alg.as_bytes());
+    salt.push(0x00);
+    salt.extend_from_slice(random_salt);
+    salt
+}
+
+fn read_header_string(header: &[u8], field: &str) -> Result<String, JoseError> {
+    let mut reader = no_way_jose_core::json::JsonReader::new(header)
+        .map_err(|_| JoseError::InvalidToken("malformed header"))?;
+    while let Some(key) = reader
+        .next_key()
+        .map_err(|_| JoseError::InvalidToken("malformed header"))?
+    {
+        if key == field {
+            return reader
+                .read_string()
+                .map_err(|_| JoseError::InvalidToken("malformed header field"));
+        }
+        reader
+            .skip_value()
+            .map_err(|_| JoseError::InvalidToken("malformed header"))?;
+    }
+    Err(JoseError::InvalidToken("missing required header field"))
+}
+
+fn read_header_i64(header: &[u8], field: &str) -> Result<i64, JoseError> {
+    let mut reader = no_way_jose_core::json::JsonReader::new(header)
+        .map_err(|_| JoseError::InvalidToken("malformed header"))?;
+    while let Some(key) = reader
+        .next_key()
+        .map_err(|_| JoseError::InvalidToken("malformed header"))?
+    {
+        if key == field {
+            return reader
+                .read_i64()
+                .map_err(|_| JoseError::InvalidToken("malformed header field"));
+        }
+        reader
+            .skip_value()
+            .map_err(|_| JoseError::InvalidToken("malformed header"))?;
+    }
+    Err(JoseError::InvalidToken("missing required header field"))
+}
+
+macro_rules! pbes2_algorithm {
+    ($name:ident, $alg:literal, $dk_len:literal, $hmac:ty, $kek_type:ty, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Clone, Copy, Debug, Default)]
+        pub struct $name;
+
+        impl Sealed for $name {}
+
+        impl JweKeyManagement for $name {
+            const ALG: &'static str = $alg;
+        }
+
+        impl HasKey<Encrypting> for $name {
+            type Key = Vec<u8>;
+        }
+
+        impl HasKey<Decrypting> for $name {
+            type Key = Vec<u8>;
+        }
+
+        impl KeyEncryptor for $name {
+            fn encrypt_cek(
+                password: &Vec<u8>,
+                cek_len: usize,
+            ) -> Result<KeyEncryptionResult, JoseError> {
+                let mut random_salt = [0u8; SALT_LEN];
+                getrandom::fill(&mut random_salt).map_err(|_| JoseError::CryptoError)?;
+
+                let salt_input = pbes2_salt_input($alg, &random_salt);
+
+                let mut derived_key = [0u8; $dk_len];
+                pbkdf2::pbkdf2::<$hmac>(
+                    password,
+                    &salt_input,
+                    DEFAULT_ITER_COUNT,
+                    &mut derived_key,
+                )
+                .map_err(|_| JoseError::CryptoError)?;
+
+                let kek = <$kek_type>::try_from(derived_key.as_slice())
+                    .map_err(|_| JoseError::InvalidKey)?;
+
+                let mut cek = vec![0u8; cek_len];
+                getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
+
+                let wrapped = kek.wrap_vec(&cek).map_err(|_| JoseError::CryptoError)?;
+
+                let p2s_b64 = Base64UrlUnpadded::encode_string(&random_salt);
+                let mut p2s_json = Vec::with_capacity(p2s_b64.len() + 2);
+                p2s_json.push(b'"');
+                p2s_json.extend_from_slice(p2s_b64.as_bytes());
+                p2s_json.push(b'"');
+
+                let p2c_json = alloc::format!("{}", DEFAULT_ITER_COUNT).into_bytes();
+
+                let extra_headers = alloc::vec![
+                    (String::from("p2s"), p2s_json),
+                    (String::from("p2c"), p2c_json),
+                ];
+
+                Ok(KeyEncryptionResult {
+                    encrypted_key: wrapped,
+                    cek,
+                    extra_headers,
+                })
+            }
+        }
+
+        impl KeyDecryptor for $name {
+            fn decrypt_cek(
+                password: &Vec<u8>,
+                encrypted_key: &[u8],
+                header: &[u8],
+            ) -> Result<Vec<u8>, JoseError> {
+                let p2s_b64 = read_header_string(header, "p2s")?;
+                let random_salt = Base64UrlUnpadded::decode_vec(&p2s_b64)
+                    .map_err(|_| JoseError::InvalidToken("invalid base64url in p2s"))?;
+                let p2c = read_header_i64(header, "p2c")?;
+                if p2c <= 0 {
+                    return Err(JoseError::InvalidToken("p2c must be positive"));
+                }
+
+                let salt_input = pbes2_salt_input($alg, &random_salt);
+
+                let mut derived_key = [0u8; $dk_len];
+                pbkdf2::pbkdf2::<$hmac>(password, &salt_input, p2c as u32, &mut derived_key)
+                    .map_err(|_| JoseError::CryptoError)?;
+
+                let kek = <$kek_type>::try_from(derived_key.as_slice())
+                    .map_err(|_| JoseError::InvalidKey)?;
+
+                kek.unwrap_vec(encrypted_key)
+                    .map_err(|_| JoseError::CryptoError)
+            }
+        }
+    };
+}
+
+pbes2_algorithm!(
+    Pbes2Hs256A128Kw,
+    "PBES2-HS256+A128KW",
+    16,
+    hmac::Hmac<sha2::Sha256>,
+    aes_kw::KekAes128,
+    "PBES2-HS256+A128KW password-based encryption (RFC 7518 §4.8)."
+);
+
+pbes2_algorithm!(
+    Pbes2Hs384A192Kw,
+    "PBES2-HS384+A192KW",
+    24,
+    hmac::Hmac<sha2::Sha384>,
+    aes_kw::KekAes192,
+    "PBES2-HS384+A192KW password-based encryption (RFC 7518 §4.8)."
+);
+
+pbes2_algorithm!(
+    Pbes2Hs512A256Kw,
+    "PBES2-HS512+A256KW",
+    32,
+    hmac::Hmac<sha2::Sha512>,
+    aes_kw::KekAes256,
+    "PBES2-HS512+A256KW password-based encryption (RFC 7518 §4.8)."
+);
+
+pub mod pbes2_hs256_a128kw {
+    use alloc::vec::Vec;
+
+    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Pbes2Hs256A128Kw>;
+    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::Pbes2Hs256A128Kw>;
+
+    pub fn encryption_key(password: impl Into<Vec<u8>>) -> EncryptionKey {
+        no_way_jose_core::key::Key::new(password.into())
+    }
+
+    pub fn decryption_key(password: impl Into<Vec<u8>>) -> DecryptionKey {
+        no_way_jose_core::key::Key::new(password.into())
+    }
+}
+
+pub mod pbes2_hs384_a192kw {
+    use alloc::vec::Vec;
+
+    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Pbes2Hs384A192Kw>;
+    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::Pbes2Hs384A192Kw>;
+
+    pub fn encryption_key(password: impl Into<Vec<u8>>) -> EncryptionKey {
+        no_way_jose_core::key::Key::new(password.into())
+    }
+
+    pub fn decryption_key(password: impl Into<Vec<u8>>) -> DecryptionKey {
+        no_way_jose_core::key::Key::new(password.into())
+    }
+}
+
+pub mod pbes2_hs512_a256kw {
+    use alloc::vec::Vec;
+
+    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Pbes2Hs512A256Kw>;
+    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::Pbes2Hs512A256Kw>;
+
+    pub fn encryption_key(password: impl Into<Vec<u8>>) -> EncryptionKey {
+        no_way_jose_core::key::Key::new(password.into())
+    }
+
+    pub fn decryption_key(password: impl Into<Vec<u8>>) -> DecryptionKey {
+        no_way_jose_core::key::Key::new(password.into())
+    }
+}

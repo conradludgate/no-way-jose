@@ -1,0 +1,13 @@
+[package]
+name = "no-way-jose-pbes2"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+no-way-jose-core = { workspace = true }
+pbkdf2 = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+aes-kw = { workspace = true }
+base64ct = { workspace = true }
+getrandom = { workspace = true }
