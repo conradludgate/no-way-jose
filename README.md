@@ -262,53 +262,73 @@ You can also implement `Validate` for your own claim type to add custom rules.
 
 ### Work with JWK keys
 
-Serialize keys to JWK format and load keys from JWK JSON:
+Export a key to JWK JSON and import it back:
 
 ```rust
-use no_way_jose_core::jwk::{Jwk, JwkSet, ToJwk, FromJwk};
-use no_way_jose_ecdsa::Es256;
+use no_way_jose_core::jwk::{Jwk, ToJwk, FromJwk};
 
-// Export a key to JWK
 let sk = no_way_jose_ecdsa::signing_key_from_bytes(&key_bytes).unwrap();
-let jwk = sk.to_jwk();  // Jwk { kty: "EC", crv: "P-256", ... }
-let jwk_json = jwk.to_json_bytes();
 
-// Import a key from JWK JSON
+// Export to JWK JSON
+let jwk: Jwk = sk.to_jwk();
+let jwk_json: Vec<u8> = jwk.to_json_bytes();
+
+// Import from JWK JSON
 let jwk = Jwk::from_json_bytes(&jwk_json).unwrap();
 let vk: no_way_jose_ecdsa::VerifyingKey = FromJwk::from_jwk(&jwk).unwrap();
-
-// Parse a JWK Set and look up a key by kid
-let set = JwkSet::from_json_bytes(&jwk_set_json).unwrap();
-if let Some(key_jwk) = set.find_by_kid("my-key-id") {
-    let vk: no_way_jose_ecdsa::VerifyingKey = FromJwk::from_jwk(key_jwk).unwrap();
-}
-
-// Compute a JWK Thumbprint (RFC 7638) for key identification
-let canonical_json = jwk.thumbprint_canonical_json();
-// Hash with SHA-256 (or your preferred hash) to get the thumbprint
 ```
 
-### Dynamic algorithm dispatch
+### Verify a token using a JWK Set
 
-When the algorithm is not known at compile time (e.g. reading tokens from
-multiple issuers), parse into `UntypedCompactJws` first:
+Parse an incoming token, read its `kid` header, look up the matching key in a
+JWK Set, and verify:
 
 ```rust
 use no_way_jose_core::UntypedCompactJws;
+use no_way_jose_core::jwk::{JwkSet, FromJwk};
+use no_way_jose_core::validation::NoValidation;
+use no_way_jose_claims::RegisteredClaims;
 
-let untyped: UntypedCompactJws<MyClaims> = token_string.parse().unwrap();
+// Parse a JWK Set (e.g. fetched from a /.well-known/jwks.json endpoint)
+let jwks = JwkSet::from_json_bytes(&jwks_json).unwrap();
 
+// Parse the token without knowing the algorithm yet
+let untyped: UntypedCompactJws<RegisteredClaims> = token_string.parse().unwrap();
+
+// Read the kid from the token header and find the matching JWK
+let header = untyped.header().unwrap();
+let kid = header.kid.as_deref().expect("token has no kid");
+let jwk = jwks.find_by_kid(kid).expect("unknown kid");
+
+// Dispatch on the algorithm and verify
 match untyped.alg() {
-    "HS256" => {
-        let typed = untyped.into_typed::<no_way_jose_hmac::Hs256>().unwrap();
-        typed.verify(&hmac_key, &validator).unwrap();
+    "RS256" => {
+        let vk = FromJwk::from_jwk(jwk).unwrap();
+        let typed = untyped.into_typed::<no_way_jose_rsa::Rs256>().unwrap();
+        let verified = typed.verify(&vk, &validator).unwrap();
     }
     "ES256" => {
+        let vk = FromJwk::from_jwk(jwk).unwrap();
         let typed = untyped.into_typed::<no_way_jose_ecdsa::Es256>().unwrap();
-        typed.verify(&ecdsa_key, &validator).unwrap();
+        let verified = typed.verify(&vk, &validator).unwrap();
     }
     alg => panic!("unsupported algorithm: {alg}"),
 }
+```
+
+### Compute a JWK Thumbprint
+
+A JWK Thumbprint (RFC 7638) is a hash of the key's canonical JSON form, useful
+as a stable key identifier:
+
+```rust
+use sha2::{Sha256, Digest};
+use no_way_jose_core::jwk::Jwk;
+
+let jwk = Jwk::from_json_bytes(&jwk_json).unwrap();
+let canonical = jwk.thumbprint_canonical_json();
+let thumbprint = Sha256::digest(&canonical);
+let thumbprint_b64 = no_way_jose_core::base64url::encode(&thumbprint);
 ```
 
 ## Supported algorithms

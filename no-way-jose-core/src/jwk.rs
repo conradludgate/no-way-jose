@@ -1,4 +1,32 @@
-//! JSON Web Key (RFC 7517) types and JWK Thumbprint (RFC 7638).
+//! JSON Web Key ([RFC 7517]) types and JWK Thumbprint ([RFC 7638]).
+//!
+//! A [`Jwk`] represents a single cryptographic key in the standard JSON format
+//! used for interoperability across JOSE libraries and key distribution
+//! endpoints (e.g. `/.well-known/jwks.json`). A [`JwkSet`] holds a collection
+//! of keys and supports lookup by Key ID ([`JwkSet::find_by_kid`]).
+//!
+//! Key-type-specific parameters are stored in [`JwkParams`] variants:
+//! [`EcParams`] (P-256, P-384), [`RsaParams`], [`OctParams`] (symmetric),
+//! and [`OkpParams`] (Ed25519).
+//!
+//! ## Converting keys
+//!
+//! Algorithm crates implement [`JwkKeyConvert`] so that typed
+//! [`Key`](crate::key::Key) values automatically gain [`ToJwk`] and [`FromJwk`]:
+//!
+//! ```ignore
+//! let jwk: Jwk = signing_key.to_jwk();
+//! let vk: VerifyingKey<Es256> = FromJwk::from_jwk(&jwk)?;
+//! ```
+//!
+//! ## Thumbprints
+//!
+//! [`Jwk::thumbprint_canonical_json`] returns the deterministic JSON form
+//! defined by RFC 7638 §3. Hash the result (e.g. with SHA-256) to produce a
+//! stable key identifier.
+//!
+//! [RFC 7517]: https://datatracker.ietf.org/doc/html/rfc7517
+//! [RFC 7638]: https://datatracker.ietf.org/doc/html/rfc7638
 
 use alloc::string::String;
 use alloc::vec::Vec;
