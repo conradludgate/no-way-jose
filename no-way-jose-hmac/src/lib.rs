@@ -15,7 +15,7 @@ extern crate alloc;
 pub use no_way_jose_core;
 
 use alloc::vec::Vec;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};

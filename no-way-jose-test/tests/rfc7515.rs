@@ -151,48 +151,45 @@ fn rfc7520_hs256_verify() {
 
 // -- RFC 7515 A.2: RS256 --
 
+fn bu(bytes: &[u8]) -> rsa::BoxedUint {
+    let bits = (bytes.len() as u32) * 8;
+    let precision = (bits + 63) & !63;
+    rsa::BoxedUint::from_be_slice(bytes, precision).unwrap()
+}
+
 fn rfc7515_a2_rsa_private_key() -> rsa::RsaPrivateKey {
-    use rsa::BigUint;
-    let n = BigUint::from_bytes_be(
-        &Base64UrlUnpadded::decode_vec(
-            "ofgWCuLjybRlzo0tZWJjNiuSfb4p4fAkd_wWJcyQoTbji9k0l8W26mPddx\
+    let n = bu(&Base64UrlUnpadded::decode_vec(
+        "ofgWCuLjybRlzo0tZWJjNiuSfb4p4fAkd_wWJcyQoTbji9k0l8W26mPddx\
          HmfHQp-Vaw-4qPCJrcS2mJPMEzP1Pt0Bm4d4QlL-yRT-SFd2lZS-pCgNMs\
          D1W_YpRPEwOWvG6b32690r2jZ47soMZo9wGzjb_7OMg0LOL-bSf63kpaSH\
          SXndS5z5rexMdbBYUsLA9e-KXBdQOS-UTo7WTBEMa2R2CapHg665xsmtdV\
          MTBQY4uDZlxvb3qCo5ZwKh9kG4LT6_I5IhlJH7aGhyxXFvUK-DWNmoudF8\
          NAco9_h9iaGNj8q2ethFkMLs91kzk2PAcDTW9gb54h4FRWyuXpoQ",
-        )
-        .unwrap(),
-    );
-    let e = BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec("AQAB").unwrap());
-    let d = BigUint::from_bytes_be(
-        &Base64UrlUnpadded::decode_vec(
-            "Eq5xpGnNCivDflJsRQBXHx1hdR1k6Ulwe2JZD50LpXyWPEAeP88vLNO97I\
+    )
+    .unwrap());
+    let e = bu(&Base64UrlUnpadded::decode_vec("AQAB").unwrap());
+    let d = bu(&Base64UrlUnpadded::decode_vec(
+        "Eq5xpGnNCivDflJsRQBXHx1hdR1k6Ulwe2JZD50LpXyWPEAeP88vLNO97I\
          jlA7_GQ5sLKMgvfTeXZx9SE-7YwVol2NXOoAJe46sui395IW_GO-pWJ1O0\
          BkTGoVEn2bKVRUCgu-GjBVaYLU6f3l9kJfFNS3E0QbVdxzubSu3Mkqzjkn\
          439X0M_V51gfpRLI9JYanrC4D4qAdGcopV_0ZHHzQlBjudU2QvXt4ehNYT\
          CBr6XCLQUShb1juUO1ZdiYoFaFQT5Tw8bGUl_x_jTj3ccPDVZFD9pIuhLh\
          BOneufuBiB4cS98l2SR_RQyGWSeWjnczT0QU91p1DhOVRuOopznQ",
-        )
-        .unwrap(),
-    );
+    )
+    .unwrap());
     let primes = vec![
-        BigUint::from_bytes_be(
-            &Base64UrlUnpadded::decode_vec(
-                "4BzEEOtIpmVdVEZNCqS7baC4crd0pqnRH_5IB3jw3bcxGn6QLvnEtfdUdi\
+        bu(&Base64UrlUnpadded::decode_vec(
+            "4BzEEOtIpmVdVEZNCqS7baC4crd0pqnRH_5IB3jw3bcxGn6QLvnEtfdUdi\
              YrqBdss1l58BQ3KhooKeQTa9AB0Hw_Py5PJdTJNPY8cQn7ouZ2KKDcmnPG\
              BY5t7yLc1QlQ5xHdwW1VhvKn-nXqhJTBgIPgtldC-KDV5z-y2XDwGUc",
-            )
-            .unwrap(),
-        ),
-        BigUint::from_bytes_be(
-            &Base64UrlUnpadded::decode_vec(
-                "uQPEfgmVtjL0Uyyx88GZFF1fOunH3-7cepKmtH4pxhtCoHqpWmT8YAmZxa\
+        )
+        .unwrap()),
+        bu(&Base64UrlUnpadded::decode_vec(
+            "uQPEfgmVtjL0Uyyx88GZFF1fOunH3-7cepKmtH4pxhtCoHqpWmT8YAmZxa\
              ewHgHAjLYsp1ZSe7zFYHj7C6ul7TjeLQeZD_YwD66t62wDmpe_HlB-TnBA\
              -njbglfIsRLtXlnDzQkv5dTltRJ11BKBBypeeF6689rjcJIDEz9RWdc",
-            )
-            .unwrap(),
-        ),
+        )
+        .unwrap()),
     ];
     rsa::RsaPrivateKey::from_components(n, e, d, primes).unwrap()
 }

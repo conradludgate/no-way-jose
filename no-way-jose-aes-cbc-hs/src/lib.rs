@@ -13,8 +13,8 @@ pub use no_way_jose_core;
 use alloc::vec::Vec;
 
 use cbc::cipher::block_padding::Pkcs7;
-use cbc::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
-use hmac::Mac;
+use cbc::cipher::{BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
+use hmac::{KeyInit, Mac};
 
 use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::JoseError;
@@ -79,7 +79,7 @@ macro_rules! aes_cbc_hs_algorithm {
 
                 let ciphertext = cbc::Encryptor::<$aes>::new_from_slices(enc_key, &iv)
                     .map_err(|_| JoseError::InvalidKey)?
-                    .encrypt_padded_vec_mut::<Pkcs7>(plaintext);
+                    .encrypt_padded_vec::<Pkcs7>(plaintext);
 
                 let hmac_data = hmac_input(aad, &iv, &ciphertext);
                 let mut mac =
@@ -127,7 +127,7 @@ macro_rules! aes_cbc_hs_algorithm {
 
                 cbc::Decryptor::<$aes>::new_from_slices(enc_key, iv)
                     .map_err(|_| JoseError::InvalidKey)?
-                    .decrypt_padded_vec_mut::<Pkcs7>(ciphertext)
+                    .decrypt_padded_vec::<Pkcs7>(ciphertext)
                     .map_err(|_| JoseError::CryptoError)
             }
         }

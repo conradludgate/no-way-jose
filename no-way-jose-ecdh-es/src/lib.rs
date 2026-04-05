@@ -91,7 +91,7 @@ fn ecdh_encrypt(
     let (encrypted_key, cek) = if wrap_key_len.is_some() {
         let mut cek = vec![0u8; cek_len];
         getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
-        let wrapped = aes_key_wrap(&derived_key, &cek)?;
+        let wrapped = aes_kw_wrap(&derived_key, &cek)?;
         (wrapped, cek)
     } else {
         (Vec::new(), derived_key)
@@ -132,7 +132,7 @@ fn ecdh_decrypt(
     let derived_key = concat_kdf(&shared_secret, alg, derived_key_len);
 
     if wrap_key_len.is_some() {
-        aes_key_unwrap(&derived_key, encrypted_key)
+        aes_kw_unwrap(&derived_key, encrypted_key)
     } else {
         if !encrypted_key.is_empty() {
             return Err(JoseError::InvalidToken(
@@ -143,43 +143,47 @@ fn ecdh_decrypt(
     }
 }
 
-fn aes_key_wrap(kek: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, JoseError> {
-    match kek.len() {
-        16 => {
-            let kek = aes_kw::KekAes128::try_from(kek).map_err(|_| JoseError::InvalidKey)?;
-            kek.wrap_vec(plaintext).map_err(|_| JoseError::CryptoError)
-        }
-        24 => {
-            let kek = aes_kw::KekAes192::try_from(kek).map_err(|_| JoseError::InvalidKey)?;
-            kek.wrap_vec(plaintext).map_err(|_| JoseError::CryptoError)
-        }
-        32 => {
-            let kek = aes_kw::KekAes256::try_from(kek).map_err(|_| JoseError::InvalidKey)?;
-            kek.wrap_vec(plaintext).map_err(|_| JoseError::CryptoError)
-        }
-        _ => Err(JoseError::InvalidKey),
+fn aes_kw_wrap(kek_bytes: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, JoseError> {
+    use aes_kw::KeyInit;
+    let mut out = vec![0u8; plaintext.len() + aes_kw::IV_LEN];
+    macro_rules! wrap {
+        ($ty:ty) => {
+            <$ty>::new_from_slice(kek_bytes)
+                .map_err(|_| JoseError::InvalidKey)?
+                .wrap_key(plaintext, &mut out)
+                .map_err(|_| JoseError::CryptoError)
+        };
     }
+    match kek_bytes.len() {
+        16 => wrap!(aes_kw::KwAes128),
+        24 => wrap!(aes_kw::KwAes192),
+        32 => wrap!(aes_kw::KwAes256),
+        _ => return Err(JoseError::InvalidKey),
+    }?;
+    Ok(out)
 }
 
-fn aes_key_unwrap(kek: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, JoseError> {
-    match kek.len() {
-        16 => {
-            let kek = aes_kw::KekAes128::try_from(kek).map_err(|_| JoseError::InvalidKey)?;
-            kek.unwrap_vec(ciphertext)
-                .map_err(|_| JoseError::CryptoError)
-        }
-        24 => {
-            let kek = aes_kw::KekAes192::try_from(kek).map_err(|_| JoseError::InvalidKey)?;
-            kek.unwrap_vec(ciphertext)
-                .map_err(|_| JoseError::CryptoError)
-        }
-        32 => {
-            let kek = aes_kw::KekAes256::try_from(kek).map_err(|_| JoseError::InvalidKey)?;
-            kek.unwrap_vec(ciphertext)
-                .map_err(|_| JoseError::CryptoError)
-        }
-        _ => Err(JoseError::InvalidKey),
+fn aes_kw_unwrap(kek_bytes: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, JoseError> {
+    use aes_kw::KeyInit;
+    if ciphertext.len() < aes_kw::IV_LEN {
+        return Err(JoseError::InvalidToken("encrypted key too short"));
     }
+    let mut out = vec![0u8; ciphertext.len() - aes_kw::IV_LEN];
+    macro_rules! unwrap {
+        ($ty:ty) => {
+            <$ty>::new_from_slice(kek_bytes)
+                .map_err(|_| JoseError::InvalidKey)?
+                .unwrap_key(ciphertext, &mut out)
+                .map_err(|_| JoseError::CryptoError)
+        };
+    }
+    match kek_bytes.len() {
+        16 => unwrap!(aes_kw::KwAes128),
+        24 => unwrap!(aes_kw::KwAes192),
+        32 => unwrap!(aes_kw::KwAes256),
+        _ => return Err(JoseError::InvalidKey),
+    }?;
+    Ok(out)
 }
 
 macro_rules! ecdh_es_impl {

@@ -20,5 +20,5 @@ no-way-jose-claims = { workspace = true }
 base64ct = { workspace = true }
 p256 = { workspace = true }
 p384 = { workspace = true }
-rand_core = { workspace = true }
+getrandom = { workspace = true }
 rsa = { workspace = true }

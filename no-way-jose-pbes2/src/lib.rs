@@ -15,6 +15,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
+use aes_kw::KeyInit;
 use base64ct::{Base64UrlUnpadded, Encoding};
 
 use no_way_jose_core::__private::Sealed;
@@ -75,13 +76,15 @@ macro_rules! pbes2_algorithm {
                 )
                 .map_err(|_| JoseError::CryptoError)?;
 
-                let kek = <$kek_type>::try_from(derived_key.as_slice())
-                    .map_err(|_| JoseError::InvalidKey)?;
+                let kek =
+                    <$kek_type>::new_from_slice(&derived_key).map_err(|_| JoseError::InvalidKey)?;
 
                 let mut cek = vec![0u8; cek_len];
                 getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
 
-                let wrapped = kek.wrap_vec(&cek).map_err(|_| JoseError::CryptoError)?;
+                let mut wrapped = vec![0u8; cek_len + aes_kw::IV_LEN];
+                kek.wrap_key(&cek, &mut wrapped)
+                    .map_err(|_| JoseError::CryptoError)?;
 
                 let p2s_b64 = Base64UrlUnpadded::encode_string(&random_salt);
                 let mut p2s_json = Vec::with_capacity(p2s_b64.len() + 2);
@@ -125,11 +128,16 @@ macro_rules! pbes2_algorithm {
                 pbkdf2::pbkdf2::<$hmac>(password, &salt_input, p2c as u32, &mut derived_key)
                     .map_err(|_| JoseError::CryptoError)?;
 
-                let kek = <$kek_type>::try_from(derived_key.as_slice())
-                    .map_err(|_| JoseError::InvalidKey)?;
+                let kek =
+                    <$kek_type>::new_from_slice(&derived_key).map_err(|_| JoseError::InvalidKey)?;
 
-                kek.unwrap_vec(encrypted_key)
-                    .map_err(|_| JoseError::CryptoError)
+                if encrypted_key.len() < aes_kw::IV_LEN {
+                    return Err(JoseError::InvalidToken("encrypted key too short"));
+                }
+                let mut buf = vec![0u8; encrypted_key.len() - aes_kw::IV_LEN];
+                kek.unwrap_key(encrypted_key, &mut buf)
+                    .map_err(|_| JoseError::CryptoError)?;
+                Ok(buf)
             }
         }
     };
@@ -140,7 +148,7 @@ pbes2_algorithm!(
     "PBES2-HS256+A128KW",
     16,
     hmac::Hmac<sha2::Sha256>,
-    aes_kw::KekAes128,
+    aes_kw::KwAes128,
     "PBES2-HS256+A128KW password-based encryption (RFC 7518 §4.8)."
 );
 
@@ -149,7 +157,7 @@ pbes2_algorithm!(
     "PBES2-HS384+A192KW",
     24,
     hmac::Hmac<sha2::Sha384>,
-    aes_kw::KekAes192,
+    aes_kw::KwAes192,
     "PBES2-HS384+A192KW password-based encryption (RFC 7518 §4.8)."
 );
 
@@ -158,7 +166,7 @@ pbes2_algorithm!(
     "PBES2-HS512+A256KW",
     32,
     hmac::Hmac<sha2::Sha512>,
-    aes_kw::KekAes256,
+    aes_kw::KwAes256,
     "PBES2-HS512+A256KW password-based encryption (RFC 7518 §4.8)."
 );
 

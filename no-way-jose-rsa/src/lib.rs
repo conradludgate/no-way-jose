@@ -118,7 +118,7 @@ macro_rules! rsa_kw_algorithm {
                 let mut cek = vec![0u8; cek_len];
                 getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
 
-                let mut rng = rsa::rand_core::OsRng;
+                let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
                 let encrypted_key = key
                     .encrypt(&mut rng, $pad_encrypt, &cek)
                     .map_err(|_| JoseError::CryptoError)?;
@@ -156,16 +156,16 @@ rsa_kw_algorithm!(
 rsa_kw_algorithm!(
     RsaOaep,
     "RSA-OAEP",
-    rsa::Oaep::new::<sha1::Sha1>(),
-    rsa::Oaep::new::<sha1::Sha1>(),
+    rsa::Oaep::<sha1::Sha1>::new(),
+    rsa::Oaep::<sha1::Sha1>::new(),
     "RSA-OAEP with SHA-1 key encryption (RFC 7518 §4.3)."
 );
 
 rsa_kw_algorithm!(
     RsaOaep256,
     "RSA-OAEP-256",
-    rsa::Oaep::new::<sha2::Sha256>(),
-    rsa::Oaep::new::<sha2::Sha256>(),
+    rsa::Oaep::<sha2::Sha256>::new(),
+    rsa::Oaep::<sha2::Sha256>::new(),
     "RSA-OAEP with SHA-256 key encryption (RFC 7518 §4.3)."
 );
 

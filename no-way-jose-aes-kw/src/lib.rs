@@ -16,6 +16,7 @@ pub use no_way_jose_core;
 use alloc::vec;
 use alloc::vec::Vec;
 
+use aes_kw::KeyInit;
 use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::jwe_algorithm::{
@@ -56,13 +57,14 @@ macro_rules! aes_kw_algorithm {
                 key: &Vec<u8>,
                 cek_len: usize,
             ) -> Result<KeyEncryptionResult, JoseError> {
-                let kek =
-                    <$kek_type>::try_from(key.as_slice()).map_err(|_| JoseError::InvalidKey)?;
+                let kek = <$kek_type>::new_from_slice(key).map_err(|_| JoseError::InvalidKey)?;
 
                 let mut cek = vec![0u8; cek_len];
                 getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
 
-                let wrapped = kek.wrap_vec(&cek).map_err(|_| JoseError::CryptoError)?;
+                let mut wrapped = vec![0u8; cek_len + aes_kw::IV_LEN];
+                kek.wrap_key(&cek, &mut wrapped)
+                    .map_err(|_| JoseError::CryptoError)?;
                 Ok(KeyEncryptionResult {
                     encrypted_key: wrapped,
                     cek,
@@ -78,11 +80,15 @@ macro_rules! aes_kw_algorithm {
                 _header: &[u8],
                 _cek_len: usize,
             ) -> Result<Vec<u8>, JoseError> {
-                let kek =
-                    <$kek_type>::try_from(key.as_slice()).map_err(|_| JoseError::InvalidKey)?;
+                let kek = <$kek_type>::new_from_slice(key).map_err(|_| JoseError::InvalidKey)?;
 
-                kek.unwrap_vec(encrypted_key)
-                    .map_err(|_| JoseError::CryptoError)
+                if encrypted_key.len() < aes_kw::IV_LEN {
+                    return Err(JoseError::InvalidToken("encrypted key too short"));
+                }
+                let mut buf = vec![0u8; encrypted_key.len() - aes_kw::IV_LEN];
+                kek.unwrap_key(encrypted_key, &mut buf)
+                    .map_err(|_| JoseError::CryptoError)?;
+                Ok(buf)
             }
         }
     };
@@ -92,7 +98,7 @@ aes_kw_algorithm!(
     A128Kw,
     "A128KW",
     16,
-    aes_kw::KekAes128,
+    aes_kw::KwAes128,
     "AES-128 Key Wrap (RFC 7518 \u{a7}4.4)."
 );
 
@@ -100,7 +106,7 @@ aes_kw_algorithm!(
     A192Kw,
     "A192KW",
     24,
-    aes_kw::KekAes192,
+    aes_kw::KwAes192,
     "AES-192 Key Wrap (RFC 7518 \u{a7}4.4)."
 );
 
@@ -108,7 +114,7 @@ aes_kw_algorithm!(
     A256Kw,
     "A256KW",
     32,
-    aes_kw::KekAes256,
+    aes_kw::KwAes256,
     "AES-256 Key Wrap (RFC 7518 \u{a7}4.4)."
 );
 

@@ -479,8 +479,8 @@ fn a128kw_a128cbc_hs256_roundtrip() {
 // ====================================================================
 
 fn test_rsa_keypair() -> (rsa::RsaPublicKey, rsa::RsaPrivateKey) {
-    use rsa::rand_core::OsRng;
-    let private_key = rsa::RsaPrivateKey::new(&mut OsRng, 2048).unwrap();
+    let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
+    let private_key = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
     let public_key = rsa::RsaPublicKey::from(&private_key);
     (public_key, private_key)
 }
@@ -692,7 +692,9 @@ fn test_p256_keypair() -> (
     no_way_jose_ecdh_es::EcPublicKey,
     no_way_jose_ecdh_es::EcPrivateKey,
 ) {
-    let secret = p256::SecretKey::random(&mut rand_core::OsRng);
+    use p256::elliptic_curve::Generate;
+    let secret =
+        p256::SecretKey::generate_from_rng(&mut getrandom::rand_core::UnwrapErr(getrandom::SysRng));
     let public = secret.public_key();
     (
         no_way_jose_ecdh_es::EcPublicKey::P256(public),
@@ -982,7 +984,9 @@ fn test_p384_keypair() -> (
     no_way_jose_ecdh_es::EcPublicKey,
     no_way_jose_ecdh_es::EcPrivateKey,
 ) {
-    let secret = p384::SecretKey::random(&mut rand_core::OsRng);
+    use p256::elliptic_curve::Generate;
+    let secret =
+        p384::SecretKey::generate_from_rng(&mut getrandom::rand_core::UnwrapErr(getrandom::SysRng));
     let public = secret.public_key();
     (
         no_way_jose_ecdh_es::EcPublicKey::P384(public),
