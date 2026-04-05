@@ -14,7 +14,7 @@ A type-safe Rust JOSE (JWS/JWE/JWT/JWK) library inspired by the
 | 7519 | JSON Web Token (JWT)                               | Done        |
 | 7520 | Examples of Protecting Content Using JOSE           | Test vectors|
 | 7638 | JSON Web Key (JWK) Thumbprint                      | Done        |
-| 8037 | CFRG Elliptic Curve Diffie-Hellman and Signatures  | Done (EdDSA)|
+| 8037 | CFRG Elliptic Curve Diffie-Hellman and Signatures  | Done (EdDSA, X25519)|
 | 8725 | JSON Web Token Best Current Practices              | Partial     |
 
 ## Crate Map
@@ -24,15 +24,15 @@ no-way-jose/
   no-way-jose-core/        Core traits, token types, Dir key mgmt, base64url (no_std, no crypto deps)
   no-way-jose-claims/      Registered JWT claims and validators
   no-way-jose-aes-cbc-hs/  A128CBC-HS256, A192CBC-HS384, A256CBC-HS512 (JWE content encryption)
-  no-way-jose-aes-gcm/     A128GCM, A256GCM (JWE content encryption)
+  no-way-jose-aes-gcm/     A128GCM, A192GCM, A256GCM (JWE content encryption)
   no-way-jose-aes-gcm-kw/  A128GCMKW, A192GCMKW, A256GCMKW (JWE key wrapping + header params)
   no-way-jose-aes-kw/      A128KW, A192KW, A256KW (JWE key wrapping)
-  no-way-jose-ecdh-es/     ECDH-ES, ECDH-ES+A128KW/A192KW/A256KW (JWE key agreement + header params)
-  no-way-jose-ecdsa/       ES256, ES384 (ECDSA JWS)
+  no-way-jose-ecdh-es/     ECDH-ES, ECDH-ES+A128KW/A192KW/A256KW (JWE key agreement + header params, P-256/P-384/X25519)
+  no-way-jose-ecdsa/       ES256, ES384, ES512 (ECDSA JWS)
   no-way-jose-eddsa/       EdDSA Ed25519 (JWS)
   no-way-jose-hmac/        HS256, HS384, HS512 (HMAC JWS)
   no-way-jose-pbes2/       PBES2-HS256+A128KW, HS384+A192KW, HS512+A256KW (password-based JWE + header params)
-  no-way-jose-rsa/         RS256, PS256 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE key management)
+  no-way-jose-rsa/         RS256, RS384, RS512, PS256, PS384, PS512 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE key management)
   no-way-jose-graviola/    Alternate crypto backend using graviola (ES256, ES384, EdDSA, HS256/384/512, RS256, PS256, A128GCM, A256GCM)
   no-way-jose-test/        Integration tests (unpublished)
 ```
@@ -136,6 +136,8 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] `CompactJws<A, M>` / `UnsignedToken<A, M>` aliases
 - [x] `CompactJwe<KM, CE, M>` alias
 - [x] `UntypedCompactJws<M>` (dynamic algorithm path)
+- [x] `UntypedCompactJwe<M>` (dynamic algorithm path for JWE)
+- [x] `TokenBuilder<P, M>` (fluent builder for headers)
 - [x] `FromStr` / `Display` for JWS 3-part and JWE 5-part compact serialization
 - [x] Base64url encoding/decoding
 
@@ -174,6 +176,11 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] `Hs512` (no-way-jose-hmac) — HMAC-SHA-512
 - [x] `Rs256` (no-way-jose-rsa) — RSASSA-PKCS1-v1_5 / SHA-256
 - [x] `Ps256` (no-way-jose-rsa) — RSASSA-PSS / SHA-256
+- [x] `Rs384` (no-way-jose-rsa) — RSASSA-PKCS1-v1_5 / SHA-384
+- [x] `Rs512` (no-way-jose-rsa) — RSASSA-PKCS1-v1_5 / SHA-512
+- [x] `Ps384` (no-way-jose-rsa) — RSASSA-PSS / SHA-384
+- [x] `Ps512` (no-way-jose-rsa) — RSASSA-PSS / SHA-512
+- [x] `Es512` (no-way-jose-ecdsa) — P-521 / SHA-512
 
 ### JWE Key Management Algorithms
 
@@ -187,7 +194,7 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] `Rsa1_5` (no-way-jose-rsa) — RSA PKCS#1 v1.5 (deprecated)
 - [x] `RsaOaep` (no-way-jose-rsa) — RSA-OAEP SHA-1
 - [x] `RsaOaep256` (no-way-jose-rsa) — RSA-OAEP SHA-256
-- [x] `EcdhEs` (no-way-jose-ecdh-es) — ECDH-ES direct (P-256, P-384)
+- [x] `EcdhEs` (no-way-jose-ecdh-es) — ECDH-ES direct (P-256, P-384, X25519)
 - [x] `EcdhEsA128Kw` (no-way-jose-ecdh-es) — ECDH-ES + A128KW
 - [x] `EcdhEsA192Kw` (no-way-jose-ecdh-es) — ECDH-ES + A192KW
 - [x] `EcdhEsA256Kw` (no-way-jose-ecdh-es) — ECDH-ES + A256KW
@@ -201,6 +208,7 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] `A192CbcHs384` (no-way-jose-aes-cbc-hs) — AES-192-CBC + HMAC-SHA-384
 - [x] `A256CbcHs512` (no-way-jose-aes-cbc-hs) — AES-256-CBC + HMAC-SHA-512
 - [x] `A128Gcm` (no-way-jose-aes-gcm) — AES-128-GCM
+- [x] `A192Gcm` (no-way-jose-aes-gcm) — AES-192-GCM
 - [x] `A256Gcm` (no-way-jose-aes-gcm) — AES-256-GCM
 
 ### Tests (no-way-jose-test)
@@ -238,6 +246,11 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] RFC 7638 §3.1 — JWK Thumbprint (SHA-256)
 - [x] JWK round-trip (HMAC, ECDSA, EdDSA, RSA, AES-KW, ECDH-ES)
 - [x] JWK algorithm/kty validation rejection
+- [x] Sign/verify round-trip (RS384, RS512, PS384, PS512, ES512)
+- [x] Token builder with kid and typ
+- [x] `UntypedCompactJwe` dynamic dispatch (including alg/enc mismatch)
+- [x] JWE ECDH-ES X25519 + A256GCM round-trip
+- [x] JWE dir + A192GCM round-trip
 
 ### `no_std` support
 
@@ -262,9 +275,11 @@ is not yet available). Key dependency versions as of the latest update:
 | `getrandom` | 0.4 | Provides `SysRng` (replaces `OsRng`) |
 | `hmac` | 0.13.0-rc.6 | |
 | `p256` / `p384` | 0.14.0-rc.7/8 | |
+| `p521` | 0.14.0-rc.8 | |
 | `pbkdf2` | 0.13.0-rc.9 | |
 | `rsa` | 0.10.0-rc.17 | Uses `BoxedUint` (crypto-bigint) |
 | `sha1` / `sha2` | 0.11 | |
+| `x25519-dalek` | 3.0.0-pre.6 | |
 
 ## Deliberate Limitations
 
@@ -281,11 +296,7 @@ is not yet available). Key dependency versions as of the latest update:
 
 ## Future Ideas
 
-- **More JWS algorithms**: `Es512`, `Rs384`–`Rs512`, `Ps384`–`Ps512`
-- **Serde feature flag**: optional `serde` dep in `no-way-jose-core` providing blanket
-  `ToJson`/`FromJson` for `Serialize`/`DeserializeOwned`
 - **Header caching**: avoid re-decoding the header in `FromStr` → `header()` → `verify()`
 - **Alternate crypto backends**: aws-lc-rs, ring, libsodium (graviola already available)
 - **`no_std` end-to-end**: core and algorithm crates are `#![no_std]`; verify in a real embedded target
 - **Benchmarks**: Criterion benchmarks comparing against other Rust JOSE libraries
-- **X25519 ECDH-ES**: extend no-way-jose-ecdh-es to support X25519 (via x25519-dalek)

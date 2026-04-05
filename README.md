@@ -104,14 +104,14 @@ no-way-jose/
   no-way-jose-core/       Core traits, token types, base64url, dir key mgmt
   no-way-jose-claims/     RegisteredClaims and JWT validators
   no-way-jose-hmac/       HS256, HS384, HS512 (HMAC)
-  no-way-jose-ecdsa/      ES256, ES384 (ECDSA)
+  no-way-jose-ecdsa/      ES256, ES384, ES512 (ECDSA)
   no-way-jose-eddsa/      EdDSA Ed25519
-  no-way-jose-rsa/        RS256, PS256 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE)
-  no-way-jose-aes-gcm/    A128GCM, A256GCM (JWE content encryption)
+  no-way-jose-rsa/        RS256, RS384, RS512, PS256, PS384, PS512 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE)
+  no-way-jose-aes-gcm/    A128GCM, A192GCM, A256GCM (JWE content encryption)
   no-way-jose-aes-cbc-hs/ A128CBC-HS256, A192CBC-HS384, A256CBC-HS512 (JWE CE)
   no-way-jose-aes-kw/     A128KW, A192KW, A256KW (JWE key wrapping)
   no-way-jose-aes-gcm-kw/ A128GCMKW, A192GCMKW, A256GCMKW (JWE key wrapping)
-  no-way-jose-ecdh-es/    ECDH-ES, ECDH-ES+A128KW/A192KW/A256KW (JWE KA)
+  no-way-jose-ecdh-es/    ECDH-ES, ECDH-ES+A128KW/A192KW/A256KW (P-256/P-384/X25519)
   no-way-jose-pbes2/      PBES2-HS256+A128KW, HS384+A192KW, HS512+A256KW (JWE)
   no-way-jose-graviola/   Alternate crypto backend (graviola)
 ```
@@ -196,6 +196,23 @@ let token: CompactJwe<A128Kw, A128Gcm, MyClaims> = compact.to_string().parse().u
 let unsealed = token
     .decrypt(&dec_key, &NoValidation::dangerous_no_validation())
     .unwrap();
+```
+
+### Build tokens with custom headers
+
+Use the builder to set optional header fields like `kid` and `typ`:
+
+```rust
+use no_way_jose_core::UnsignedToken;
+use no_way_jose_hmac::Hs256;
+
+let token_string = UnsignedToken::<Hs256, _>::builder(my_claims)
+    .kid("my-key-id")
+    .typ("JWT")
+    .build()
+    .sign(&signing_key)
+    .unwrap()
+    .to_string();
 ```
 
 ### Custom claims with `ToJson` / `FromJson`
@@ -345,6 +362,11 @@ let thumbprint_b64 = no_way_jose_core::base64url::encode(&thumbprint);
 | EdDSA | Ed25519 | `no-way-jose-eddsa` | 8037 |
 | RS256 | RSASSA-PKCS1-v1_5 | `no-way-jose-rsa` | 7518 §3.3 |
 | PS256 | RSASSA-PSS SHA-256 | `no-way-jose-rsa` | 7518 §3.5 |
+| RS384 | RSASSA-PKCS1-v1_5 SHA-384 | `no-way-jose-rsa` | 7518 §3.3 |
+| RS512 | RSASSA-PKCS1-v1_5 SHA-512 | `no-way-jose-rsa` | 7518 §3.3 |
+| PS384 | RSASSA-PSS SHA-384 | `no-way-jose-rsa` | 7518 §3.5 |
+| PS512 | RSASSA-PSS SHA-512 | `no-way-jose-rsa` | 7518 §3.5 |
+| ES512 | ECDSA P-521 | `no-way-jose-ecdsa` | 7518 §3.4 |
 
 ### JWE key management
 
@@ -360,7 +382,7 @@ let thumbprint_b64 = no_way_jose_core::base64url::encode(&thumbprint);
 | RSA1_5 | RSA PKCS#1 v1.5 | `no-way-jose-rsa` | 7518 §4.2 |
 | RSA-OAEP | RSA-OAEP SHA-1 | `no-way-jose-rsa` | 7518 §4.3 |
 | RSA-OAEP-256 | RSA-OAEP SHA-256 | `no-way-jose-rsa` | 7518 §4.3 |
-| ECDH-ES | ECDH-ES direct | `no-way-jose-ecdh-es` | 7518 §4.6 |
+| ECDH-ES | ECDH-ES direct (P-256/P-384/X25519) | `no-way-jose-ecdh-es` | 7518 §4.6 |
 | ECDH-ES+A128KW | ECDH-ES + AES-128 Wrap | `no-way-jose-ecdh-es` | 7518 §4.6 |
 | ECDH-ES+A192KW | ECDH-ES + AES-192 Wrap | `no-way-jose-ecdh-es` | 7518 §4.6 |
 | ECDH-ES+A256KW | ECDH-ES + AES-256 Wrap | `no-way-jose-ecdh-es` | 7518 §4.6 |
@@ -373,6 +395,7 @@ let thumbprint_b64 = no_way_jose_core::base64url::encode(&thumbprint);
 | Algorithm | Type | Crate | RFC |
 |-----------|------|-------|-----|
 | A128GCM | AES-128-GCM | `no-way-jose-aes-gcm` | 7518 §5.3 |
+| A192GCM | AES-192-GCM | `no-way-jose-aes-gcm` | 7518 §5.3 |
 | A256GCM | AES-256-GCM | `no-way-jose-aes-gcm` | 7518 §5.3 |
 | A128CBC-HS256 | AES-128-CBC + HMAC-SHA-256 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
 | A192CBC-HS384 | AES-192-CBC + HMAC-SHA-384 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
@@ -413,4 +436,4 @@ Graviola is limited to aarch64 and x86\_64 with specific CPU features.
 ## Status and roadmap
 
 See [DESIGN.md](DESIGN.md) for the full implementation status, RFC coverage, and
-future plans (more algorithms, serde integration, etc).
+future plans (more algorithms, alternate backends, etc).
