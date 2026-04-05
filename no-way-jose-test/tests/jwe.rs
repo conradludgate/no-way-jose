@@ -1,6 +1,6 @@
 use base64ct::{Base64UrlUnpadded, Encoding};
 use no_way_jose_aes_cbc_hs::{A128CbcHs256, A256CbcHs512};
-use no_way_jose_aes_gcm::{A128Gcm, A256Gcm};
+use no_way_jose_aes_gcm::{A128Gcm, A192Gcm, A256Gcm};
 use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, RawJson, ToJson};
 use no_way_jose_core::purpose::Encrypted;
 use no_way_jose_core::tokens::{CompactJwe, UnsealedToken};
@@ -919,6 +919,23 @@ fn dir_a128gcm_roundtrip() {
     let compact = token.encrypt(&enc_key).unwrap();
     let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
     assert_eq!(unsealed.claims.sub, "dir128");
+}
+
+#[test]
+fn dir_a192gcm_roundtrip() {
+    let key = vec![0x42u8; 24];
+    let enc_key = dir::encryption_key(key.clone());
+    let dec_key = dir::decryption_key(key);
+
+    let claims = Claims {
+        sub: "dir192".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<dir::Dir, A192Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "dir192");
 }
 
 #[test]

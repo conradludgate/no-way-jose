@@ -551,6 +551,7 @@ dependencies = [
 name = "no-way-jose-aes-gcm"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "aes-gcm",
  "getrandom 0.4.2",
  "no-way-jose-core",

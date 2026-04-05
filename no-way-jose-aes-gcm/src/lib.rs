@@ -1,4 +1,4 @@
-//! AES-GCM content encryption algorithms for JWE: [`A128Gcm`] and [`A256Gcm`].
+//! AES-GCM content encryption algorithms for JWE: [`A128Gcm`], [`A192Gcm`], and [`A256Gcm`].
 //!
 //! These implement the `ContentEncryptor` / `ContentDecryptor` traits from
 //! `no-way-jose-core`. They are used as the `CE` type parameter in
@@ -105,6 +105,16 @@ aes_gcm_algorithm!(
     16,
     aes_gcm::Aes128Gcm,
     "AES-128-GCM content encryption (RFC 7518 \u{a7}5.3)."
+);
+
+type Aes192Gcm_ = aes_gcm::AesGcm<aes::Aes192, aes_gcm::aead::consts::U12>;
+
+aes_gcm_algorithm!(
+    A192Gcm,
+    "A192GCM",
+    24,
+    Aes192Gcm_,
+    "AES-192-GCM content encryption (RFC 7518 \u{a7}5.3)."
 );
 
 aes_gcm_algorithm!(
