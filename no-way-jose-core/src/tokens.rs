@@ -102,8 +102,8 @@ where
 {
     pub fn sign(self, key: &SigningKey<A>) -> Result<CompactJws<A, M>, JoseError> {
         let header_bytes = crate::base64url::decode(&self.header_b64)?;
-        let (alg, _) = parse_alg_header(&header_bytes)?;
-        if alg != A::ALG {
+        let hdr = parse_header(&header_bytes)?;
+        if hdr.alg != A::ALG {
             return Err(JoseError::InvalidToken(
                 "header alg does not match type parameter",
             ));
@@ -170,38 +170,54 @@ impl<A: JwsAlgorithm, M> core::fmt::Display for CompactToken<Signed<A>, M> {
 
 // -- FromStr (compact deserialization) --
 
+struct JwsParts {
+    alg: String,
+    header_b64: String,
+    payload_b64: String,
+    signature: Vec<u8>,
+}
+
+fn parse_jws_compact(s: &str) -> Result<JwsParts, JoseError> {
+    let mut parts = s.splitn(3, '.');
+    let header_b64 = parts
+        .next()
+        .ok_or(JoseError::InvalidToken("missing header"))?;
+    let payload_b64 = parts
+        .next()
+        .ok_or(JoseError::InvalidToken("missing payload"))?;
+    let signature_b64 = parts
+        .next()
+        .ok_or(JoseError::InvalidToken("missing signature"))?;
+
+    let header_bytes = crate::base64url::decode(header_b64)?;
+    let hdr = parse_header(&header_bytes)?;
+    if hdr.crit.is_some() {
+        return Err(JoseError::InvalidToken("unsupported crit extension"));
+    }
+
+    let signature = crate::base64url::decode(signature_b64)?;
+
+    Ok(JwsParts {
+        alg: hdr.alg,
+        header_b64: String::from(header_b64),
+        payload_b64: String::from(payload_b64),
+        signature,
+    })
+}
+
 impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
     type Err = JoseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.splitn(3, '.');
-        let header_b64 = parts
-            .next()
-            .ok_or(JoseError::InvalidToken("missing header"))?;
-        let payload_b64 = parts
-            .next()
-            .ok_or(JoseError::InvalidToken("missing payload"))?;
-        let signature_b64 = parts
-            .next()
-            .ok_or(JoseError::InvalidToken("missing signature"))?;
-
-        let header_bytes = crate::base64url::decode(header_b64)?;
-        let (alg, crit) = parse_alg_header(&header_bytes)?;
-        if alg != A::ALG {
+        let parts = parse_jws_compact(s)?;
+        if parts.alg != A::ALG {
             return Err(JoseError::InvalidToken("alg mismatch"));
         }
-        // RFC 7515 §4.1.11: reject tokens with unrecognized critical extensions
-        if crit.is_some() {
-            return Err(JoseError::InvalidToken("unsupported crit extension"));
-        }
-
-        let signature = crate::base64url::decode(signature_b64)?;
-
         Ok(CompactToken {
-            header_b64: String::from(header_b64),
+            header_b64: parts.header_b64,
             data: SignedData {
-                payload_b64: String::from(payload_b64),
-                signature,
+                payload_b64: parts.payload_b64,
+                signature: parts.signature,
             },
             _marker: PhantomData,
         })
@@ -259,31 +275,13 @@ impl<M> core::str::FromStr for UntypedCompactJws<M> {
     type Err = JoseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.splitn(3, '.');
-        let header_b64 = parts
-            .next()
-            .ok_or(JoseError::InvalidToken("missing header"))?;
-        let payload_b64 = parts
-            .next()
-            .ok_or(JoseError::InvalidToken("missing payload"))?;
-        let signature_b64 = parts
-            .next()
-            .ok_or(JoseError::InvalidToken("missing signature"))?;
-
-        let header_bytes = crate::base64url::decode(header_b64)?;
-        let (alg, crit) = parse_alg_header(&header_bytes)?;
-        if crit.is_some() {
-            return Err(JoseError::InvalidToken("unsupported crit extension"));
-        }
-
-        let signature = crate::base64url::decode(signature_b64)?;
-
+        let parts = parse_jws_compact(s)?;
         Ok(UntypedCompactJws {
-            alg,
-            header_b64: String::from(header_b64),
+            alg: parts.alg,
+            header_b64: parts.header_b64,
             data: SignedData {
-                payload_b64: String::from(payload_b64),
-                signature,
+                payload_b64: parts.payload_b64,
+                signature: parts.signature,
             },
             _marker: PhantomData,
         })
@@ -337,16 +335,19 @@ where
 {
     pub fn encrypt(self, key: &EncryptionKey<KM>) -> Result<CompactJwe<KM, CE, M>, JoseError> {
         let header_bytes = crate::base64url::decode(&self.header_b64)?;
-        let (alg, enc) = parse_alg_enc_header(&header_bytes)?;
-        if alg != KM::ALG {
+        let hdr = parse_header(&header_bytes)?;
+        if hdr.alg != KM::ALG {
             return Err(JoseError::InvalidToken(
                 "header alg does not match key management type",
             ));
         }
-        if enc != CE::ENC {
-            return Err(JoseError::InvalidToken(
-                "header enc does not match content encryption type",
-            ));
+        match hdr.enc.as_deref() {
+            Some(e) if e == CE::ENC => {}
+            _ => {
+                return Err(JoseError::InvalidToken(
+                    "header enc does not match content encryption type",
+                ));
+            }
         }
 
         let result = KM::encrypt_cek(key.inner(), CE::KEY_LEN)?;
@@ -450,17 +451,17 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
         let tag_b64 = parts.next().ok_or(JoseError::InvalidToken("missing tag"))?;
 
         let header_bytes = crate::base64url::decode(header_b64)?;
-        let (alg, enc) = parse_alg_enc_header(&header_bytes)?;
-        if alg != KM::ALG {
+        let hdr = parse_header(&header_bytes)?;
+        if hdr.alg != KM::ALG {
             return Err(JoseError::InvalidToken("alg mismatch"));
         }
+        let enc = hdr
+            .enc
+            .ok_or(JoseError::InvalidToken("missing enc in header"))?;
         if enc != CE::ENC {
             return Err(JoseError::InvalidToken("enc mismatch"));
         }
-
-        // Reject crit for now
-        let (_, crit) = parse_alg_header(&header_bytes)?;
-        if crit.is_some() {
+        if hdr.crit.is_some() {
             return Err(JoseError::InvalidToken("unsupported crit extension"));
         }
 
@@ -484,8 +485,12 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
 
 /// Splice extra key-value pairs into an existing compact JSON header and re-encode as base64url.
 fn rebuild_header_with_extras(header_bytes: &[u8], extras: &[(String, Vec<u8>)]) -> String {
+    let closing = header_bytes
+        .iter()
+        .rposition(|&b| b == b'}')
+        .expect("header must contain '}'");
     let mut buf = Vec::with_capacity(header_bytes.len() + extras.len() * 32);
-    buf.extend_from_slice(&header_bytes[..header_bytes.len() - 1]); // strip closing '}'
+    buf.extend_from_slice(&header_bytes[..closing]);
     for (key, value) in extras {
         buf.push(b',');
         crate::json::write_json_key(&mut buf, key);
@@ -495,12 +500,19 @@ fn rebuild_header_with_extras(header_bytes: &[u8], extras: &[(String, Vec<u8>)])
     crate::base64url::encode(&buf)
 }
 
-/// Extract `alg` and `enc` from a JWE JOSE header JSON object.
-fn parse_alg_enc_header(bytes: &[u8]) -> Result<(String, String), JoseError> {
+struct ParsedHeader {
+    alg: String,
+    enc: Option<String>,
+    crit: Option<Vec<String>>,
+}
+
+/// Single-pass extraction of `alg`, optional `enc`, and optional `crit` from a JOSE header.
+fn parse_header(bytes: &[u8]) -> Result<ParsedHeader, JoseError> {
     let mut reader =
         JsonReader::new(bytes).map_err(|_| JoseError::InvalidToken("malformed header JSON"))?;
     let mut alg = None;
     let mut enc = None;
+    let mut crit = None;
     while let Some(key) = reader
         .next_key()
         .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?
@@ -520,35 +532,6 @@ fn parse_alg_enc_header(bytes: &[u8]) -> Result<(String, String), JoseError> {
                         .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
                 )
             }
-            _ => reader
-                .skip_value()
-                .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
-        }
-    }
-    Ok((
-        alg.ok_or(JoseError::InvalidToken("missing alg in header"))?,
-        enc.ok_or(JoseError::InvalidToken("missing enc in header"))?,
-    ))
-}
-
-/// Extract `alg` and optional `crit` from a JOSE header JSON object.
-fn parse_alg_header(bytes: &[u8]) -> Result<(String, Option<Vec<String>>), JoseError> {
-    let mut reader =
-        JsonReader::new(bytes).map_err(|_| JoseError::InvalidToken("malformed header JSON"))?;
-    let mut alg = None;
-    let mut crit = None;
-    while let Some(key) = reader
-        .next_key()
-        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?
-    {
-        match key {
-            "alg" => {
-                alg = Some(
-                    reader
-                        .read_string()
-                        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
-                )
-            }
             "crit" => {
                 crit = Some(
                     reader
@@ -561,8 +544,9 @@ fn parse_alg_header(bytes: &[u8]) -> Result<(String, Option<Vec<String>>), JoseE
                 .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
         }
     }
-    Ok((
-        alg.ok_or(JoseError::InvalidToken("missing alg in header"))?,
+    Ok(ParsedHeader {
+        alg: alg.ok_or(JoseError::InvalidToken("missing alg in header"))?,
+        enc,
         crit,
-    ))
+    })
 }
