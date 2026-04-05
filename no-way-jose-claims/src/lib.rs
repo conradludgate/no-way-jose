@@ -91,16 +91,18 @@ impl FromJson for RegisteredClaims {
 
 impl RegisteredClaims {
     /// Create claims with `iat` and `nbf` set to `now`, and `exp` set to `now + ttl`.
-    pub fn new(now: jiff::Timestamp, ttl: jiff::SignedDuration) -> Self {
-        Self {
+    ///
+    /// Returns `Err` if `now + ttl` overflows the timestamp range.
+    pub fn new(now: jiff::Timestamp, ttl: jiff::SignedDuration) -> Result<Self, jiff::Error> {
+        Ok(Self {
             iss: None,
             sub: None,
             aud: None,
-            exp: Some(now.checked_add(ttl).expect("TTL overflow")),
+            exp: Some(now.checked_add(ttl)?),
             nbf: Some(now),
             iat: Some(now),
             jti: None,
-        }
+        })
     }
 
     pub fn from_issuer(mut self, iss: impl Into<String>) -> Self {
