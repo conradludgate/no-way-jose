@@ -46,7 +46,7 @@ inter-service communication.
 - **Sealed traits.** Algorithm traits are sealed -- users cannot create custom
   algorithm types that could weaken security guarantees.
 
-- **`no_std`-ready.** The core crate and several algorithm crates use `#![no_std]`
+- **`no_std`-ready.** The core crate and all algorithm crates use `#![no_std]`
   with `alloc`.
 
 ## Quick start
@@ -97,19 +97,21 @@ assert_eq!(verified.claims.iss.as_deref(), Some("my-service"));
 
 ```
 no-way-jose/
-  no-way-jose-core/       Core traits, token types, base64url, dir key mgmt (no_std)
+  no-way-jose-core/       Core traits, token types, base64url, dir key mgmt
   no-way-jose-claims/     RegisteredClaims and JWT validators
   no-way-jose-hmac/       HS256, HS384, HS512 (HMAC)
   no-way-jose-ecdsa/      ES256, ES384 (ECDSA)
   no-way-jose-eddsa/      EdDSA Ed25519
   no-way-jose-rsa/        RS256 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE)
-  no-way-jose-aes-gcm/    A128GCM, A256GCM (JWE content encryption, no_std)
-  no-way-jose-aes-cbc-hs/ A128CBC-HS256, A192CBC-HS384, A256CBC-HS512 (JWE CE, no_std)
-  no-way-jose-aes-kw/     A128KW, A192KW, A256KW (JWE key wrapping, no_std)
-  no-way-jose-aes-gcm-kw/ A128GCMKW, A192GCMKW, A256GCMKW (JWE key wrapping, no_std)
-  no-way-jose-ecdh-es/    ECDH-ES, ECDH-ES+A128KW/A192KW/A256KW (JWE KA, no_std)
-  no-way-jose-pbes2/      PBES2-HS256+A128KW, HS384+A192KW, HS512+A256KW (JWE, no_std)
+  no-way-jose-aes-gcm/    A128GCM, A256GCM (JWE content encryption)
+  no-way-jose-aes-cbc-hs/ A128CBC-HS256, A192CBC-HS384, A256CBC-HS512 (JWE CE)
+  no-way-jose-aes-kw/     A128KW, A192KW, A256KW (JWE key wrapping)
+  no-way-jose-aes-gcm-kw/ A128GCMKW, A192GCMKW, A256GCMKW (JWE key wrapping)
+  no-way-jose-ecdh-es/    ECDH-ES, ECDH-ES+A128KW/A192KW/A256KW (JWE KA)
+  no-way-jose-pbes2/      PBES2-HS256+A128KW, HS384+A192KW, HS512+A256KW (JWE)
 ```
+
+All crates except `no-way-jose-claims` are `#![no_std]` with `extern crate alloc`.
 
 ## How-to guides
 
