@@ -65,24 +65,31 @@ rsa_algorithm!(
 pub type SigningKey = no_way_jose_core::SigningKey<Rs256>;
 pub type VerifyingKey = no_way_jose_core::VerifyingKey<Rs256>;
 
+/// # Errors
+/// Returns [`JoseError::InvalidKey`] if the RSA key bytes are invalid.
 pub fn signing_key_from_pkcs8_der(bytes: &[u8]) -> Result<SigningKey, JoseError> {
     rsa::SigningKey::from_pkcs8_der(bytes)
         .map(no_way_jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
+/// # Errors
+/// Returns [`JoseError::InvalidKey`] if the RSA key bytes are invalid.
 pub fn signing_key_from_pkcs1_der(bytes: &[u8]) -> Result<SigningKey, JoseError> {
     rsa::SigningKey::from_pkcs1_der(bytes)
         .map(no_way_jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
+/// # Errors
+/// Returns [`JoseError::InvalidKey`] if the RSA key bytes are invalid.
 pub fn verifying_key_from_pkcs1_der(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
     rsa::VerifyingKey::from_pkcs1_der(bytes)
         .map(no_way_jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
+#[must_use]
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(key.inner().public_key())
 }
@@ -95,24 +102,31 @@ pub mod ps256 {
     pub type SigningKey = no_way_jose_core::SigningKey<super::Ps256>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Ps256>;
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidKey`] if the RSA key bytes are invalid.
     pub fn signing_key_from_pkcs8_der(bytes: &[u8]) -> Result<SigningKey, JoseError> {
         rsa::SigningKey::from_pkcs8_der(bytes)
             .map(no_way_jose_core::key::Key::new)
             .map_err(|_| JoseError::InvalidKey)
     }
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidKey`] if the RSA key bytes are invalid.
     pub fn signing_key_from_pkcs1_der(bytes: &[u8]) -> Result<SigningKey, JoseError> {
         rsa::SigningKey::from_pkcs1_der(bytes)
             .map(no_way_jose_core::key::Key::new)
             .map_err(|_| JoseError::InvalidKey)
     }
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidKey`] if the RSA key bytes are invalid.
     pub fn verifying_key_from_pkcs1_der(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
         rsa::VerifyingKey::from_pkcs1_der(bytes)
             .map(no_way_jose_core::key::Key::new)
             .map_err(|_| JoseError::InvalidKey)
     }
 
+    #[must_use]
     pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
         no_way_jose_core::key::Key::new(key.inner().public_key())
     }

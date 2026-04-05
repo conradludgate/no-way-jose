@@ -68,21 +68,21 @@ impl EpkFields {
                         reader
                             .read_string()
                             .map_err(|_| JoseError::InvalidToken("malformed epk"))?,
-                    )
+                    );
                 }
                 "x" => {
                     x = Some(
                         reader
                             .read_string()
                             .map_err(|_| JoseError::InvalidToken("malformed epk"))?,
-                    )
+                    );
                 }
                 "y" => {
                     y = Some(
                         reader
                             .read_string()
                             .map_err(|_| JoseError::InvalidToken("malformed epk"))?,
-                    )
+                    );
                 }
                 _ => reader
                     .skip_value()

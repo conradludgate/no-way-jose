@@ -6,6 +6,7 @@
 //! (e.g. `Dir`, `A128Kw`).
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 

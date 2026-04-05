@@ -9,6 +9,7 @@
 //! submodule.
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 
@@ -125,6 +126,9 @@ pub type SigningKey = no_way_jose_core::SigningKey<Es256>;
 pub type VerifyingKey = no_way_jose_core::VerifyingKey<Es256>;
 
 /// Create an ES256 signing key from a raw P-256 scalar (32 bytes).
+///
+/// # Errors
+/// Returns `JoseError::InvalidKey` if the scalar bytes are invalid.
 pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, JoseError> {
     p256::ecdsa::SigningKey::from_slice(bytes)
         .map(no_way_jose_core::key::Key::new)
@@ -132,6 +136,9 @@ pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, JoseError> {
 }
 
 /// Create an ES256 verifying key from SEC1-encoded public key bytes.
+///
+/// # Errors
+/// Returns `JoseError::InvalidKey` if the SEC1 bytes are invalid.
 pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
     p256::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
         .map(no_way_jose_core::key::Key::new)
@@ -139,6 +146,7 @@ pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> 
 }
 
 /// Derive the ES256 verifying key from a signing key.
+#[must_use]
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(*key.inner().verifying_key())
 }
@@ -246,10 +254,10 @@ fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> Result<
     if jwk.kty != "EC" {
         return Err(JoseError::InvalidKey);
     }
-    if let Some(alg) = &jwk.alg {
-        if alg != expected_alg {
-            return Err(JoseError::InvalidKey);
-        }
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(JoseError::InvalidKey);
     }
     match &jwk.params {
         JwkParams::Ec(p) if p.crv == expected_crv => Ok(()),
@@ -279,18 +287,23 @@ pub mod es384 {
     pub type SigningKey = no_way_jose_core::SigningKey<super::Es384>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Es384>;
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the scalar bytes are invalid.
     pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, JoseError> {
         p384::ecdsa::SigningKey::from_slice(bytes)
             .map(no_way_jose_core::key::Key::new)
             .map_err(|_| JoseError::InvalidKey)
     }
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the SEC1 bytes are invalid.
     pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
         p384::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
             .map(no_way_jose_core::key::Key::new)
             .map_err(|_| JoseError::InvalidKey)
     }
 
+    #[must_use]
     pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
         no_way_jose_core::key::Key::new(*key.inner().verifying_key())
     }

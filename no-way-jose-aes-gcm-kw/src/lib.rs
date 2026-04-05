@@ -6,6 +6,7 @@
 //! JWE protected header.
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 
@@ -185,10 +186,10 @@ fn oct_from_jwk(jwk: &Jwk, expected_alg: &str, expected_len: usize) -> Result<Ve
     if jwk.kty != "oct" {
         return Err(JoseError::InvalidKey);
     }
-    if let Some(alg) = &jwk.alg {
-        if alg != expected_alg {
-            return Err(JoseError::InvalidKey);
-        }
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(JoseError::InvalidKey);
     }
     match &jwk.params {
         JwkParams::Oct(p) => make_kek(p.k.clone(), expected_len),
@@ -227,12 +228,16 @@ pub mod a128gcmkw {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::A128GcmKw>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::A128GcmKw>;
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the KEK length is not 16 bytes.
     pub fn encryption_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<EncryptionKey, no_way_jose_core::JoseError> {
         Ok(no_way_jose_core::key::Key::new(super::make_kek(bytes, 16)?))
     }
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the KEK length is not 16 bytes.
     pub fn decryption_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<DecryptionKey, no_way_jose_core::JoseError> {
@@ -246,12 +251,16 @@ pub mod a192gcmkw {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::A192GcmKw>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::A192GcmKw>;
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the KEK length is not 24 bytes.
     pub fn encryption_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<EncryptionKey, no_way_jose_core::JoseError> {
         Ok(no_way_jose_core::key::Key::new(super::make_kek(bytes, 24)?))
     }
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the KEK length is not 24 bytes.
     pub fn decryption_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<DecryptionKey, no_way_jose_core::JoseError> {
@@ -265,12 +274,16 @@ pub mod a256gcmkw {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::A256GcmKw>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::A256GcmKw>;
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the KEK length is not 32 bytes.
     pub fn encryption_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<EncryptionKey, no_way_jose_core::JoseError> {
         Ok(no_way_jose_core::key::Key::new(super::make_kek(bytes, 32)?))
     }
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the KEK length is not 32 bytes.
     pub fn decryption_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<DecryptionKey, no_way_jose_core::JoseError> {

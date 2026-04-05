@@ -5,6 +5,7 @@
 //! encryption key; the ephemeral public key is transmitted in the `epk` header.
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 
@@ -122,11 +123,11 @@ fn ecdh_decrypt(
     let shared_secret = match recipient_priv {
         EcPrivateKey::P256(secret_key) => {
             let peer_pub = epk_fields.to_p256_public_key()?;
-            curve::p256_ecdh_decrypt(secret_key, &peer_pub)?
+            curve::p256_ecdh_decrypt(secret_key, &peer_pub)
         }
         EcPrivateKey::P384(secret_key) => {
             let peer_pub = epk_fields.to_p384_public_key()?;
-            curve::p384_ecdh_decrypt(secret_key, &peer_pub)?
+            curve::p384_ecdh_decrypt(secret_key, &peer_pub)
         }
     };
 
@@ -334,10 +335,10 @@ fn ec_pubkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> Result<EcPublicKey, Jose
     if jwk.kty != "EC" {
         return Err(JoseError::InvalidKey);
     }
-    if let Some(alg) = &jwk.alg {
-        if alg != expected_alg {
-            return Err(JoseError::InvalidKey);
-        }
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(JoseError::InvalidKey);
     }
     match &jwk.params {
         JwkParams::Ec(p) => match p.crv.as_str() {
@@ -369,10 +370,10 @@ fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> Result<EcPrivateKey, Jo
     if jwk.kty != "EC" {
         return Err(JoseError::InvalidKey);
     }
-    if let Some(alg) = &jwk.alg {
-        if alg != expected_alg {
-            return Err(JoseError::InvalidKey);
-        }
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(JoseError::InvalidKey);
     }
     match &jwk.params {
         JwkParams::Ec(p) => {
@@ -423,10 +424,12 @@ pub mod ecdh_es {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::EcdhEs>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::EcdhEs>;
 
+    #[must_use]
     pub fn encryption_key(public_key: super::EcPublicKey) -> EncryptionKey {
         no_way_jose_core::key::Key::new(public_key)
     }
 
+    #[must_use]
     pub fn decryption_key(private_key: super::EcPrivateKey) -> DecryptionKey {
         no_way_jose_core::key::Key::new(private_key)
     }
@@ -436,10 +439,12 @@ pub mod ecdh_es_a128kw {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::EcdhEsA128Kw>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::EcdhEsA128Kw>;
 
+    #[must_use]
     pub fn encryption_key(public_key: super::EcPublicKey) -> EncryptionKey {
         no_way_jose_core::key::Key::new(public_key)
     }
 
+    #[must_use]
     pub fn decryption_key(private_key: super::EcPrivateKey) -> DecryptionKey {
         no_way_jose_core::key::Key::new(private_key)
     }
@@ -449,10 +454,12 @@ pub mod ecdh_es_a192kw {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::EcdhEsA192Kw>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::EcdhEsA192Kw>;
 
+    #[must_use]
     pub fn encryption_key(public_key: super::EcPublicKey) -> EncryptionKey {
         no_way_jose_core::key::Key::new(public_key)
     }
 
+    #[must_use]
     pub fn decryption_key(private_key: super::EcPrivateKey) -> DecryptionKey {
         no_way_jose_core::key::Key::new(private_key)
     }
@@ -462,10 +469,12 @@ pub mod ecdh_es_a256kw {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::EcdhEsA256Kw>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::EcdhEsA256Kw>;
 
+    #[must_use]
     pub fn encryption_key(public_key: super::EcPublicKey) -> EncryptionKey {
         no_way_jose_core::key::Key::new(public_key)
     }
 
+    #[must_use]
     pub fn decryption_key(private_key: super::EcPrivateKey) -> DecryptionKey {
         no_way_jose_core::key::Key::new(private_key)
     }

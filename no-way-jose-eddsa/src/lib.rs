@@ -1,10 +1,11 @@
-//! EdDSA JWS algorithm using Ed25519 ([`EdDsa`]).
+//! `EdDSA` JWS algorithm using Ed25519 ([`EdDsa`]).
 //!
-//! EdDSA is an asymmetric algorithm with small, fast keys. Keys are
+//! `EdDSA` is an asymmetric algorithm with small, fast keys. Keys are
 //! constructed from 32-byte seeds ([`signing_key_from_bytes`]) or raw
 //! public key bytes ([`verifying_key_from_bytes`]).
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 
@@ -16,7 +17,7 @@ use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OkpParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
-/// EdDSA: Edwards-curve Digital Signature Algorithm using Ed25519 (RFC 8037).
+/// `EdDSA`: Edwards-curve Digital Signature Algorithm using Ed25519 (RFC 8037).
 pub struct EdDsa;
 
 impl no_way_jose_core::__private::Sealed for EdDsa {}
@@ -119,10 +120,10 @@ fn validate_okp_jwk(jwk: &Jwk) -> Result<(), JoseError> {
     if jwk.kty != "OKP" {
         return Err(JoseError::InvalidKey);
     }
-    if let Some(alg) = &jwk.alg {
-        if alg != "EdDSA" {
-            return Err(JoseError::InvalidKey);
-        }
+    if let Some(alg) = &jwk.alg
+        && alg != "EdDSA"
+    {
+        return Err(JoseError::InvalidKey);
     }
     match &jwk.params {
         JwkParams::Okp(p) if p.crv == "Ed25519" => Ok(()),
@@ -130,24 +131,29 @@ fn validate_okp_jwk(jwk: &Jwk) -> Result<(), JoseError> {
     }
 }
 
-/// EdDSA signing key.
+/// `EdDSA` signing key.
 pub type SigningKey = no_way_jose_core::SigningKey<EdDsa>;
-/// EdDSA verifying key.
+/// `EdDSA` verifying key.
 pub type VerifyingKey = no_way_jose_core::VerifyingKey<EdDsa>;
 
-/// Create an EdDSA signing key from a 32-byte Ed25519 seed.
+/// Create an `EdDSA` signing key from a 32-byte Ed25519 seed.
+#[must_use]
 pub fn signing_key_from_bytes(bytes: &[u8; 32]) -> SigningKey {
     no_way_jose_core::key::Key::new(ed25519_dalek::SigningKey::from_bytes(bytes))
 }
 
-/// Create an EdDSA verifying key from 32-byte Ed25519 public key bytes.
+/// Create an `EdDSA` verifying key from 32-byte Ed25519 public key bytes.
+///
+/// # Errors
+/// Returns `JoseError::InvalidKey` if the public key bytes are invalid.
 pub fn verifying_key_from_bytes(bytes: &[u8; 32]) -> Result<VerifyingKey, JoseError> {
     ed25519_dalek::VerifyingKey::from_bytes(bytes)
         .map(no_way_jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
-/// Derive the EdDSA verifying key from a signing key.
+/// Derive the `EdDSA` verifying key from a signing key.
+#[must_use]
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(key.inner().verifying_key())
 }

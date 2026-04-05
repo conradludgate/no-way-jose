@@ -5,6 +5,7 @@
 //! The combined key is split: first half for HMAC, second half for AES-CBC.
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 

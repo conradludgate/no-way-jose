@@ -9,6 +9,7 @@
 //! [`hs512`] submodules.
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 
@@ -112,10 +113,10 @@ fn oct_from_jwk(jwk: &Jwk, expected_alg: &str, min_len: usize) -> Result<HmacKey
     if jwk.kty != "oct" {
         return Err(JoseError::InvalidKey);
     }
-    if let Some(alg) = &jwk.alg {
-        if alg != expected_alg {
-            return Err(JoseError::InvalidKey);
-        }
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(JoseError::InvalidKey);
     }
     match &jwk.params {
         JwkParams::Oct(p) => make_key(p.k.clone(), min_len),
@@ -151,12 +152,16 @@ pub mod hs256 {
     pub type SigningKey = no_way_jose_core::SigningKey<super::Hs256>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Hs256>;
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn symmetric_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<SigningKey, no_way_jose_core::JoseError> {
         Ok(no_way_jose_core::key::Key::new(super::make_key(bytes, 32)?))
     }
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn verifying_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<VerifyingKey, no_way_jose_core::JoseError> {
@@ -170,12 +175,16 @@ pub mod hs384 {
     pub type SigningKey = no_way_jose_core::SigningKey<super::Hs384>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Hs384>;
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn symmetric_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<SigningKey, no_way_jose_core::JoseError> {
         Ok(no_way_jose_core::key::Key::new(super::make_key(bytes, 48)?))
     }
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn verifying_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<VerifyingKey, no_way_jose_core::JoseError> {
@@ -189,12 +198,16 @@ pub mod hs512 {
     pub type SigningKey = no_way_jose_core::SigningKey<super::Hs512>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Hs512>;
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn symmetric_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<SigningKey, no_way_jose_core::JoseError> {
         Ok(no_way_jose_core::key::Key::new(super::make_key(bytes, 64)?))
     }
 
+    /// # Errors
+    /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn verifying_key(
         bytes: impl Into<Vec<u8>>,
     ) -> Result<VerifyingKey, no_way_jose_core::JoseError> {
@@ -208,11 +221,17 @@ pub type SigningKey = hs256::SigningKey;
 pub type VerifyingKey = hs256::VerifyingKey;
 
 /// Create an HS256 signing key. Requires at least 32 bytes.
+///
+/// # Errors
+/// Returns `JoseError::InvalidKey` if the key bytes are too short.
 pub fn symmetric_key(bytes: impl Into<Vec<u8>>) -> Result<SigningKey, JoseError> {
     hs256::symmetric_key(bytes)
 }
 
 /// Create an HS256 verifying key. Requires at least 32 bytes.
+///
+/// # Errors
+/// Returns `JoseError::InvalidKey` if the key bytes are too short.
 pub fn verifying_key(bytes: impl Into<Vec<u8>>) -> Result<VerifyingKey, JoseError> {
     hs256::verifying_key(bytes)
 }

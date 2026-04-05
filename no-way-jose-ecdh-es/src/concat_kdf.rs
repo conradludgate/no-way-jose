@@ -7,6 +7,7 @@ use sha2::Digest;
 /// `otherinfo = algId_len(4B) || algId || apu_len(4B) || apu || apv_len(4B) || apv || keydatalen(4B)`
 ///
 /// For simplicity, `apu` and `apv` are empty (no PartyUInfo/PartyVInfo).
+#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn concat_kdf(shared_secret: &[u8], alg: &str, key_len: usize) -> Vec<u8> {
     let keydatalen_bits = (key_len as u32) * 8;
 

@@ -35,7 +35,7 @@ pub struct SignedData {
     pub(crate) signature: Vec<u8>,
 }
 
-/// Wire-format data for a JWE compact token (encrypted_key, iv, ciphertext, tag).
+/// Wire-format data for a JWE compact token (`encrypted_key`, iv, ciphertext, tag).
 pub struct EncryptedData {
     pub(crate) encrypted_key: Vec<u8>,
     pub(crate) iv: Vec<u8>,

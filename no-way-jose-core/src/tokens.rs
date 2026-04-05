@@ -33,6 +33,9 @@ pub struct UnsealedToken<P: Purpose, M> {
 
 impl<P: Purpose, M> CompactToken<P, M> {
     /// Decode and return the JOSE header.
+    ///
+    /// # Errors
+    /// Returns [`JoseError::Base64DecodeError`] or [`JoseError::InvalidToken`] if the header cannot be parsed.
     pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
         crate::header::parse_header_owned(&self.header_b64)
     }
@@ -43,6 +46,9 @@ impl<P: Purpose, M> CompactToken<P, M> {
     }
 
     /// Validate that the header's `typ` field matches the expected value (RFC 8725 §3.11).
+    ///
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] if `typ` is missing or does not match `expected`.
     pub fn require_typ(self, expected: &str) -> Result<Self, JoseError> {
         let header = self.header()?;
         match header.typ.as_deref() {
@@ -54,6 +60,9 @@ impl<P: Purpose, M> CompactToken<P, M> {
 
 impl<P: Purpose, M> UnsealedToken<P, M> {
     /// Decode and return the JOSE header.
+    ///
+    /// # Errors
+    /// Returns [`JoseError::Base64DecodeError`] or [`JoseError::InvalidToken`] if the header cannot be parsed.
     pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
         crate::header::parse_header_owned(&self.header_b64)
     }
@@ -100,6 +109,8 @@ where
     A: Signer,
     M: ToJson,
 {
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`], [`JoseError::Base64DecodeError`], [`JoseError::CryptoError`], or related errors if signing fails.
     pub fn sign(self, key: &SigningKey<A>) -> Result<CompactJws<A, M>, JoseError> {
         let header_bytes = crate::base64url::decode(&self.header_b64)?;
         let hdr = parse_header(&header_bytes)?;
@@ -133,6 +144,8 @@ where
     A: Verifier,
     M: FromJson,
 {
+    /// # Errors
+    /// Returns [`JoseError::CryptoError`], [`JoseError::Base64DecodeError`], [`JoseError::PayloadError`], [`JoseError::ClaimsError`], or [`JoseError::InvalidToken`] on failure.
     pub fn verify(
         self,
         key: &VerifyingKey<A>,
@@ -208,6 +221,8 @@ fn parse_jws_compact(s: &str) -> Result<JwsParts, JoseError> {
 impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
     type Err = JoseError;
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] or [`JoseError::Base64DecodeError`] if the string is not a valid compact JWS or `alg` mismatches.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = parse_jws_compact(s)?;
         if parts.alg != A::ALG {
@@ -239,18 +254,24 @@ pub struct UntypedCompactJws<M = RawJson> {
 }
 
 impl<M> UntypedCompactJws<M> {
+    #[must_use]
     pub fn alg(&self) -> &str {
         &self.alg
     }
 
+    /// # Errors
+    /// Returns [`JoseError::Base64DecodeError`] or [`JoseError::InvalidToken`] if the header cannot be parsed.
     pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
         crate::header::parse_header_owned(&self.header_b64)
     }
 
+    #[must_use]
     pub fn raw_header_b64(&self) -> &str {
         &self.header_b64
     }
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] if `typ` is missing or does not match `expected`.
     pub fn require_typ(self, expected: &str) -> Result<Self, JoseError> {
         let header = self.header()?;
         match header.typ.as_deref() {
@@ -259,6 +280,8 @@ impl<M> UntypedCompactJws<M> {
         }
     }
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] if the runtime `alg` does not match `A::ALG`.
     pub fn into_typed<A: JwsAlgorithm>(self) -> Result<CompactJws<A, M>, JoseError> {
         if self.alg != A::ALG {
             return Err(JoseError::InvalidToken("alg mismatch"));
@@ -274,6 +297,8 @@ impl<M> UntypedCompactJws<M> {
 impl<M> core::str::FromStr for UntypedCompactJws<M> {
     type Err = JoseError;
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] or [`JoseError::Base64DecodeError`] if the string is not a valid compact JWS.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = parse_jws_compact(s)?;
         Ok(UntypedCompactJws {
@@ -333,6 +358,8 @@ where
     CE: ContentEncryptor,
     M: ToJson,
 {
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`], [`JoseError::Base64DecodeError`], [`JoseError::CryptoError`], or related errors if encryption fails.
     pub fn encrypt(self, key: &EncryptionKey<KM>) -> Result<CompactJwe<KM, CE, M>, JoseError> {
         let header_bytes = crate::base64url::decode(&self.header_b64)?;
         let hdr = parse_header(&header_bytes)?;
@@ -383,6 +410,8 @@ where
     CE: ContentDecryptor,
     M: FromJson,
 {
+    /// # Errors
+    /// Returns [`JoseError::CryptoError`], [`JoseError::PayloadError`], [`JoseError::ClaimsError`], or [`JoseError::InvalidToken`] on failure.
     pub fn decrypt(
         self,
         key: &DecryptionKey<KM>,
@@ -441,6 +470,8 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
 {
     type Err = JoseError;
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] or [`JoseError::Base64DecodeError`] if the string is not a valid compact JWE or algorithms mismatch.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.splitn(5, '.');
         let header_b64 = parts
@@ -528,21 +559,21 @@ fn parse_header(bytes: &[u8]) -> Result<ParsedHeader, JoseError> {
                     reader
                         .read_string()
                         .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
-                )
+                );
             }
             "enc" => {
                 enc = Some(
                     reader
                         .read_string()
                         .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
-                )
+                );
             }
             "crit" => {
                 crit = Some(
                     reader
                         .read_string_array()
                         .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
-                )
+                );
             }
             _ => reader
                 .skip_value()

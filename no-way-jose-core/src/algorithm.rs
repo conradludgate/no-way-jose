@@ -11,11 +11,15 @@ pub trait JwsAlgorithm: Sealed + Send + Sync + Sized + 'static {
 
 /// This algorithm can produce signatures.
 pub trait Signer: JwsAlgorithm + HasKey<Signing> {
+    /// # Errors
+    /// Returns [`crate::JoseError::CryptoError`] if signing fails.
     fn sign(key: &KeyInner<Self, Signing>, signing_input: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
 
 /// This algorithm can verify signatures.
 pub trait Verifier: JwsAlgorithm + HasKey<Verifying> {
+    /// # Errors
+    /// Returns [`crate::JoseError::CryptoError`] if the signature is invalid.
     fn verify(
         key: &KeyInner<Self, Verifying>,
         signing_input: &[u8],

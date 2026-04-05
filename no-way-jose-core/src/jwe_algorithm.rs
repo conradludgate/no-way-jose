@@ -31,6 +31,8 @@ pub struct KeyEncryptionResult {
 
 /// Encrypt/wrap a Content Encryption Key using a key management algorithm.
 pub trait KeyEncryptor: JweKeyManagement + HasKey<Encrypting> {
+    /// # Errors
+    /// Returns [`crate::JoseError::CryptoError`] or [`crate::JoseError::InvalidKey`] if key encryption fails.
     fn encrypt_cek(
         key: &KeyInner<Self, Encrypting>,
         cek_len: usize,
@@ -46,6 +48,9 @@ pub trait KeyDecryptor: JweKeyManagement + HasKey<Decrypting> {
     ///
     /// `cek_len` is the expected CEK length from the content encryption algorithm.
     /// Algorithms like ECDH-ES direct agreement need this to derive the correct key size.
+    ///
+    /// # Errors
+    /// Returns [`crate::JoseError::CryptoError`] or [`crate::JoseError::InvalidKey`] if decryption fails.
     fn decrypt_cek(
         key: &KeyInner<Self, Decrypting>,
         encrypted_key: &[u8],
@@ -57,12 +62,17 @@ pub trait KeyDecryptor: JweKeyManagement + HasKey<Decrypting> {
 /// Encrypt plaintext using a content encryption algorithm.
 /// The implementation generates the IV internally.
 pub trait ContentEncryptor: JweContentEncryption {
+    /// # Errors
+    /// Returns [`crate::JoseError::CryptoError`] if encryption fails.
     fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> Result<EncryptionOutput, JoseError>;
 }
 
 /// Decrypt ciphertext using a content encryption algorithm.
 pub trait ContentDecryptor: JweContentEncryption {
     /// Decrypt and authenticate the ciphertext using the CEK, IV, AAD, and tag.
+    ///
+    /// # Errors
+    /// Returns [`crate::JoseError::CryptoError`] if decryption or authentication fails.
     fn decrypt(
         cek: &[u8],
         iv: &[u8],

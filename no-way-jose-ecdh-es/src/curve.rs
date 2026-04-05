@@ -28,10 +28,10 @@ pub(crate) fn p256_ecdh_ephemeral(
 pub(crate) fn p256_ecdh_decrypt(
     secret_key: &p256::SecretKey,
     peer_pub: &p256::PublicKey,
-) -> Result<Vec<u8>, JoseError> {
+) -> Vec<u8> {
     let shared_secret =
         p256::ecdh::diffie_hellman(secret_key.to_nonzero_scalar(), peer_pub.as_affine());
-    Ok(shared_secret.raw_secret_bytes().to_vec())
+    shared_secret.raw_secret_bytes().to_vec()
 }
 
 pub(crate) fn p384_ecdh_ephemeral(
@@ -56,8 +56,8 @@ pub(crate) fn p384_ecdh_ephemeral(
 pub(crate) fn p384_ecdh_decrypt(
     secret_key: &p384::SecretKey,
     peer_pub: &p384::PublicKey,
-) -> Result<Vec<u8>, JoseError> {
+) -> Vec<u8> {
     let shared_secret =
         p384::ecdh::diffie_hellman(secret_key.to_nonzero_scalar(), peer_pub.as_affine());
-    Ok(shared_secret.raw_secret_bytes().to_vec())
+    shared_secret.raw_secret_bytes().to_vec()
 }

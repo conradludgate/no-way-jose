@@ -71,12 +71,16 @@ ecdsa_algorithm!(
 pub type SigningKey = no_way_jose_core::SigningKey<Es256>;
 pub type VerifyingKey = no_way_jose_core::VerifyingKey<Es256>;
 
+/// # Errors
+/// Returns [`JoseError::InvalidKey`] if the key bytes are invalid.
 pub fn signing_key_from_sec1_der(bytes: &[u8]) -> Result<SigningKey, JoseError> {
     ecdsa::SigningKey::from_sec1_der(bytes)
         .map(no_way_jose_core::key::Key::new)
         .map_err(|_| JoseError::InvalidKey)
 }
 
+/// # Errors
+/// Returns [`JoseError::InvalidKey`] if the key bytes are invalid.
 pub fn verifying_key_from_x962(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
     ecdsa::VerifyingKey::from_x962_uncompressed(bytes)
         .map(no_way_jose_core::key::Key::new)
@@ -84,17 +88,21 @@ pub fn verifying_key_from_x962(bytes: &[u8]) -> Result<VerifyingKey, JoseError> 
 }
 
 pub mod es384 {
-    use super::*;
+    use super::{Es384, JoseError, ecdsa};
 
     pub type SigningKey = no_way_jose_core::SigningKey<Es384>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<Es384>;
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidKey`] if the key bytes are invalid.
     pub fn signing_key_from_sec1_der(bytes: &[u8]) -> Result<SigningKey, JoseError> {
         ecdsa::SigningKey::from_sec1_der(bytes)
             .map(no_way_jose_core::key::Key::new)
             .map_err(|_| JoseError::InvalidKey)
     }
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidKey`] if the key bytes are invalid.
     pub fn verifying_key_from_x962(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
         ecdsa::VerifyingKey::from_x962_uncompressed(bytes)
             .map(no_way_jose_core::key::Key::new)

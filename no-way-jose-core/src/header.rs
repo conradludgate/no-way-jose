@@ -19,6 +19,7 @@ struct BuilderHeader {
 }
 
 impl HeaderBuilder {
+    #[must_use]
     pub fn new(alg: &'static str) -> Self {
         HeaderBuilder {
             header: BuilderHeader {
@@ -31,21 +32,25 @@ impl HeaderBuilder {
         }
     }
 
+    #[must_use]
     pub fn enc(mut self, enc: &'static str) -> Self {
         self.header.enc = Some(enc);
         self
     }
 
+    #[must_use]
     pub fn kid(mut self, kid: impl Into<String>) -> Self {
         self.header.kid = Some(kid.into());
         self
     }
 
+    #[must_use]
     pub fn typ(mut self, typ: impl Into<String>) -> Self {
         self.header.typ = Some(typ.into());
         self
     }
 
+    #[must_use]
     pub fn build(self) -> String {
         let json = self.header.to_json_bytes();
         crate::base64url::encode(&json)
@@ -73,6 +78,11 @@ impl BuilderHeader {
 }
 
 /// Parse a base64url-encoded header into owned fields.
+///
+/// # Errors
+/// Returns [`crate::JoseError::Base64DecodeError`] on invalid base64url, or
+/// [`crate::JoseError::InvalidToken`] if the decoded bytes are not valid compact header JSON or
+/// required fields are missing.
 pub fn parse_header_owned(header_b64: &str) -> Result<OwnedHeader, JoseError> {
     let bytes = crate::base64url::decode(header_b64)?;
     OwnedHeader::from_json_bytes(&bytes)
@@ -91,6 +101,8 @@ pub struct OwnedHeader {
 }
 
 impl FromJson for OwnedHeader {
+    /// # Errors
+    /// Returns an error if the JSON is malformed or `alg` is missing.
     fn from_json_bytes(
         bytes: &[u8],
     ) -> Result<Self, alloc::boxed::Box<dyn core::error::Error + Send + Sync>> {

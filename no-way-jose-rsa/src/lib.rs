@@ -5,6 +5,7 @@
 //! [`rsa::RsaPublicKey`] types.
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 
@@ -67,16 +68,19 @@ pub type SigningKey = no_way_jose_core::SigningKey<Rs256>;
 pub type VerifyingKey = no_way_jose_core::VerifyingKey<Rs256>;
 
 /// Create an RS256 signing key from an RSA private key.
+#[must_use]
 pub fn signing_key(private_key: rsa::RsaPrivateKey) -> SigningKey {
     no_way_jose_core::key::Key::new(private_key)
 }
 
 /// Create an RS256 verifying key from an RSA public key.
+#[must_use]
 pub fn verifying_key(public_key: rsa::RsaPublicKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(public_key)
 }
 
 /// Derive the RS256 verifying key from a signing key.
+#[must_use]
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(rsa::RsaPublicKey::from(key.inner()))
 }
@@ -126,10 +130,10 @@ fn rsa_privkey_to_jwk(key: &rsa::RsaPrivateKey, alg: &str) -> Jwk {
             qi: None,
         }),
     };
-    if let Some(qi) = key.crt_coefficient() {
-        if let JwkParams::Rsa(ref mut p) = jwk.params {
-            p.qi = Some(boxed_uint_to_be_bytes(&qi));
-        }
+    if let Some(qi) = key.crt_coefficient()
+        && let JwkParams::Rsa(ref mut p) = jwk.params
+    {
+        p.qi = Some(boxed_uint_to_be_bytes(&qi));
     }
     jwk
 }
@@ -141,7 +145,8 @@ fn boxed_uint_to_be_bytes(v: &rsa::BoxedUint) -> Vec<u8> {
 }
 
 fn boxed_uint_from_be_bytes(bytes: &[u8]) -> rsa::BoxedUint {
-    let bits = (bytes.len() as u32 * 8).next_multiple_of(64);
+    let bits = u32::try_from(bytes.len()).expect("key too large") * 8;
+    let bits = bits.next_multiple_of(64);
     rsa::BoxedUint::from_be_slice(bytes, bits).expect("valid byte length")
 }
 
@@ -149,10 +154,10 @@ fn validate_rsa_jwk(jwk: &Jwk, expected_alg: &str) -> Result<(), JoseError> {
     if jwk.kty != "RSA" {
         return Err(JoseError::InvalidKey);
     }
-    if let Some(alg) = &jwk.alg {
-        if alg != expected_alg {
-            return Err(JoseError::InvalidKey);
-        }
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(JoseError::InvalidKey);
     }
     Ok(())
 }
@@ -285,14 +290,17 @@ pub mod ps256 {
     pub type SigningKey = no_way_jose_core::SigningKey<super::Ps256>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Ps256>;
 
+    #[must_use]
     pub fn signing_key(private_key: rsa::RsaPrivateKey) -> SigningKey {
         no_way_jose_core::key::Key::new(private_key)
     }
 
+    #[must_use]
     pub fn verifying_key(public_key: rsa::RsaPublicKey) -> VerifyingKey {
         no_way_jose_core::key::Key::new(public_key)
     }
 
+    #[must_use]
     pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
         no_way_jose_core::key::Key::new(rsa::RsaPublicKey::from(key.inner()))
     }
@@ -395,10 +403,12 @@ pub mod rsa1_5 {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Rsa1_5>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::Rsa1_5>;
 
+    #[must_use]
     pub fn encryption_key(public_key: rsa::RsaPublicKey) -> EncryptionKey {
         no_way_jose_core::key::Key::new(public_key)
     }
 
+    #[must_use]
     pub fn decryption_key(private_key: rsa::RsaPrivateKey) -> DecryptionKey {
         no_way_jose_core::key::Key::new(private_key)
     }
@@ -408,10 +418,12 @@ pub mod rsa_oaep {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::RsaOaep>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::RsaOaep>;
 
+    #[must_use]
     pub fn encryption_key(public_key: rsa::RsaPublicKey) -> EncryptionKey {
         no_way_jose_core::key::Key::new(public_key)
     }
 
+    #[must_use]
     pub fn decryption_key(private_key: rsa::RsaPrivateKey) -> DecryptionKey {
         no_way_jose_core::key::Key::new(private_key)
     }
@@ -421,10 +433,12 @@ pub mod rsa_oaep_256 {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::RsaOaep256>;
     pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::RsaOaep256>;
 
+    #[must_use]
     pub fn encryption_key(public_key: rsa::RsaPublicKey) -> EncryptionKey {
         no_way_jose_core::key::Key::new(public_key)
     }
 
+    #[must_use]
     pub fn decryption_key(private_key: rsa::RsaPrivateKey) -> DecryptionKey {
         no_way_jose_core::key::Key::new(private_key)
     }

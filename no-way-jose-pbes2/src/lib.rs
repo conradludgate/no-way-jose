@@ -6,6 +6,7 @@
 //! in the JWE protected header.
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 
@@ -28,7 +29,7 @@ use no_way_jose_core::key::{Decrypting, Encrypting, HasKey};
 const DEFAULT_ITER_COUNT: u32 = 310_000;
 const SALT_LEN: usize = 16;
 
-/// Build the PBES2 salt value: UTF8(alg) || 0x00 || random_salt (RFC 7518 §4.8.1.1).
+/// Build the PBES2 salt value: UTF8(alg) || 0x00 || `random_salt` (RFC 7518 §4.8.1.1).
 fn pbes2_salt_input(alg: &str, random_salt: &[u8]) -> Vec<u8> {
     let mut salt = Vec::with_capacity(alg.len() + 1 + random_salt.len());
     salt.extend_from_slice(alg.as_bytes());
@@ -121,11 +122,13 @@ macro_rules! pbes2_algorithm {
                 if p2c <= 0 {
                     return Err(JoseError::InvalidToken("p2c must be positive"));
                 }
+                let p2c_u32 = u32::try_from(p2c)
+                    .map_err(|_| JoseError::InvalidToken("p2c out of range for u32"))?;
 
                 let salt_input = pbes2_salt_input($alg, &random_salt);
 
                 let mut derived_key = [0u8; $dk_len];
-                pbkdf2::pbkdf2::<$hmac>(password, &salt_input, p2c as u32, &mut derived_key)
+                pbkdf2::pbkdf2::<$hmac>(password, &salt_input, p2c_u32, &mut derived_key)
                     .map_err(|_| JoseError::CryptoError)?;
 
                 let kek =

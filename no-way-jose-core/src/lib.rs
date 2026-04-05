@@ -13,6 +13,7 @@
 //! - **Dynamic:** [`UntypedCompactJws`] for runtime algorithm selection
 
 #![no_std]
+#![warn(clippy::pedantic)]
 
 extern crate alloc;
 

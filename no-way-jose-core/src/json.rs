@@ -18,6 +18,8 @@ pub trait ToJson {
 
 /// Deserialize a value from compact JSON bytes.
 pub trait FromJson: Sized {
+    /// # Errors
+    /// Returns an error if the bytes are not valid JSON for this type.
     fn from_json_bytes(
         bytes: &[u8],
     ) -> Result<Self, alloc::boxed::Box<dyn core::error::Error + Send + Sync>>;
@@ -33,6 +35,8 @@ impl ToJson for RawJson {
 }
 
 impl FromJson for RawJson {
+    /// # Errors
+    /// This implementation never fails.
     fn from_json_bytes(
         bytes: &[u8],
     ) -> Result<Self, alloc::boxed::Box<dyn core::error::Error + Send + Sync>> {
@@ -55,6 +59,7 @@ impl Default for JsonWriter {
 }
 
 impl JsonWriter {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             buf: alloc::vec![b'{'],
@@ -111,6 +116,7 @@ impl JsonWriter {
         self.buf.extend_from_slice(raw_json);
     }
 
+    #[must_use]
     pub fn finish(mut self) -> Vec<u8> {
         self.buf.push(b'}');
         self.buf
@@ -162,6 +168,8 @@ pub struct JsonReader<'a> {
 }
 
 impl<'a> JsonReader<'a> {
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] if the input does not start with `{`.
     pub fn new(input: &'a [u8]) -> Result<Self, JoseError> {
         if input.first() != Some(&b'{') {
             return Err(JoseError::InvalidToken("expected JSON object"));
@@ -174,11 +182,13 @@ impl<'a> JsonReader<'a> {
     }
 
     /// Current byte offset into the input buffer.
+    #[must_use]
     pub fn current_pos(&self) -> usize {
         self.pos
     }
 
     /// The raw input slice.
+    #[must_use]
     pub fn input_bytes(&self) -> &'a [u8] {
         self.input
     }
@@ -197,6 +207,9 @@ impl<'a> JsonReader<'a> {
 
     /// Returns the next object key, or `None` when `}` is reached.
     /// Keys are borrowed from the input — escape sequences in keys are rejected.
+    ///
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] on malformed JSON, trailing data, or invalid UTF-8.
     pub fn next_key(&mut self) -> Result<Option<&'a str>, JoseError> {
         if self.peek() == Some(b'}') {
             self.pos += 1;
@@ -229,6 +242,8 @@ impl<'a> JsonReader<'a> {
         }
     }
 
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] on malformed JSON, invalid escapes, or invalid UTF-8.
     pub fn read_string(&mut self) -> Result<String, JoseError> {
         self.expect(b'"')?;
         let mut result = String::new();
@@ -302,6 +317,8 @@ impl<'a> JsonReader<'a> {
         }
     }
 
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] if the value is not a valid JSON integer in range.
     pub fn read_i64(&mut self) -> Result<i64, JoseError> {
         let start = self.pos;
         if self.input.get(self.pos) == Some(&b'-') {
@@ -325,6 +342,8 @@ impl<'a> JsonReader<'a> {
             .map_err(|_| JoseError::InvalidToken("number out of range"))
     }
 
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] if the value is not `true` or `false`.
     pub fn read_bool(&mut self) -> Result<bool, JoseError> {
         if self.input.get(self.pos..self.pos + 4) == Some(b"true") {
             self.pos += 4;
@@ -338,6 +357,9 @@ impl<'a> JsonReader<'a> {
     }
 
     /// Read a value that is either a single JSON string or an array of strings.
+    ///
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] if the value is neither a string nor a string array.
     pub fn read_string_or_string_array(&mut self) -> Result<Vec<String>, JoseError> {
         match self.peek() {
             Some(b'"') => {
@@ -349,6 +371,8 @@ impl<'a> JsonReader<'a> {
         }
     }
 
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] on malformed array syntax or string values.
     pub fn read_string_array(&mut self) -> Result<Vec<String>, JoseError> {
         self.expect(b'[')?;
         let mut result = Vec::new();
@@ -370,12 +394,15 @@ impl<'a> JsonReader<'a> {
     }
 
     /// Skip one JSON value of any type (string, number, bool, null, object, array).
+    ///
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] if the value is malformed or unterminated.
     pub fn skip_value(&mut self) -> Result<(), JoseError> {
         match self.peek() {
             Some(b'"') => {
                 self.skip_string()?;
             }
-            Some(b'{') | Some(b'[') => self.skip_nested()?,
+            Some(b'{' | b'[') => self.skip_nested()?,
             Some(b't') => {
                 if self.input.get(self.pos..self.pos + 4) != Some(b"true") {
                     return Err(JoseError::InvalidToken("invalid JSON value"));
@@ -394,7 +421,7 @@ impl<'a> JsonReader<'a> {
                 }
                 self.pos += 4;
             }
-            Some(b'-') | Some(b'0'..=b'9') => self.skip_number()?,
+            Some(b'-' | b'0'..=b'9') => self.skip_number()?,
             _ => return Err(JoseError::InvalidToken("invalid JSON value")),
         }
         Ok(())
@@ -425,11 +452,11 @@ impl<'a> JsonReader<'a> {
                 Some(b'"') => {
                     self.skip_string()?;
                 }
-                Some(b'{') | Some(b'[') => {
+                Some(b'{' | b'[') => {
                     depth += 1;
                     self.pos += 1;
                 }
-                Some(b'}') | Some(b']') => {
+                Some(b'}' | b']') => {
                     depth -= 1;
                     self.pos += 1;
                     if depth == 0 {
@@ -457,9 +484,9 @@ impl<'a> JsonReader<'a> {
                 self.pos += 1;
             }
         }
-        if matches!(self.input.get(self.pos), Some(b'e') | Some(b'E')) {
+        if matches!(self.input.get(self.pos), Some(b'e' | b'E')) {
             self.pos += 1;
-            if matches!(self.input.get(self.pos), Some(b'+') | Some(b'-')) {
+            if matches!(self.input.get(self.pos), Some(b'+' | b'-')) {
                 self.pos += 1;
             }
             while matches!(self.input.get(self.pos), Some(b'0'..=b'9')) {
@@ -480,12 +507,12 @@ impl<'a> JsonReader<'a> {
             if !(0xDC00..=0xDFFF).contains(&low) {
                 return Err(JoseError::InvalidToken("invalid low surrogate"));
             }
-            let cp = 0x10000 + ((high as u32 - 0xD800) << 10) + (low as u32 - 0xDC00);
+            let cp = 0x10000 + ((u32::from(high) - 0xD800) << 10) + (u32::from(low) - 0xDC00);
             char::from_u32(cp).ok_or(JoseError::InvalidToken("invalid code point"))
         } else if (0xDC00..=0xDFFF).contains(&high) {
             Err(JoseError::InvalidToken("unexpected low surrogate"))
         } else {
-            char::from_u32(high as u32).ok_or(JoseError::InvalidToken("invalid code point"))
+            char::from_u32(u32::from(high)).ok_or(JoseError::InvalidToken("invalid code point"))
         }
     }
 
@@ -502,7 +529,7 @@ impl<'a> JsonReader<'a> {
                 b'A'..=b'F' => digit - b'A' + 10,
                 _ => return Err(JoseError::InvalidToken("invalid hex digit")),
             };
-            value = value * 16 + n as u16;
+            value = value * 16 + u16::from(n);
         }
         self.pos += 4;
         Ok(value)
@@ -510,6 +537,9 @@ impl<'a> JsonReader<'a> {
 }
 
 /// Read a string-valued field from a compact JSON header object.
+///
+/// # Errors
+/// Returns [`crate::JoseError::InvalidToken`] if the header is malformed or the field is missing.
 pub fn read_header_string(header: &[u8], field: &str) -> Result<String, JoseError> {
     let mut reader =
         JsonReader::new(header).map_err(|_| JoseError::InvalidToken("malformed header"))?;
@@ -530,6 +560,9 @@ pub fn read_header_string(header: &[u8], field: &str) -> Result<String, JoseErro
 }
 
 /// Read an integer-valued field from a compact JSON header object.
+///
+/// # Errors
+/// Returns [`crate::JoseError::InvalidToken`] if the header is malformed, the field is missing, or the value is not an integer.
 pub fn read_header_i64(header: &[u8], field: &str) -> Result<i64, JoseError> {
     let mut reader =
         JsonReader::new(header).map_err(|_| JoseError::InvalidToken("malformed header"))?;
@@ -550,6 +583,9 @@ pub fn read_header_i64(header: &[u8], field: &str) -> Result<i64, JoseError> {
 }
 
 /// Read a base64url-encoded string field from a compact JSON header and decode it.
+///
+/// # Errors
+/// Returns [`crate::JoseError::InvalidToken`] or [`crate::JoseError::Base64DecodeError`] if the field is missing, malformed, or not valid base64url.
 pub fn read_header_b64(header: &[u8], field: &str) -> Result<Vec<u8>, JoseError> {
     let val = read_header_string(header, field)?;
     crate::base64url::decode(&val)
@@ -563,7 +599,7 @@ mod tests {
     fn roundtrip_simple_object() {
         let mut w = JsonWriter::new();
         w.string("alg", "HS256");
-        w.number("exp", 1300819380);
+        w.number("exp", 1_300_819_380);
         w.bool("admin", true);
         let bytes = w.finish();
         assert_eq!(
@@ -578,7 +614,7 @@ mod tests {
 
         let k2 = r.next_key().unwrap().unwrap();
         assert_eq!(k2, "exp");
-        assert_eq!(r.read_i64().unwrap(), 1300819380);
+        assert_eq!(r.read_i64().unwrap(), 1_300_819_380);
 
         let k3 = r.next_key().unwrap().unwrap();
         assert_eq!(k3, "admin");

@@ -77,6 +77,7 @@ pub struct JwkSet {
 }
 
 impl JwkSet {
+    #[must_use]
     pub fn find_by_kid(&self, kid: &str) -> Option<&Jwk> {
         self.keys.iter().find(|k| k.kid.as_deref() == Some(kid))
     }
@@ -89,6 +90,8 @@ pub trait ToJwk {
 
 /// Deserialize a key from JWK form.
 pub trait FromJwk: Sized {
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidKey`] if the JWK does not match this key type.
     fn from_jwk(jwk: &Jwk) -> Result<Self, JoseError>;
 }
 
@@ -96,6 +99,9 @@ pub trait FromJwk: Sized {
 /// `Key<A, K>` automatically gains `ToJwk`/`FromJwk` via blanket impls.
 pub trait JwkKeyConvert<K: crate::key::KeyPurpose>: crate::key::HasKey<K> {
     fn key_to_jwk(key: &<Self as crate::key::HasKey<K>>::Key) -> Jwk;
+
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidKey`] if the JWK does not represent a valid key for this algorithm.
     fn key_from_jwk(jwk: &Jwk) -> Result<<Self as crate::key::HasKey<K>>::Key, JoseError>;
 }
 
@@ -124,6 +130,7 @@ where
 // ====================================================================
 
 impl Jwk {
+    #[must_use]
     pub fn to_json_bytes(&self) -> Vec<u8> {
         let mut w = JsonWriter::new();
         w.string("kty", &self.kty);
@@ -190,6 +197,9 @@ impl Jwk {
         w.finish()
     }
 
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] or [`crate::JoseError::Base64DecodeError`] on malformed JSON or invalid fields, or [`crate::JoseError::InvalidKey`] for unknown `kty` or bad `use`.
+    #[allow(clippy::many_single_char_names)] // RFC 7518 RSA field names: n, e, d, p, q, …
     pub fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
         let mut reader = JsonReader::new(bytes)?;
 
@@ -287,6 +297,7 @@ fn read_b64_string(reader: &mut JsonReader<'_>) -> Result<Vec<u8>, JoseError> {
 }
 
 impl JwkSet {
+    #[must_use]
     pub fn to_json_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         buf.extend_from_slice(b"{\"keys\":[");
@@ -300,6 +311,8 @@ impl JwkSet {
         buf
     }
 
+    /// # Errors
+    /// Returns [`crate::JoseError::InvalidToken`] or [`crate::JoseError::InvalidKey`] if the JWKS JSON is malformed or missing `keys`.
     pub fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
         let mut reader = JsonReader::new(bytes)?;
         let mut keys = None;
@@ -344,11 +357,11 @@ fn read_jwk_array(reader: &mut JsonReader<'_>) -> Result<Vec<Jwk>, JoseError> {
         let mut depth = 0u32;
         loop {
             match array_bytes.get(pos) {
-                Some(b'{') | Some(b'[') => {
+                Some(b'{' | b'[') => {
                     depth += 1;
                     pos += 1;
                 }
-                Some(b'}') | Some(b']') => {
+                Some(b'}' | b']') => {
                     depth -= 1;
                     pos += 1;
                     if depth == 0 {
@@ -386,6 +399,7 @@ impl Jwk {
     ///
     /// Contains only the required members for the key type, sorted lexicographically.
     /// Hash this with SHA-256 (or another hash) to produce the thumbprint.
+    #[must_use]
     pub fn thumbprint_canonical_json(&self) -> Vec<u8> {
         let mut w = JsonWriter::new();
         match &self.params {
@@ -416,7 +430,7 @@ impl Jwk {
 
 #[cfg(test)]
 mod tests {
-    use alloc::{string::ToString, vec};
+    use alloc::vec;
 
     use super::*;
 

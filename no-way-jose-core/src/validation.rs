@@ -10,6 +10,8 @@ use crate::JoseError;
 pub trait Validate {
     type Claims;
 
+    /// # Errors
+    /// Returns [`crate::JoseError::ClaimsError`] or other [`crate::JoseError`] variants when validation fails.
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError>;
 
     fn and_then<V>(self, other: V) -> impl Validate<Claims = Self::Claims>
@@ -32,6 +34,7 @@ pub trait Validate {
 pub struct NoValidation<Claims>(PhantomData<Claims>);
 
 impl<Claims> NoValidation<Claims> {
+    #[must_use]
     pub fn dangerous_no_validation() -> Self {
         NoValidation(PhantomData)
     }

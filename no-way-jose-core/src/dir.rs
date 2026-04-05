@@ -54,11 +54,13 @@ impl KeyDecryptor for Dir {
 ///
 /// The key length must match the content encryption algorithm's key size
 /// (e.g. 32 bytes for A256GCM). A length mismatch is detected at encrypt time.
+#[must_use]
 pub fn encryption_key(raw: Vec<u8>) -> Key<Dir, Encrypting> {
     Key::new(raw)
 }
 
 /// Wrap raw key bytes as a `dir` decryption key.
+#[must_use]
 pub fn decryption_key(raw: Vec<u8>) -> Key<Dir, Decrypting> {
     Key::new(raw)
 }

@@ -13,7 +13,9 @@
 //! ```
 //!
 //! Timestamp fields (`exp`, `nbf`, `iat`) use [`jiff::Timestamp`] and
-//! serialize as integer seconds (NumericDate) on the wire.
+//! serialize as integer seconds (`NumericDate`) on the wire.
+
+#![warn(clippy::pedantic)]
 
 pub use jiff;
 pub use no_way_jose_core::validation::Validate;
@@ -92,7 +94,8 @@ impl FromJson for RegisteredClaims {
 impl RegisteredClaims {
     /// Create claims with `iat` and `nbf` set to `now`, and `exp` set to `now + ttl`.
     ///
-    /// Returns `Err` if `now + ttl` overflows the timestamp range.
+    /// # Errors
+    /// Returns [`jiff::Error`] if `now + ttl` overflows the timestamp range.
     pub fn new(now: jiff::Timestamp, ttl: jiff::SignedDuration) -> Result<Self, jiff::Error> {
         Ok(Self {
             iss: None,
@@ -105,21 +108,25 @@ impl RegisteredClaims {
         })
     }
 
+    #[must_use]
     pub fn from_issuer(mut self, iss: impl Into<String>) -> Self {
         self.iss = Some(iss.into());
         self
     }
 
+    #[must_use]
     pub fn for_audience(mut self, aud: impl Into<String>) -> Self {
         self.aud.get_or_insert_with(Vec::new).push(aud.into());
         self
     }
 
+    #[must_use]
     pub fn for_subject(mut self, sub: impl Into<String>) -> Self {
         self.sub = Some(sub.into());
         self
     }
 
+    #[must_use]
     pub fn with_token_id(mut self, jti: impl Into<String>) -> Self {
         self.jti = Some(jti.into());
         self
@@ -133,6 +140,9 @@ pub struct HasExpiry;
 
 impl Validate for HasExpiry {
     type Claims = RegisteredClaims;
+
+    /// # Errors
+    /// Returns [`JoseError::ClaimsError`] if the `exp` claim is missing.
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         if claims.exp.is_none() {
             return Err(JoseError::ClaimsError("missing exp claim"));
@@ -149,6 +159,7 @@ pub struct Time {
 
 impl Time {
     /// Create a validator using the current system time.
+    #[must_use]
     pub fn valid_now() -> Self {
         Self {
             now: jiff::Timestamp::now(),
@@ -156,6 +167,7 @@ impl Time {
     }
 
     /// Create a validator pinned to a specific timestamp (useful for testing).
+    #[must_use]
     pub fn valid_at(ts: jiff::Timestamp) -> Self {
         Self { now: ts }
     }
@@ -164,6 +176,8 @@ impl Time {
 impl Validate for Time {
     type Claims = RegisteredClaims;
 
+    /// # Errors
+    /// Returns [`JoseError::ClaimsError`] if the token is expired or not yet valid per `exp` / `nbf`.
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         if let Some(exp) = claims.exp
             && exp < self.now
@@ -184,6 +198,9 @@ pub struct FromIssuer<T: AsRef<str>>(pub T);
 
 impl<T: AsRef<str>> Validate for FromIssuer<T> {
     type Claims = RegisteredClaims;
+
+    /// # Errors
+    /// Returns [`JoseError::ClaimsError`] if the `iss` claim does not match the expected issuer.
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         if claims.iss.as_deref() != Some(self.0.as_ref()) {
             return Err(JoseError::ClaimsError("issuer mismatch"));
@@ -197,6 +214,9 @@ pub struct ForAudience<T: AsRef<str>>(pub T);
 
 impl<T: AsRef<str>> Validate for ForAudience<T> {
     type Claims = RegisteredClaims;
+
+    /// # Errors
+    /// Returns [`JoseError::ClaimsError`] if the `aud` claim does not include the expected audience.
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         match &claims.aud {
             Some(auds) if auds.iter().any(|a| a == self.0.as_ref()) => Ok(()),
