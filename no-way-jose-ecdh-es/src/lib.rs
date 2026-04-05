@@ -19,7 +19,9 @@ use no_way_jose_core::JoseError;
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
 };
+use no_way_jose_core::jwk::{EcParams, Jwk, JwkKeyConvert, JwkParams};
 use no_way_jose_core::key::{Decrypting, Encrypting, HasKey};
+use p256::elliptic_curve::sec1::ToSec1Point;
 
 mod concat_kdf;
 mod curve;
@@ -255,6 +257,167 @@ impl KeyDecryptor for EcdhEs {
         ecdh_decrypt(key, encrypted_key, header, "ECDH-ES", cek_len, None)
     }
 }
+
+fn ec_pubkey_to_jwk(key: &EcPublicKey, alg: &str) -> Jwk {
+    let (crv, x, y) = match key {
+        EcPublicKey::P256(pk) => {
+            let point = pk.to_sec1_point(false);
+            (
+                "P-256",
+                point.x().unwrap().to_vec(),
+                point.y().unwrap().to_vec(),
+            )
+        }
+        EcPublicKey::P384(pk) => {
+            let point = pk.to_sec1_point(false);
+            (
+                "P-384",
+                point.x().unwrap().to_vec(),
+                point.y().unwrap().to_vec(),
+            )
+        }
+    };
+    Jwk {
+        kty: "EC".into(),
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        params: JwkParams::Ec(EcParams {
+            crv: String::from(crv),
+            x,
+            y,
+            d: None,
+        }),
+    }
+}
+
+fn ec_privkey_to_jwk(key: &EcPrivateKey, alg: &str) -> Jwk {
+    let (crv, x, y, d) = match key {
+        EcPrivateKey::P256(sk) => {
+            let pk = sk.public_key();
+            let point = pk.to_sec1_point(false);
+            (
+                "P-256",
+                point.x().unwrap().to_vec(),
+                point.y().unwrap().to_vec(),
+                sk.to_bytes().to_vec(),
+            )
+        }
+        EcPrivateKey::P384(sk) => {
+            let pk = sk.public_key();
+            let point = pk.to_sec1_point(false);
+            (
+                "P-384",
+                point.x().unwrap().to_vec(),
+                point.y().unwrap().to_vec(),
+                sk.to_bytes().to_vec(),
+            )
+        }
+    };
+    Jwk {
+        kty: "EC".into(),
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        params: JwkParams::Ec(EcParams {
+            crv: String::from(crv),
+            x,
+            y,
+            d: Some(d),
+        }),
+    }
+}
+
+fn ec_pubkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> Result<EcPublicKey, JoseError> {
+    if jwk.kty != "EC" {
+        return Err(JoseError::InvalidKey);
+    }
+    if let Some(alg) = &jwk.alg {
+        if alg != expected_alg {
+            return Err(JoseError::InvalidKey);
+        }
+    }
+    match &jwk.params {
+        JwkParams::Ec(p) => match p.crv.as_str() {
+            "P-256" => {
+                let mut sec1 = Vec::with_capacity(1 + p.x.len() + p.y.len());
+                sec1.push(0x04);
+                sec1.extend_from_slice(&p.x);
+                sec1.extend_from_slice(&p.y);
+                let pk =
+                    p256::PublicKey::from_sec1_bytes(&sec1).map_err(|_| JoseError::InvalidKey)?;
+                Ok(EcPublicKey::P256(pk))
+            }
+            "P-384" => {
+                let mut sec1 = Vec::with_capacity(1 + p.x.len() + p.y.len());
+                sec1.push(0x04);
+                sec1.extend_from_slice(&p.x);
+                sec1.extend_from_slice(&p.y);
+                let pk =
+                    p384::PublicKey::from_sec1_bytes(&sec1).map_err(|_| JoseError::InvalidKey)?;
+                Ok(EcPublicKey::P384(pk))
+            }
+            _ => Err(JoseError::InvalidKey),
+        },
+        _ => Err(JoseError::InvalidKey),
+    }
+}
+
+fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> Result<EcPrivateKey, JoseError> {
+    if jwk.kty != "EC" {
+        return Err(JoseError::InvalidKey);
+    }
+    if let Some(alg) = &jwk.alg {
+        if alg != expected_alg {
+            return Err(JoseError::InvalidKey);
+        }
+    }
+    match &jwk.params {
+        JwkParams::Ec(p) => {
+            let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
+            match p.crv.as_str() {
+                "P-256" => {
+                    let sk = p256::SecretKey::from_slice(d).map_err(|_| JoseError::InvalidKey)?;
+                    Ok(EcPrivateKey::P256(sk))
+                }
+                "P-384" => {
+                    let sk = p384::SecretKey::from_slice(d).map_err(|_| JoseError::InvalidKey)?;
+                    Ok(EcPrivateKey::P384(sk))
+                }
+                _ => Err(JoseError::InvalidKey),
+            }
+        }
+        _ => Err(JoseError::InvalidKey),
+    }
+}
+
+macro_rules! ecdh_es_jwk_impls {
+    ($name:ty, $alg:literal) => {
+        impl JwkKeyConvert<Encrypting> for $name {
+            fn key_to_jwk(key: &EcPublicKey) -> Jwk {
+                ec_pubkey_to_jwk(key, $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<EcPublicKey, JoseError> {
+                ec_pubkey_from_jwk(jwk, $alg)
+            }
+        }
+        impl JwkKeyConvert<Decrypting> for $name {
+            fn key_to_jwk(key: &EcPrivateKey) -> Jwk {
+                ec_privkey_to_jwk(key, $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<EcPrivateKey, JoseError> {
+                ec_privkey_from_jwk(jwk, $alg)
+            }
+        }
+    };
+}
+
+ecdh_es_jwk_impls!(EcdhEs, "ECDH-ES");
+ecdh_es_jwk_impls!(EcdhEsA128Kw, "ECDH-ES+A128KW");
+ecdh_es_jwk_impls!(EcdhEsA192Kw, "ECDH-ES+A192KW");
+ecdh_es_jwk_impls!(EcdhEsA256Kw, "ECDH-ES+A256KW");
 
 pub mod ecdh_es {
     pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::EcdhEs>;

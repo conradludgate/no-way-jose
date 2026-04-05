@@ -27,6 +27,7 @@ use no_way_jose_core::JoseError;
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
 };
+use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OctParams};
 use no_way_jose_core::key::{Decrypting, Encrypting, HasKey};
 
 fn make_kek(bytes: impl Into<Vec<u8>>, expected_len: usize) -> Result<Vec<u8>, JoseError> {
@@ -166,6 +167,59 @@ aes_gcm_kw_algorithm!(
     aes_gcm::Aes256Gcm,
     "AES-256-GCM key wrapping (RFC 7518 §4.7)."
 );
+
+fn oct_to_jwk(key_bytes: &[u8], alg: &str) -> Jwk {
+    Jwk {
+        kty: "oct".into(),
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        params: JwkParams::Oct(OctParams {
+            k: key_bytes.to_vec(),
+        }),
+    }
+}
+
+fn oct_from_jwk(jwk: &Jwk, expected_alg: &str, expected_len: usize) -> Result<Vec<u8>, JoseError> {
+    if jwk.kty != "oct" {
+        return Err(JoseError::InvalidKey);
+    }
+    if let Some(alg) = &jwk.alg {
+        if alg != expected_alg {
+            return Err(JoseError::InvalidKey);
+        }
+    }
+    match &jwk.params {
+        JwkParams::Oct(p) => make_kek(p.k.clone(), expected_len),
+        _ => Err(JoseError::InvalidKey),
+    }
+}
+
+macro_rules! aes_gcm_kw_jwk_impls {
+    ($name:ident, $alg:literal, $kek_len:literal) => {
+        impl JwkKeyConvert<Encrypting> for $name {
+            fn key_to_jwk(key: &Vec<u8>) -> Jwk {
+                oct_to_jwk(key, $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<Vec<u8>, JoseError> {
+                oct_from_jwk(jwk, $alg, $kek_len)
+            }
+        }
+        impl JwkKeyConvert<Decrypting> for $name {
+            fn key_to_jwk(key: &Vec<u8>) -> Jwk {
+                oct_to_jwk(key, $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> Result<Vec<u8>, JoseError> {
+                oct_from_jwk(jwk, $alg, $kek_len)
+            }
+        }
+    };
+}
+
+aes_gcm_kw_jwk_impls!(A128GcmKw, "A128GCMKW", 16);
+aes_gcm_kw_jwk_impls!(A192GcmKw, "A192GCMKW", 24);
+aes_gcm_kw_jwk_impls!(A256GcmKw, "A256GCMKW", 32);
 
 pub mod a128gcmkw {
     use alloc::vec::Vec;
