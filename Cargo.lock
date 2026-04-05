@@ -355,90 +355,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jose-aes-gcm"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "getrandom",
- "jose-core",
-]
-
-[[package]]
-name = "jose-aes-kw"
-version = "0.1.0"
-dependencies = [
- "aes-kw",
- "getrandom",
- "jose-core",
-]
-
-[[package]]
-name = "jose-claims"
-version = "0.1.0"
-dependencies = [
- "jiff",
- "jose-core",
-]
-
-[[package]]
-name = "jose-core"
-version = "0.1.0"
-dependencies = [
- "base64ct",
-]
-
-[[package]]
-name = "jose-ecdsa"
-version = "0.1.0"
-dependencies = [
- "jose-core",
- "p256",
- "p384",
-]
-
-[[package]]
-name = "jose-eddsa"
-version = "0.1.0"
-dependencies = [
- "ed25519-dalek",
- "jose-core",
-]
-
-[[package]]
-name = "jose-hmac"
-version = "0.1.0"
-dependencies = [
- "hmac",
- "jose-core",
- "sha2",
-]
-
-[[package]]
-name = "jose-rsa"
-version = "0.1.0"
-dependencies = [
- "jose-core",
- "rsa",
- "sha2",
-]
-
-[[package]]
-name = "jose-test"
-version = "0.1.0"
-dependencies = [
- "base64ct",
- "jose-aes-gcm",
- "jose-aes-kw",
- "jose-claims",
- "jose-core",
- "jose-ecdsa",
- "jose-eddsa",
- "jose-hmac",
- "jose-rsa",
- "rsa",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -464,6 +380,90 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
+
+[[package]]
+name = "no-way-jose-aes-gcm"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "getrandom",
+ "no-way-jose-core",
+]
+
+[[package]]
+name = "no-way-jose-aes-kw"
+version = "0.1.0"
+dependencies = [
+ "aes-kw",
+ "getrandom",
+ "no-way-jose-core",
+]
+
+[[package]]
+name = "no-way-jose-claims"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "no-way-jose-core",
+]
+
+[[package]]
+name = "no-way-jose-core"
+version = "0.1.0"
+dependencies = [
+ "base64ct",
+]
+
+[[package]]
+name = "no-way-jose-ecdsa"
+version = "0.1.0"
+dependencies = [
+ "no-way-jose-core",
+ "p256",
+ "p384",
+]
+
+[[package]]
+name = "no-way-jose-eddsa"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "no-way-jose-core",
+]
+
+[[package]]
+name = "no-way-jose-hmac"
+version = "0.1.0"
+dependencies = [
+ "hmac",
+ "no-way-jose-core",
+ "sha2",
+]
+
+[[package]]
+name = "no-way-jose-rsa"
+version = "0.1.0"
+dependencies = [
+ "no-way-jose-core",
+ "rsa",
+ "sha2",
+]
+
+[[package]]
+name = "no-way-jose-test"
+version = "0.1.0"
+dependencies = [
+ "base64ct",
+ "no-way-jose-aes-gcm",
+ "no-way-jose-aes-kw",
+ "no-way-jose-claims",
+ "no-way-jose-core",
+ "no-way-jose-ecdsa",
+ "no-way-jose-eddsa",
+ "no-way-jose-hmac",
+ "no-way-jose-rsa",
+ "rsa",
+]
 
 [[package]]
 name = "num-bigint-dig"

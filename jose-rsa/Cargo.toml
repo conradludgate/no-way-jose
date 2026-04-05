@@ -1,9 +1,0 @@
-[package]
-name = "jose-rsa"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-jose-core = { workspace = true }
-rsa = { workspace = true }
-sha2 = { workspace = true }

@@ -1,0 +1,8 @@
+[package]
+name = "no-way-jose-claims"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+no-way-jose-core = { workspace = true }
+jiff = { workspace = true }

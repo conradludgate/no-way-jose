@@ -1,0 +1,17 @@
+[package]
+name = "no-way-jose-test"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+no-way-jose-aes-gcm = { workspace = true }
+no-way-jose-aes-kw = { workspace = true }
+no-way-jose-core = { workspace = true }
+no-way-jose-ecdsa = { workspace = true }
+no-way-jose-eddsa = { workspace = true }
+no-way-jose-hmac = { workspace = true }
+no-way-jose-rsa = { workspace = true }
+no-way-jose-claims = { workspace = true }
+base64ct = { workspace = true }
+rsa = { workspace = true }

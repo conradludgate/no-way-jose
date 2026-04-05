@@ -1,26 +1,26 @@
 [workspace]
 resolver = "3"
 members = [
-    "jose-aes-gcm",
-    "jose-aes-kw",
-    "jose-core",
-    "jose-ecdsa",
-    "jose-eddsa",
-    "jose-hmac",
-    "jose-claims",
-    "jose-rsa",
-    "jose-test",
+    "no-way-jose-aes-gcm",
+    "no-way-jose-aes-kw",
+    "no-way-jose-core",
+    "no-way-jose-ecdsa",
+    "no-way-jose-eddsa",
+    "no-way-jose-hmac",
+    "no-way-jose-claims",
+    "no-way-jose-rsa",
+    "no-way-jose-test",
 ]
 
 [workspace.dependencies]
-jose-aes-gcm = { path = "jose-aes-gcm", version = "0.1.0" }
-jose-aes-kw = { path = "jose-aes-kw", version = "0.1.0" }
-jose-core = { path = "jose-core", version = "0.1.0" }
-jose-ecdsa = { path = "jose-ecdsa", version = "0.1.0" }
-jose-eddsa = { path = "jose-eddsa", version = "0.1.0" }
-jose-hmac = { path = "jose-hmac", version = "0.1.0" }
-jose-rsa = { path = "jose-rsa", version = "0.1.0" }
-jose-claims = { path = "jose-claims", version = "0.1.0" }
+no-way-jose-aes-gcm = { path = "no-way-jose-aes-gcm", version = "0.1.0" }
+no-way-jose-aes-kw = { path = "no-way-jose-aes-kw", version = "0.1.0" }
+no-way-jose-core = { path = "no-way-jose-core", version = "0.1.0" }
+no-way-jose-ecdsa = { path = "no-way-jose-ecdsa", version = "0.1.0" }
+no-way-jose-eddsa = { path = "no-way-jose-eddsa", version = "0.1.0" }
+no-way-jose-hmac = { path = "no-way-jose-hmac", version = "0.1.0" }
+no-way-jose-rsa = { path = "no-way-jose-rsa", version = "0.1.0" }
+no-way-jose-claims = { path = "no-way-jose-claims", version = "0.1.0" }
 base64ct = { version = "1", default-features = false, features = ["alloc"] }
 ed25519-dalek = { version = "2", default-features = false }
 hmac = { version = "0.12", default-features = false }
