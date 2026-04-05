@@ -215,6 +215,49 @@ let token_string = UnsignedToken::<Hs256, _>::builder(my_claims)
     .to_string();
 ```
 
+### Create a nested JWT (sign then encrypt)
+
+A nested JWT signs a token first, then encrypts the compact JWS as the payload
+of a JWE. The outer header uses `"cty": "JWT"` to signal that the plaintext is
+itself a JWT ([RFC 7519 §5.2](https://datatracker.ietf.org/doc/html/rfc7519#section-5.2)).
+
+```rust
+use no_way_jose_core::json::RawJson;
+use no_way_jose_core::purpose::Encrypted;
+use no_way_jose_core::tokens::{CompactJwe, UnsealedToken};
+use no_way_jose_core::validation::NoValidation;
+use no_way_jose_hmac::Hs256;
+use no_way_jose_aes_gcm::A256Gcm;
+use no_way_jose_core::dir;
+
+// 1. Sign the inner token
+let inner_compact = no_way_jose_core::UnsignedToken::<Hs256, _>::new(my_claims)
+    .sign(&signing_key)
+    .unwrap()
+    .to_string();
+
+// 2. Encrypt with cty: "JWT"
+let encrypted = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::builder(
+        RawJson(inner_compact.into_bytes()),
+    )
+    .cty("JWT")
+    .build()
+    .encrypt(&enc_key)
+    .unwrap()
+    .to_string();
+
+// 3. Decrypt, check cty, then verify the inner JWS
+let outer: CompactJwe<dir::Dir, A256Gcm> = encrypted.parse().unwrap();
+let outer = outer.require_cty("JWT").unwrap();
+let decrypted = outer
+    .decrypt(&dec_key, &NoValidation::dangerous_no_validation())
+    .unwrap();
+
+let inner_str = core::str::from_utf8(&decrypted.claims.0).unwrap();
+let inner: no_way_jose_core::CompactJws<Hs256, MyClaims> = inner_str.parse().unwrap();
+let verified = inner.verify(&verifying_key, &validator).unwrap();
+```
+
 ### Custom claims with `ToJson` / `FromJson`
 
 Implement `ToJson` and `FromJson` for your own claim types:
@@ -426,6 +469,9 @@ Graviola is limited to aarch64 and x86\_64 with specific CPU features.
 - **`require_typ` validation.** Enforce the `typ` header to prevent token
   substitution across different applications
   ([RFC 8725 §3.11](https://datatracker.ietf.org/doc/html/rfc8725#section-3.11)).
+- **`require_cty` validation.** Enforce the `cty` header to verify that a
+  token contains a nested JWT
+  ([RFC 7519 §5.2](https://datatracker.ietf.org/doc/html/rfc7519#section-5.2)).
 - **Minimum key lengths.** HMAC keys shorter than the hash output are rejected
   (32 bytes for HS256, 48 for HS384, 64 for HS512).
 - **Sealed traits.** Algorithm traits cannot be implemented outside this workspace,

@@ -144,13 +144,14 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 ### Header (no-way-jose-core)
 
 - [x] `Header<'a>` view struct / `OwnedHeader`
-- [x] `HeaderBuilder`
+- [x] `HeaderBuilder` (alg, enc, kid, typ, cty)
 - [x] `raw_header_b64()` accessor
 
 ### Security hardening (no-way-jose-core)
 
 - [x] `crit` header rejection (RFC 7515 §4.1.11)
 - [x] `require_typ` validation (RFC 8725 §3.11), consumes self
+- [x] `require_cty` validation (RFC 7519 §5.2), for nested JWT detection
 - [x] `alg` header validated against type parameter at sign time
 - [x] HMAC minimum key length enforced (32/48/64 bytes, RFC 7518 §3.2)
 - [x] `Key` inner field private; `new`/`inner` are `#[doc(hidden)]`
@@ -251,6 +252,10 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] `UntypedCompactJwe` dynamic dispatch (including alg/enc mismatch)
 - [x] JWE ECDH-ES X25519 + A256GCM round-trip
 - [x] JWE dir + A192GCM round-trip
+- [x] RFC 7520 Section 6 — Nested JWT header encoding verification
+- [x] RFC 7520 Section 6 — Nested JWT round-trip (PS256 + RSA-OAEP + A128GCM)
+- [x] Nested JWT sign-then-encrypt round-trip (HS256 + dir + A256GCM)
+- [x] `require_cty` validation (mismatch and missing rejection)
 
 ### `no_std` support
 

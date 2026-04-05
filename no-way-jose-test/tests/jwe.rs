@@ -1231,3 +1231,164 @@ fn untyped_jwe_enc_mismatch() {
         Err(JoseError::InvalidToken("enc mismatch"))
     ));
 }
+
+// ====================================================================
+// Nested JWT (RFC 7519 §5.2)
+// ====================================================================
+
+/// RFC 7520 Section 6 — verify the nested JWT header encodes correctly and `cty` is parsed.
+#[test]
+fn rfc7520_section6_nested_jwt_header() {
+    let header = no_way_jose_core::header::HeaderBuilder::new("RSA-OAEP")
+        .enc("A128GCM")
+        .cty("JWT")
+        .build();
+
+    let header_bytes = no_way_jose_core::base64url::decode(&header).unwrap();
+    let header_json = core::str::from_utf8(&header_bytes).unwrap();
+    assert_eq!(
+        header_json,
+        r#"{"alg":"RSA-OAEP","enc":"A128GCM","cty":"JWT"}"#
+    );
+
+    let owned = no_way_jose_core::header::parse_header_owned(&header).unwrap();
+    assert_eq!(owned.alg, "RSA-OAEP");
+    assert_eq!(owned.enc.as_deref(), Some("A128GCM"));
+    assert_eq!(owned.cty.as_deref(), Some("JWT"));
+}
+
+/// RFC 7520 Section 6 — full sign-then-encrypt round-trip using the same algorithm
+/// combination (PS256 inner JWS, RSA-OAEP + A128GCM outer JWE) with the RSA key
+/// from RFC 7520 Figure 224.
+#[test]
+fn rfc7520_section6_nested_jwt_roundtrip() {
+    use no_way_jose_core::jwk::{FromJwk, Jwk};
+
+    let rsa_jwk_json = br#"{"kty":"RSA","kid":"hobbiton.example","use":"sig","n":"kNrPIBDXMU6fcyv5i-QHQAQ-K8gsC3HJb7FYhYaw8hXbNJa-t8q0lDKwLZgQXYV-ffWxXJv5GGrlZE4GU52lfMEegTDzYTrRQ3tepgKFjMGg6Iy6fkl1ZNsx2gEonsnlShfzA9GJwRTmtKPbk1s-hwx1IU5AT-AIelNqBgcF2vE5W25_SGGBoaROVdUYxqETDggM1z5cKV4ZjDZ8-lh4oVB07bkac6LQdHpJUUySH_Er20DXx30Kyi97PciXKTS-QKXnmm8ivyRCmux22ZoPUind2BKC5OiG4MwALhaL2Z2k8CsRdfy-7dg7z41Rp6D0ZeEvtaUp4bX4aKraL4rTfw","e":"AQAB","d":"ZLe_TIxpE9-W_n2VBa-HWvuYPtjvxwVXClJFOpJsdea8g9RMx34qEOEtnoYc2un3CZ3LtJi-mju5RAT8YSc76YJds3ZVw0UiO8mMBeG6-iOnvgobobNx7K57-xjTJZU72EjOr9kB7z6ZKwDDq7HFyCDhUEcYcHFVc7iL_6TibVhAhOFONWlqlJgEgwVYd0rybNGKifdnpEbwyHoMwY6HM1qvnEFgP7iZ0YzHUT535x6jj4VKcdA7ZduFkhUauysySEW7mxZM6fj1vdjJIy9LD1fIz30Xv4ckoqhKF5GONU6tNmMmNgAD6gIViyEle1PrIxl1tBhCI14bRW-zrpHgAQ","p":"yKWYoNIAqwMRQlgIBOdT1NIcbDNUUs2Rh-pBaxD_mIkweMt4Mg-0-B2iSYvMrs8horhonV7vxCQagcBAATGW-hAafUehWjxWSH-3KccRM8toL4e0q7M-idRDOBXSoe7Z2-CV2x_ZCY3RP8qp642R13WgXqGDIM4MbUkZSjcY9-c","q":"uND4o15V30KDzf8vFJw589p1vlQVQ3NEilrinRUPHkkxaAzDzccGgrWMWpGxGFFnNL3w5CqPLeU76-5IVYQq0HwYVl0hVXQHr7sgaGu-483Ad3ENcL23FrOnF45m7_2ooAstJDe49MeLTTQKrSIBl_SKvqpYvfSPTczPcZkh9Kk","dp":"jmTnEoq2qqa8ouaymjhJSCnsveUXnMQC2gAneQJRQkFqQu-zV2PKPKNbPvKVyiF5b2-L3tM3OW2d2iNDyRUWXlT7V5l0KwPTABSTOnTqAmYChGi8kXXdlhcrtSvXldBakC6saxwI_TzGGY2MVXzc2ZnCvCXHV4qjSxOrfP3pHFU","dq":"R9FUvU88OVzEkTkXl3-5-WusE4DjHmndeZIlu3rifBdfLpq_P-iWPBbGaq9wzQ1c-J7SzCdJqkEJDv5yd2C7rnZ6kpzwBh_nmL8zscAk1qsunnt9CJGAYz7-sGWy1JGShFazfP52ThB4rlCJ0YuEaQMrIzpY77_oLAhpmDA0hLk","qi":"S8tC7ZknW6hPITkjcwttQOPLVmRfwirRlFAViuDb8NW9CrV_7F2OqUZCqmzHTYAumwGFHI1WVRep7anleWaJjxC_1b3fq_al4qH3Pe-EKiHg6IMazuRtZLUROcThrExDbF5dYbsciDnfRUWLErZ4N1Be0bnxYuPqxwKd9QZwMo0"}"#;
+    let jwk = Jwk::from_json_bytes(rsa_jwk_json).unwrap();
+
+    let sign_key: no_way_jose_rsa::ps256::SigningKey = FromJwk::from_jwk(&jwk).unwrap();
+    let verify_key: no_way_jose_rsa::ps256::VerifyingKey = FromJwk::from_jwk(&jwk).unwrap();
+
+    let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
+    let enc_rsa = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
+    let enc_pub = enc_rsa.to_public_key();
+    let enc_key = no_way_jose_rsa::rsa_oaep::encryption_key(enc_pub);
+    let dec_key = no_way_jose_rsa::rsa_oaep::decryption_key(enc_rsa);
+
+    let inner_claims = RawJson(
+        br#"{"iss":"hobbiton.example","exp":1300819380,"http://example.com/is_root":true}"#
+            .to_vec(),
+    );
+    let inner_token =
+        no_way_jose_core::UnsignedToken::<no_way_jose_rsa::Ps256, _>::builder(inner_claims)
+            .typ("JWT")
+            .build()
+            .sign(&sign_key)
+            .unwrap();
+    let inner_compact = inner_token.to_string();
+
+    let outer_token = UnsealedToken::<Encrypted<RsaOaep, A128Gcm>, RawJson>::builder(RawJson(
+        inner_compact.into_bytes(),
+    ))
+    .cty("JWT")
+    .build();
+    let encrypted = outer_token.encrypt(&enc_key).unwrap();
+    let serialized = encrypted.to_string();
+
+    let parsed: CompactJwe<RsaOaep, A128Gcm> = serialized.parse().unwrap();
+    let parsed = parsed.require_cty("JWT").unwrap();
+    let decrypted = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    let inner_str = core::str::from_utf8(&decrypted.claims.0).unwrap();
+    let inner_jws: no_way_jose_core::CompactJws<no_way_jose_rsa::Ps256> =
+        inner_str.parse().unwrap();
+    let verified = inner_jws.verify(&verify_key, &no_validation()).unwrap();
+    assert!(
+        core::str::from_utf8(&verified.claims.0)
+            .unwrap()
+            .contains("hobbiton.example")
+    );
+}
+
+/// Sign-then-encrypt round-trip with simpler algorithms (HS256 inner, dir + A256GCM outer).
+#[test]
+fn nested_jwt_sign_then_encrypt_roundtrip() {
+    let hmac_key_bytes = b"super-secret-key-for-testing-256".to_vec();
+    let sign_key = no_way_jose_hmac::symmetric_key(hmac_key_bytes.clone()).unwrap();
+    let verify_key = no_way_jose_hmac::verifying_key(hmac_key_bytes).unwrap();
+
+    let aes_key = vec![0x42u8; 32];
+    let enc_key = dir::encryption_key(aes_key.clone());
+    let dec_key = dir::decryption_key(aes_key);
+
+    let inner_claims = Claims {
+        sub: "nested".into(),
+        admin: true,
+    };
+    let inner_token =
+        no_way_jose_core::UnsignedToken::<no_way_jose_hmac::Hs256, _>::new(inner_claims)
+            .sign(&sign_key)
+            .unwrap();
+    let inner_compact = inner_token.to_string();
+
+    let outer_token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::builder(RawJson(
+        inner_compact.into_bytes(),
+    ))
+    .cty("JWT")
+    .build();
+    let encrypted = outer_token.encrypt(&enc_key).unwrap();
+    let serialized = encrypted.to_string();
+
+    let parsed: CompactJwe<dir::Dir, A256Gcm> = serialized.parse().unwrap();
+    let parsed = parsed.require_cty("JWT").unwrap();
+    let decrypted = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    let inner_str = core::str::from_utf8(&decrypted.claims.0).unwrap();
+    let inner_jws: no_way_jose_core::CompactJws<no_way_jose_hmac::Hs256, Claims> =
+        inner_str.parse().unwrap();
+    let verified = inner_jws.verify(&verify_key, &no_validation()).unwrap();
+    assert_eq!(verified.claims.sub, "nested");
+    assert!(verified.claims.admin);
+}
+
+#[test]
+fn nested_jwt_require_cty_mismatch() {
+    let key = vec![0x42u8; 32];
+    let enc_key = dir::encryption_key(key.clone());
+
+    let token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::builder(RawJson(
+        b"inner-payload".to_vec(),
+    ))
+    .cty("JWT")
+    .build();
+    let encrypted = token.encrypt(&enc_key).unwrap();
+    let serialized = encrypted.to_string();
+
+    let parsed: CompactJwe<dir::Dir, A256Gcm> = serialized.parse().unwrap();
+    let result = parsed.require_cty("at+jwt");
+    assert!(matches!(
+        result,
+        Err(JoseError::InvalidToken("cty mismatch"))
+    ));
+}
+
+#[test]
+fn nested_jwt_require_cty_missing() {
+    let key = vec![0x42u8; 32];
+    let enc_key = dir::encryption_key(key.clone());
+
+    let token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, Claims>::new(Claims {
+        sub: "no-cty".into(),
+        admin: false,
+    });
+    let encrypted = token.encrypt(&enc_key).unwrap();
+    let serialized = encrypted.to_string();
+
+    let parsed: CompactJwe<dir::Dir, A256Gcm, Claims> = serialized.parse().unwrap();
+    let result = parsed.require_cty("JWT");
+    assert!(matches!(
+        result,
+        Err(JoseError::InvalidToken("cty mismatch"))
+    ));
+}
