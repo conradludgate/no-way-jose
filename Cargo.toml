@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "no-way-jose-aes-cbc-hs",
     "no-way-jose-aes-gcm",
+    "no-way-jose-aes-gcm-kw",
     "no-way-jose-aes-kw",
     "no-way-jose-core",
     "no-way-jose-ecdsa",
@@ -16,6 +17,7 @@ members = [
 [workspace.dependencies]
 no-way-jose-aes-cbc-hs = { path = "no-way-jose-aes-cbc-hs", version = "0.1.0" }
 no-way-jose-aes-gcm = { path = "no-way-jose-aes-gcm", version = "0.1.0" }
+no-way-jose-aes-gcm-kw = { path = "no-way-jose-aes-gcm-kw", version = "0.1.0" }
 no-way-jose-aes-kw = { path = "no-way-jose-aes-kw", version = "0.1.0" }
 no-way-jose-core = { path = "no-way-jose-core", version = "0.1.0" }
 no-way-jose-ecdsa = { path = "no-way-jose-ecdsa", version = "0.1.0" }

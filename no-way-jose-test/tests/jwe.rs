@@ -587,3 +587,98 @@ fn rsa1_5_a128cbc_hs256_roundtrip() {
     assert_eq!(unsealed.claims.sub, "rsa15");
     assert!(unsealed.claims.admin);
 }
+
+// ====================================================================
+// AES-GCM key wrapping tests
+// ====================================================================
+
+#[test]
+fn a128gcmkw_a128gcm_roundtrip() {
+    let kek = vec![0x42u8; 16];
+    let enc_key = no_way_jose_aes_gcm_kw::a128gcmkw::encryption_key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_gcm_kw::a128gcmkw::decryption_key(kek).unwrap();
+
+    let claims = Claims {
+        sub: "gcmkw128".into(),
+        admin: true,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_aes_gcm_kw::A128GcmKw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let header = compact.header().unwrap();
+    assert_eq!(header.alg, "A128GCMKW");
+    assert_eq!(header.enc.as_deref(), Some("A128GCM"));
+
+    let serialized = compact.to_string();
+    let parsed: CompactJwe<no_way_jose_aes_gcm_kw::A128GcmKw, A128Gcm, Claims> =
+        serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "gcmkw128");
+    assert!(unsealed.claims.admin);
+}
+
+#[test]
+fn a256gcmkw_a256gcm_roundtrip() {
+    let kek = vec![0x77u8; 32];
+    let enc_key = no_way_jose_aes_gcm_kw::a256gcmkw::encryption_key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_gcm_kw::a256gcmkw::decryption_key(kek).unwrap();
+
+    let claims = Claims {
+        sub: "gcmkw256".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_aes_gcm_kw::A256GcmKw, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let serialized = compact.to_string();
+
+    let parsed: CompactJwe<no_way_jose_aes_gcm_kw::A256GcmKw, A256Gcm, Claims> =
+        serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "gcmkw256");
+    assert!(!unsealed.claims.admin);
+}
+
+#[test]
+fn a128gcmkw_wrong_kek_fails() {
+    let enc_key = no_way_jose_aes_gcm_kw::a128gcmkw::encryption_key(vec![0x42u8; 16]).unwrap();
+    let wrong = no_way_jose_aes_gcm_kw::a128gcmkw::decryption_key(vec![0xffu8; 16]).unwrap();
+
+    let claims = Claims {
+        sub: "wrong".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_aes_gcm_kw::A128GcmKw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let result = compact.decrypt(&wrong, &no_validation());
+    assert!(result.is_err());
+}
+
+#[test]
+fn a128gcmkw_header_contains_iv_and_tag() {
+    let kek = vec![0x42u8; 16];
+    let enc_key = no_way_jose_aes_gcm_kw::a128gcmkw::encryption_key(kek).unwrap();
+
+    let claims = Claims {
+        sub: "ivtag".into(),
+        admin: false,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_aes_gcm_kw::A128GcmKw, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let serialized = compact.to_string();
+    let header_b64 = serialized.split('.').next().unwrap();
+    let header_bytes = Base64UrlUnpadded::decode_vec(header_b64).unwrap();
+    let header_str = core::str::from_utf8(&header_bytes).unwrap();
+    assert!(header_str.contains("\"iv\""));
+    assert!(header_str.contains("\"tag\""));
+}

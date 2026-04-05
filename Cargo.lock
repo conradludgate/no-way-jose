@@ -433,6 +433,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "no-way-jose-aes-gcm-kw"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "aes-gcm",
+ "base64ct",
+ "getrandom 0.3.4",
+ "no-way-jose-core",
+]
+
+[[package]]
 name = "no-way-jose-aes-kw"
 version = "0.1.0"
 dependencies = [
@@ -500,6 +511,7 @@ dependencies = [
  "base64ct",
  "no-way-jose-aes-cbc-hs",
  "no-way-jose-aes-gcm",
+ "no-way-jose-aes-gcm-kw",
  "no-way-jose-aes-kw",
  "no-way-jose-claims",
  "no-way-jose-core",

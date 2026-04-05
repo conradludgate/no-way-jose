@@ -1,0 +1,11 @@
+[package]
+name = "no-way-jose-aes-gcm-kw"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+no-way-jose-core = { workspace = true }
+aes = { workspace = true }
+aes-gcm = { workspace = true }
+base64ct = { workspace = true }
+getrandom = { workspace = true }
