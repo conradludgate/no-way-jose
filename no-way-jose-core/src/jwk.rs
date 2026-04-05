@@ -92,6 +92,33 @@ pub trait FromJwk: Sized {
     fn from_jwk(jwk: &Jwk) -> Result<Self, JoseError>;
 }
 
+/// Algorithm-level JWK conversion. Implement this on algorithm ZSTs so
+/// `Key<A, K>` automatically gains `ToJwk`/`FromJwk` via blanket impls.
+pub trait JwkKeyConvert<K: crate::key::KeyPurpose>: crate::key::HasKey<K> {
+    fn key_to_jwk(key: &<Self as crate::key::HasKey<K>>::Key) -> Jwk;
+    fn key_from_jwk(jwk: &Jwk) -> Result<<Self as crate::key::HasKey<K>>::Key, JoseError>;
+}
+
+impl<A, K> ToJwk for crate::key::Key<A, K>
+where
+    A: JwkKeyConvert<K>,
+    K: crate::key::KeyPurpose,
+{
+    fn to_jwk(&self) -> Jwk {
+        A::key_to_jwk(self.inner())
+    }
+}
+
+impl<A, K> FromJwk for crate::key::Key<A, K>
+where
+    A: JwkKeyConvert<K>,
+    K: crate::key::KeyPurpose,
+{
+    fn from_jwk(jwk: &Jwk) -> Result<Self, JoseError> {
+        A::key_from_jwk(jwk).map(crate::key::Key::new)
+    }
+}
+
 // ====================================================================
 // JSON serialization
 // ====================================================================
