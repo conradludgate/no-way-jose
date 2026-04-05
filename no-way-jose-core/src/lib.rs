@@ -10,7 +10,7 @@
 //!
 //! - **JWS:** [`CompactJws`], [`UnsignedToken`], [`SigningKey`], [`VerifyingKey`]
 //! - **JWE:** [`CompactJwe`], [`EncryptionKey`], [`DecryptionKey`]
-//! - **Dynamic:** [`UntypedCompactJws`] for runtime algorithm selection
+//! - **Dynamic:** [`UntypedCompactJws`], [`UntypedCompactJwe`] for runtime algorithm selection
 
 #![no_std]
 #![warn(clippy::pedantic)]
@@ -66,6 +66,9 @@ pub type DecryptionKey<KM> = key::Key<KM, key::Decrypting>;
 
 /// A parsed, undecrypted JWE compact token (`header.ek.iv.ciphertext.tag`).
 pub type CompactJwe<KM, CE, M = json::RawJson> = tokens::CompactJwe<KM, CE, M>;
+
+/// A parsed JWE token whose algorithms are determined at runtime.
+pub type UntypedCompactJwe<M = json::RawJson> = tokens::UntypedCompactJwe<M>;
 
 /// Errors returned by token operations.
 #[derive(Debug)]

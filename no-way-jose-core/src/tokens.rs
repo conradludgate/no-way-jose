@@ -485,6 +485,50 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::fmt::Display
 
 // -- FromStr (JWE 5-part compact deserialization) --
 
+struct JweParts {
+    alg: String,
+    enc: String,
+    header_b64: String,
+    encrypted_key: Vec<u8>,
+    iv: Vec<u8>,
+    ciphertext: Vec<u8>,
+    tag: Vec<u8>,
+}
+
+fn parse_jwe_compact(s: &str) -> Result<JweParts, JoseError> {
+    let mut parts = s.splitn(5, '.');
+    let header_b64 = parts
+        .next()
+        .ok_or(JoseError::InvalidToken("missing header"))?;
+    let ek_b64 = parts
+        .next()
+        .ok_or(JoseError::InvalidToken("missing encrypted_key"))?;
+    let iv_b64 = parts.next().ok_or(JoseError::InvalidToken("missing iv"))?;
+    let ct_b64 = parts
+        .next()
+        .ok_or(JoseError::InvalidToken("missing ciphertext"))?;
+    let tag_b64 = parts.next().ok_or(JoseError::InvalidToken("missing tag"))?;
+
+    let header_bytes = crate::base64url::decode(header_b64)?;
+    let hdr = parse_header(&header_bytes)?;
+    if hdr.crit.is_some() {
+        return Err(JoseError::InvalidToken("unsupported crit extension"));
+    }
+    let enc = hdr
+        .enc
+        .ok_or(JoseError::InvalidToken("missing enc in header"))?;
+
+    Ok(JweParts {
+        alg: hdr.alg,
+        enc,
+        header_b64: String::from(header_b64),
+        encrypted_key: crate::base64url::decode(ek_b64)?,
+        iv: crate::base64url::decode(iv_b64)?,
+        ciphertext: crate::base64url::decode(ct_b64)?,
+        tag: crate::base64url::decode(tag_b64)?,
+    })
+}
+
 impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
     for CompactToken<Encrypted<KM, CE>, M>
 {
@@ -493,49 +537,129 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
     /// # Errors
     /// Returns [`JoseError::InvalidToken`] or [`JoseError::Base64DecodeError`] if the string is not a valid compact JWE or algorithms mismatch.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.splitn(5, '.');
-        let header_b64 = parts
-            .next()
-            .ok_or(JoseError::InvalidToken("missing header"))?;
-        let ek_b64 = parts
-            .next()
-            .ok_or(JoseError::InvalidToken("missing encrypted_key"))?;
-        let iv_b64 = parts.next().ok_or(JoseError::InvalidToken("missing iv"))?;
-        let ct_b64 = parts
-            .next()
-            .ok_or(JoseError::InvalidToken("missing ciphertext"))?;
-        let tag_b64 = parts.next().ok_or(JoseError::InvalidToken("missing tag"))?;
-
-        let header_bytes = crate::base64url::decode(header_b64)?;
-        let hdr = parse_header(&header_bytes)?;
-        if hdr.alg != KM::ALG {
+        let parts = parse_jwe_compact(s)?;
+        if parts.alg != KM::ALG {
             return Err(JoseError::InvalidToken("alg mismatch"));
         }
-        let enc = hdr
-            .enc
-            .ok_or(JoseError::InvalidToken("missing enc in header"))?;
-        if enc != CE::ENC {
+        if parts.enc != CE::ENC {
             return Err(JoseError::InvalidToken("enc mismatch"));
         }
-        if hdr.crit.is_some() {
-            return Err(JoseError::InvalidToken("unsupported crit extension"));
-        }
-
-        let encrypted_key = crate::base64url::decode(ek_b64)?;
-        let iv = crate::base64url::decode(iv_b64)?;
-        let ciphertext = crate::base64url::decode(ct_b64)?;
-        let tag = crate::base64url::decode(tag_b64)?;
-
         Ok(CompactToken {
-            header_b64: String::from(header_b64),
+            header_b64: parts.header_b64,
             data: EncryptedData {
-                encrypted_key,
-                iv,
-                ciphertext,
-                tag,
+                encrypted_key: parts.encrypted_key,
+                iv: parts.iv,
+                ciphertext: parts.ciphertext,
+                tag: parts.tag,
             },
             _marker: PhantomData,
         })
+    }
+}
+
+// -- Untyped JWE (dynamic algorithm dispatch) --
+
+/// A parsed JWE compact token without statically known algorithms.
+///
+/// Use this when the key management and content encryption algorithms must be
+/// determined at runtime. Call [`into_typed::<KM, CE>()`](Self::into_typed)
+/// after inspecting [`alg()`](Self::alg) and [`enc()`](Self::enc).
+pub struct UntypedCompactJwe<M = RawJson> {
+    alg: String,
+    enc: String,
+    header_b64: String,
+    data: EncryptedData,
+    _marker: PhantomData<M>,
+}
+
+impl<M> UntypedCompactJwe<M> {
+    /// The key management algorithm (`alg` header).
+    #[must_use]
+    pub fn alg(&self) -> &str {
+        &self.alg
+    }
+
+    /// The content encryption algorithm (`enc` header).
+    #[must_use]
+    pub fn enc(&self) -> &str {
+        &self.enc
+    }
+
+    /// # Errors
+    /// Returns [`JoseError::Base64DecodeError`] or [`JoseError::InvalidToken`] if the header cannot be parsed.
+    pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
+        crate::header::parse_header_owned(&self.header_b64)
+    }
+
+    #[must_use]
+    pub fn raw_header_b64(&self) -> &str {
+        &self.header_b64
+    }
+
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] if `typ` is missing or does not match `expected`.
+    pub fn require_typ(self, expected: &str) -> Result<Self, JoseError> {
+        let header = self.header()?;
+        match header.typ.as_deref() {
+            Some(t) if t.eq_ignore_ascii_case(expected) => Ok(self),
+            _ => Err(JoseError::InvalidToken("typ mismatch")),
+        }
+    }
+
+    /// Convert to a typed `CompactJwe<KM, CE, M>` after verifying algorithm match.
+    ///
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] if the runtime `alg` or `enc` does not match.
+    pub fn into_typed<KM: JweKeyManagement, CE: JweContentEncryption>(
+        self,
+    ) -> Result<CompactJwe<KM, CE, M>, JoseError> {
+        if self.alg != KM::ALG {
+            return Err(JoseError::InvalidToken("alg mismatch"));
+        }
+        if self.enc != CE::ENC {
+            return Err(JoseError::InvalidToken("enc mismatch"));
+        }
+        Ok(CompactToken {
+            header_b64: self.header_b64,
+            data: self.data,
+            _marker: PhantomData,
+        })
+    }
+}
+
+impl<M> core::str::FromStr for UntypedCompactJwe<M> {
+    type Err = JoseError;
+
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] or [`JoseError::Base64DecodeError`] if the string is not a valid compact JWE.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = parse_jwe_compact(s)?;
+        Ok(UntypedCompactJwe {
+            alg: parts.alg,
+            enc: parts.enc,
+            header_b64: parts.header_b64,
+            data: EncryptedData {
+                encrypted_key: parts.encrypted_key,
+                iv: parts.iv,
+                ciphertext: parts.ciphertext,
+                tag: parts.tag,
+            },
+            _marker: PhantomData,
+        })
+    }
+}
+
+impl<M> core::fmt::Display for UntypedCompactJwe<M> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}.{}.{}.{}.{}",
+            self.header_b64,
+            crate::base64url::encode(&self.data.encrypted_key),
+            crate::base64url::encode(&self.data.iv),
+            crate::base64url::encode(&self.data.ciphertext),
+            crate::base64url::encode(&self.data.tag),
+        )
     }
 }
 

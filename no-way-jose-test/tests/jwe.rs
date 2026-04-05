@@ -1128,3 +1128,77 @@ fn rfc7520_pbes2_hs512_a256kw_a128cbc_hs256_decrypt() {
     assert!(plaintext.contains("\"keys\""));
     assert!(plaintext.contains("77c7e2b8-6e13-45cf-8672-617b5b45243a"));
 }
+
+// -- UntypedCompactJwe dynamic dispatch --
+
+#[test]
+fn untyped_jwe_dispatch() {
+    let key = vec![0x42u8; 32];
+    let enc_key = dir::encryption_key(key.clone());
+    let dec_key = dir::decryption_key(key);
+
+    let claims = Claims {
+        sub: "untyped-jwe".into(),
+        admin: true,
+    };
+    let token_str = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, Claims>::new(claims)
+        .encrypt(&enc_key)
+        .unwrap()
+        .to_string();
+
+    let untyped: no_way_jose_core::UntypedCompactJwe<Claims> = token_str.parse().unwrap();
+    assert_eq!(untyped.alg(), "dir");
+    assert_eq!(untyped.enc(), "A256GCM");
+
+    let header = untyped.header().unwrap();
+    assert_eq!(header.alg, "dir");
+    assert_eq!(header.enc.as_deref(), Some("A256GCM"));
+
+    let typed = untyped.into_typed::<dir::Dir, A256Gcm>().unwrap();
+    let unsealed = typed.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "untyped-jwe");
+}
+
+#[test]
+fn untyped_jwe_alg_mismatch() {
+    let key = vec![0x42u8; 32];
+    let enc_key = dir::encryption_key(key.clone());
+
+    let claims = Claims {
+        sub: "mismatch".into(),
+        admin: false,
+    };
+    let token_str = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, Claims>::new(claims)
+        .encrypt(&enc_key)
+        .unwrap()
+        .to_string();
+
+    let untyped: no_way_jose_core::UntypedCompactJwe<Claims> = token_str.parse().unwrap();
+    let result = untyped.into_typed::<no_way_jose_aes_kw::A128Kw, A256Gcm>();
+    assert!(matches!(
+        result,
+        Err(JoseError::InvalidToken("alg mismatch"))
+    ));
+}
+
+#[test]
+fn untyped_jwe_enc_mismatch() {
+    let key = vec![0x42u8; 32];
+    let enc_key = dir::encryption_key(key.clone());
+
+    let claims = Claims {
+        sub: "mismatch".into(),
+        admin: false,
+    };
+    let token_str = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, Claims>::new(claims)
+        .encrypt(&enc_key)
+        .unwrap()
+        .to_string();
+
+    let untyped: no_way_jose_core::UntypedCompactJwe<Claims> = token_str.parse().unwrap();
+    let result = untyped.into_typed::<dir::Dir, A128Gcm>();
+    assert!(matches!(
+        result,
+        Err(JoseError::InvalidToken("enc mismatch"))
+    ));
+}
