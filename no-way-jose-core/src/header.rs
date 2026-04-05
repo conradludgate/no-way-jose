@@ -15,6 +15,7 @@ struct BuilderHeader {
     enc: Option<&'static str>,
     kid: Option<String>,
     typ: Option<String>,
+    cty: Option<String>,
     extra: BTreeMap<String, String>,
 }
 
@@ -27,6 +28,7 @@ impl HeaderBuilder {
                 enc: None,
                 kid: None,
                 typ: None,
+                cty: None,
                 extra: BTreeMap::new(),
             },
         }
@@ -51,6 +53,12 @@ impl HeaderBuilder {
     }
 
     #[must_use]
+    pub fn cty(mut self, cty: impl Into<String>) -> Self {
+        self.header.cty = Some(cty.into());
+        self
+    }
+
+    #[must_use]
     pub fn build(self) -> String {
         let json = self.header.to_json_bytes();
         crate::base64url::encode(&json)
@@ -69,6 +77,9 @@ impl BuilderHeader {
         }
         if let Some(typ) = &self.typ {
             w.string("typ", typ);
+        }
+        if let Some(cty) = &self.cty {
+            w.string("cty", cty);
         }
         for (k, v) in &self.extra {
             w.string(k, v);

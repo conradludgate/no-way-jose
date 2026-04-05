@@ -56,6 +56,18 @@ impl<P: Purpose, M> CompactToken<P, M> {
             _ => Err(JoseError::InvalidToken("typ mismatch")),
         }
     }
+
+    /// Validate that the header's `cty` field matches the expected value (RFC 7519 §5.2).
+    ///
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] if `cty` is missing or does not match `expected`.
+    pub fn require_cty(self, expected: &str) -> Result<Self, JoseError> {
+        let header = self.header()?;
+        match header.cty.as_deref() {
+            Some(c) if c.eq_ignore_ascii_case(expected) => Ok(self),
+            _ => Err(JoseError::InvalidToken("cty mismatch")),
+        }
+    }
 }
 
 impl<P: Purpose, M> UnsealedToken<P, M> {
@@ -287,6 +299,16 @@ impl<M> UntypedCompactJws<M> {
         match header.typ.as_deref() {
             Some(t) if t.eq_ignore_ascii_case(expected) => Ok(self),
             _ => Err(JoseError::InvalidToken("typ mismatch")),
+        }
+    }
+
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] if `cty` is missing or does not match `expected`.
+    pub fn require_cty(self, expected: &str) -> Result<Self, JoseError> {
+        let header = self.header()?;
+        match header.cty.as_deref() {
+            Some(c) if c.eq_ignore_ascii_case(expected) => Ok(self),
+            _ => Err(JoseError::InvalidToken("cty mismatch")),
         }
     }
 
@@ -606,6 +628,16 @@ impl<M> UntypedCompactJwe<M> {
         }
     }
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidToken`] if `cty` is missing or does not match `expected`.
+    pub fn require_cty(self, expected: &str) -> Result<Self, JoseError> {
+        let header = self.header()?;
+        match header.cty.as_deref() {
+            Some(c) if c.eq_ignore_ascii_case(expected) => Ok(self),
+            _ => Err(JoseError::InvalidToken("cty mismatch")),
+        }
+    }
+
     /// Convert to a typed `CompactJwe<KM, CE, M>` after verifying algorithm match.
     ///
     /// # Errors
@@ -689,6 +721,13 @@ impl<P: Purpose, M> TokenBuilder<P, M> {
     #[must_use]
     pub fn typ(mut self, typ: impl Into<String>) -> Self {
         self.header = self.header.typ(typ);
+        self
+    }
+
+    /// Set the `cty` (Content Type) header parameter (e.g. `"JWT"` for nested tokens).
+    #[must_use]
+    pub fn cty(mut self, cty: impl Into<String>) -> Self {
+        self.header = self.header.cty(cty);
         self
     }
 
