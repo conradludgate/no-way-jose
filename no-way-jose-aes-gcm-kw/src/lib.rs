@@ -44,27 +44,6 @@ fn b64_json_string(data: &[u8]) -> Vec<u8> {
     buf
 }
 
-fn read_header_b64_string(header: &[u8], field: &str) -> Result<Vec<u8>, JoseError> {
-    let mut reader = no_way_jose_core::json::JsonReader::new(header)
-        .map_err(|_| JoseError::InvalidToken("malformed header"))?;
-    while let Some(key) = reader
-        .next_key()
-        .map_err(|_| JoseError::InvalidToken("malformed header"))?
-    {
-        if key == field {
-            let val = reader
-                .read_string()
-                .map_err(|_| JoseError::InvalidToken("malformed header field"))?;
-            return Base64UrlUnpadded::decode_vec(&val)
-                .map_err(|_| JoseError::InvalidToken("invalid base64url in header"));
-        }
-        reader
-            .skip_value()
-            .map_err(|_| JoseError::InvalidToken("malformed header"))?;
-    }
-    Err(JoseError::InvalidToken("missing required header field"))
-}
-
 macro_rules! aes_gcm_kw_algorithm {
     ($name:ident, $alg:literal, $kek_len:literal, $cipher:ty, $doc:literal) => {
         #[doc = $doc]
@@ -129,11 +108,12 @@ macro_rules! aes_gcm_kw_algorithm {
                 key: &Vec<u8>,
                 encrypted_key: &[u8],
                 header: &[u8],
+                _cek_len: usize,
             ) -> Result<Vec<u8>, JoseError> {
                 let cipher = <$cipher>::new_from_slice(key).map_err(|_| JoseError::InvalidKey)?;
 
-                let iv_bytes = read_header_b64_string(header, "iv")?;
-                let tag_bytes = read_header_b64_string(header, "tag")?;
+                let iv_bytes = no_way_jose_core::json::read_header_b64(header, "iv")?;
+                let tag_bytes = no_way_jose_core::json::read_header_b64(header, "tag")?;
 
                 if iv_bytes.len() != 12 {
                     return Err(JoseError::InvalidToken("AES-GCM-KW iv must be 12 bytes"));

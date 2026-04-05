@@ -130,6 +130,7 @@ macro_rules! rsa_kw_algorithm {
                 key: &rsa::RsaPrivateKey,
                 encrypted_key: &[u8],
                 _header: &[u8],
+                _cek_len: usize,
             ) -> Result<Vec<u8>, JoseError> {
                 key.decrypt($pad_decrypt, encrypted_key)
                     .map_err(|_| JoseError::CryptoError)

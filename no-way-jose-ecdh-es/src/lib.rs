@@ -204,8 +204,8 @@ macro_rules! ecdh_es_impl {
                 key: &EcPrivateKey,
                 encrypted_key: &[u8],
                 header: &[u8],
+                cek_len: usize,
             ) -> Result<Vec<u8>, JoseError> {
-                let cek_len = encrypted_key.len();
                 ecdh_decrypt(
                     key,
                     encrypted_key,
@@ -244,39 +244,10 @@ impl KeyDecryptor for EcdhEs {
         key: &EcPrivateKey,
         encrypted_key: &[u8],
         header: &[u8],
+        cek_len: usize,
     ) -> Result<Vec<u8>, JoseError> {
-        // For direct ECDH-ES, the CEK length is determined by the content encryption
-        // algorithm. We read 'enc' from the header to determine the key length.
-        let cek_len = cek_len_from_enc_header(header)?;
         ecdh_decrypt(key, encrypted_key, header, "ECDH-ES", cek_len, None)
     }
-}
-
-fn cek_len_from_enc_header(header: &[u8]) -> Result<usize, JoseError> {
-    let mut reader = no_way_jose_core::json::JsonReader::new(header)
-        .map_err(|_| JoseError::InvalidToken("malformed header"))?;
-    while let Some(key) = reader
-        .next_key()
-        .map_err(|_| JoseError::InvalidToken("malformed header"))?
-    {
-        if key == "enc" {
-            let enc = reader
-                .read_string()
-                .map_err(|_| JoseError::InvalidToken("malformed enc"))?;
-            return match enc.as_str() {
-                "A128GCM" => Ok(16),
-                "A256GCM" => Ok(32),
-                "A128CBC-HS256" => Ok(32),
-                "A192CBC-HS384" => Ok(48),
-                "A256CBC-HS512" => Ok(64),
-                _ => Err(JoseError::InvalidToken("unsupported enc algorithm")),
-            };
-        }
-        reader
-            .skip_value()
-            .map_err(|_| JoseError::InvalidToken("malformed header"))?;
-    }
-    Err(JoseError::InvalidToken("missing enc in header"))
 }
 
 pub mod ecdh_es {

@@ -389,7 +389,12 @@ where
         v: &impl Validate<Claims = M>,
     ) -> Result<UnsealedToken<Encrypted<KM, CE>, M>, JoseError> {
         let header_bytes = crate::base64url::decode(&self.header_b64)?;
-        let cek = KM::decrypt_cek(key.inner(), &self.data.encrypted_key, &header_bytes)?;
+        let cek = KM::decrypt_cek(
+            key.inner(),
+            &self.data.encrypted_key,
+            &header_bytes,
+            CE::KEY_LEN,
+        )?;
 
         let aad = self.header_b64.as_bytes();
         let plaintext = CE::decrypt(

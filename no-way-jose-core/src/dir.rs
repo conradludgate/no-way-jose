@@ -41,6 +41,7 @@ impl KeyDecryptor for Dir {
         key: &Vec<u8>,
         encrypted_key: &[u8],
         _header: &[u8],
+        _cek_len: usize,
     ) -> Result<Vec<u8>, JoseError> {
         if !encrypted_key.is_empty() {
             return Err(JoseError::InvalidToken("dir: encrypted_key must be empty"));

@@ -34,44 +34,6 @@ fn pbes2_salt_input(alg: &str, random_salt: &[u8]) -> Vec<u8> {
     salt
 }
 
-fn read_header_string(header: &[u8], field: &str) -> Result<String, JoseError> {
-    let mut reader = no_way_jose_core::json::JsonReader::new(header)
-        .map_err(|_| JoseError::InvalidToken("malformed header"))?;
-    while let Some(key) = reader
-        .next_key()
-        .map_err(|_| JoseError::InvalidToken("malformed header"))?
-    {
-        if key == field {
-            return reader
-                .read_string()
-                .map_err(|_| JoseError::InvalidToken("malformed header field"));
-        }
-        reader
-            .skip_value()
-            .map_err(|_| JoseError::InvalidToken("malformed header"))?;
-    }
-    Err(JoseError::InvalidToken("missing required header field"))
-}
-
-fn read_header_i64(header: &[u8], field: &str) -> Result<i64, JoseError> {
-    let mut reader = no_way_jose_core::json::JsonReader::new(header)
-        .map_err(|_| JoseError::InvalidToken("malformed header"))?;
-    while let Some(key) = reader
-        .next_key()
-        .map_err(|_| JoseError::InvalidToken("malformed header"))?
-    {
-        if key == field {
-            return reader
-                .read_i64()
-                .map_err(|_| JoseError::InvalidToken("malformed header field"));
-        }
-        reader
-            .skip_value()
-            .map_err(|_| JoseError::InvalidToken("malformed header"))?;
-    }
-    Err(JoseError::InvalidToken("missing required header field"))
-}
-
 macro_rules! pbes2_algorithm {
     ($name:ident, $alg:literal, $dk_len:literal, $hmac:ty, $kek_type:ty, $doc:literal) => {
         #[doc = $doc]
@@ -145,11 +107,12 @@ macro_rules! pbes2_algorithm {
                 password: &Vec<u8>,
                 encrypted_key: &[u8],
                 header: &[u8],
+                _cek_len: usize,
             ) -> Result<Vec<u8>, JoseError> {
-                let p2s_b64 = read_header_string(header, "p2s")?;
+                let p2s_b64 = no_way_jose_core::json::read_header_string(header, "p2s")?;
                 let random_salt = Base64UrlUnpadded::decode_vec(&p2s_b64)
                     .map_err(|_| JoseError::InvalidToken("invalid base64url in p2s"))?;
-                let p2c = read_header_i64(header, "p2c")?;
+                let p2c = no_way_jose_core::json::read_header_i64(header, "p2c")?;
                 if p2c <= 0 {
                     return Err(JoseError::InvalidToken("p2c must be positive"));
                 }

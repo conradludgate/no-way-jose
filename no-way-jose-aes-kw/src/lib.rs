@@ -74,6 +74,7 @@ macro_rules! aes_kw_algorithm {
                 key: &Vec<u8>,
                 encrypted_key: &[u8],
                 _header: &[u8],
+                _cek_len: usize,
             ) -> Result<Vec<u8>, JoseError> {
                 let kek =
                     <$kek_type>::try_from(key.as_slice()).map_err(|_| JoseError::InvalidKey)?;

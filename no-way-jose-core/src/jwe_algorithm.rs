@@ -40,12 +40,17 @@ pub trait KeyEncryptor: JweKeyManagement + HasKey<Encrypting> {
 /// Decrypt/unwrap a Content Encryption Key using a key management algorithm.
 pub trait KeyDecryptor: JweKeyManagement + HasKey<Decrypting> {
     /// Recover the CEK from the `encrypted_key` field of a JWE token.
+    ///
     /// `header` contains the raw JSON header bytes for algorithms that need
     /// to extract additional parameters (e.g. `iv`/`tag` for AES-GCM-KW).
+    ///
+    /// `cek_len` is the expected CEK length from the content encryption algorithm.
+    /// Algorithms like ECDH-ES direct agreement need this to derive the correct key size.
     fn decrypt_cek(
         key: &KeyInner<Self, Decrypting>,
         encrypted_key: &[u8],
         header: &[u8],
+        cek_len: usize,
     ) -> Result<Vec<u8>, JoseError>;
 }
 
