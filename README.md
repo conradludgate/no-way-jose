@@ -27,6 +27,10 @@ JOSE is a family of IETF standards for securing data with JSON-based structures:
 - **JWA** (JSON Web Algorithms, [RFC 7518](https://datatracker.ietf.org/doc/html/rfc7518)) --
   The registry of cryptographic algorithms used by JWS and JWE.
 
+- **JWK** (JSON Web Key, [RFC 7517](https://datatracker.ietf.org/doc/html/rfc7517)) --
+  A JSON format for representing cryptographic keys. Keys can be serialized
+  to/from JWK for interoperability with other JOSE libraries and key stores.
+
 JWTs are widely used for authentication tokens, API authorization, and
 inter-service communication.
 
@@ -256,6 +260,34 @@ let verified = token.verify(&key, &validator).unwrap();
 
 You can also implement `Validate` for your own claim type to add custom rules.
 
+### Work with JWK keys
+
+Serialize keys to JWK format and load keys from JWK JSON:
+
+```rust
+use no_way_jose_core::jwk::{Jwk, JwkSet, ToJwk, FromJwk};
+use no_way_jose_ecdsa::Es256;
+
+// Export a key to JWK
+let sk = no_way_jose_ecdsa::signing_key_from_bytes(&key_bytes).unwrap();
+let jwk = sk.to_jwk();  // Jwk { kty: "EC", crv: "P-256", ... }
+let jwk_json = jwk.to_json_bytes();
+
+// Import a key from JWK JSON
+let jwk = Jwk::from_json_bytes(&jwk_json).unwrap();
+let vk: no_way_jose_ecdsa::VerifyingKey = FromJwk::from_jwk(&jwk).unwrap();
+
+// Parse a JWK Set and look up a key by kid
+let set = JwkSet::from_json_bytes(&jwk_set_json).unwrap();
+if let Some(key_jwk) = set.find_by_kid("my-key-id") {
+    let vk: no_way_jose_ecdsa::VerifyingKey = FromJwk::from_jwk(key_jwk).unwrap();
+}
+
+// Compute a JWK Thumbprint (RFC 7638) for key identification
+let canonical_json = jwk.thumbprint_canonical_json();
+// Hash with SHA-256 (or your preferred hash) to get the thumbprint
+```
+
 ### Dynamic algorithm dispatch
 
 When the algorithm is not known at compile time (e.g. reading tokens from
@@ -361,4 +393,4 @@ Graviola is limited to aarch64 and x86\_64 with specific CPU features.
 ## Status and roadmap
 
 See [DESIGN.md](DESIGN.md) for the full implementation status, RFC coverage, and
-future plans (more algorithms, JWK support, serde integration, etc).
+future plans (more algorithms, serde integration, etc).

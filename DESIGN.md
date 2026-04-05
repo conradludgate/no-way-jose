@@ -9,11 +9,11 @@ A type-safe Rust JOSE (JWS/JWE/JWT/JWK) library inspired by the
 |------|----------------------------------------------------|-------------|
 | 7515 | JSON Web Signature (JWS)                           | Done        |
 | 7516 | JSON Web Encryption (JWE)                          | Done        |
-| 7517 | JSON Web Key (JWK)                                 | Planned     |
+| 7517 | JSON Web Key (JWK)                                 | Done        |
 | 7518 | JSON Web Algorithms (JWA)                          | Done        |
 | 7519 | JSON Web Token (JWT)                               | Done        |
 | 7520 | Examples of Protecting Content Using JOSE           | Test vectors|
-| 7638 | JSON Web Key (JWK) Thumbprint                      | Planned     |
+| 7638 | JSON Web Key (JWK) Thumbprint                      | Done        |
 | 8037 | CFRG Elliptic Curve Diffie-Hellman and Signatures  | Done (EdDSA)|
 | 8725 | JSON Web Token Best Current Practices              | Partial     |
 
@@ -124,6 +124,9 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] `JsonWriter::raw_value` (for header parameter injection)
 - [x] `Validate` / `NoValidation`
 - [x] `JoseError`
+- [x] `Jwk` / `JwkSet` / `JwkParams` (RFC 7517)
+- [x] `ToJwk` / `FromJwk` / `JwkKeyConvert<K>` (blanket impl on `Key<A, K>`)
+- [x] `Jwk::thumbprint_canonical_json()` (RFC 7638)
 
 ### Token types (no-way-jose-core)
 
@@ -231,6 +234,10 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] JWE PBES2-HS256+A128KW + A128GCM, PBES2-HS384+A192KW, PBES2-HS512+A256KW + A256GCM round-trip
 - [x] JWE wrong key / wrong KEK / wrong password rejection
 - [x] JWE header parameter verification (iv/tag for GCM-KW, epk for ECDH-ES, p2s/p2c for PBES2)
+- [x] RFC 7517 Appendix A/B — JWK parsing (EC, RSA, oct, JWK Set)
+- [x] RFC 7638 §3.1 — JWK Thumbprint (SHA-256)
+- [x] JWK round-trip (HMAC, ECDSA, EdDSA, RSA, AES-KW, ECDH-ES)
+- [x] JWK algorithm/kty validation rejection
 
 ### `no_std` support
 
@@ -275,7 +282,6 @@ is not yet available). Key dependency versions as of the latest update:
 ## Future Ideas
 
 - **More JWS algorithms**: `Es512`, `Rs384`–`Rs512`, `Ps384`–`Ps512`
-- **JWK / JWK Sets**: `Jwk`, `JwkSet`, `ToJwk`/`FromJwk` traits, JWK Thumbprint (RFC 7638)
 - **Serde feature flag**: optional `serde` dep in `no-way-jose-core` providing blanket
   `ToJson`/`FromJson` for `Serialize`/`DeserializeOwned`
 - **Header caching**: avoid re-decoding the header in `FromStr` → `header()` → `verify()`
