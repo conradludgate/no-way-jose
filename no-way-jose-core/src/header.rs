@@ -2,7 +2,7 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::JoseError;
+use crate::error::{JoseError, JoseResult, TokenFormatError};
 use crate::json::{FromJson, JsonReader, JsonWriter};
 
 /// Builds a JOSE header and returns it as a base64url-encoded string.
@@ -91,13 +91,11 @@ impl BuilderHeader {
 /// Parse a base64url-encoded header into owned fields.
 ///
 /// # Errors
-/// Returns [`crate::JoseError::Base64DecodeError`] on invalid base64url, or
-/// [`crate::JoseError::InvalidToken`] if the decoded bytes are not valid compact header JSON or
-/// required fields are missing.
-pub fn parse_header_owned(header_b64: &str) -> Result<OwnedHeader, JoseError> {
+/// Returns [`JoseError::Base64Decode`] or [`JoseError::MalformedToken`] on failure.
+pub fn parse_header_owned(header_b64: &str) -> JoseResult<OwnedHeader> {
     let bytes = crate::base64url::decode(header_b64)?;
     OwnedHeader::from_json_bytes(&bytes)
-        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))
+        .map_err(|e| error_stack::Report::new(JoseError::MalformedToken).attach(e))
 }
 
 /// Owned version of a decoded JOSE header.
@@ -136,7 +134,7 @@ impl FromJson for OwnedHeader {
             }
         }
         Ok(OwnedHeader {
-            alg: alg.ok_or(JoseError::InvalidToken("missing alg in header"))?,
+            alg: alg.ok_or(TokenFormatError::MissingAlg)?,
             enc,
             kid,
             typ,

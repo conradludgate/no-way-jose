@@ -16,9 +16,10 @@ use alloc::vec::Vec;
 
 use aes_kw::KeyInit;
 use base64ct::{Base64UrlUnpadded, Encoding};
+use error_stack::Report;
 pub use no_way_jose_core;
 use no_way_jose_core::__private::Sealed;
-use no_way_jose_core::JoseError;
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
 };
@@ -57,12 +58,10 @@ macro_rules! pbes2_algorithm {
         }
 
         impl KeyEncryptor for $name {
-            fn encrypt_cek(
-                password: &Vec<u8>,
-                cek_len: usize,
-            ) -> Result<KeyEncryptionResult, JoseError> {
+            fn encrypt_cek(password: &Vec<u8>, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
                 let mut random_salt = [0u8; SALT_LEN];
-                getrandom::fill(&mut random_salt).map_err(|_| JoseError::CryptoError)?;
+                getrandom::fill(&mut random_salt)
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let salt_input = pbes2_salt_input($alg, &random_salt);
 
@@ -73,17 +72,17 @@ macro_rules! pbes2_algorithm {
                     DEFAULT_ITER_COUNT,
                     &mut derived_key,
                 )
-                .map_err(|_| JoseError::CryptoError)?;
+                .map_err(|_| Report::new(JoseError::CryptoError))?;
 
-                let kek =
-                    <$kek_type>::new_from_slice(&derived_key).map_err(|_| JoseError::InvalidKey)?;
+                let kek = <$kek_type>::new_from_slice(&derived_key)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
 
                 let mut cek = vec![0u8; cek_len];
-                getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
+                getrandom::fill(&mut cek).map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let mut wrapped = vec![0u8; cek_len + aes_kw::IV_LEN];
                 kek.wrap_key(&cek, &mut wrapped)
-                    .map_err(|_| JoseError::CryptoError)?;
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let p2s_b64 = Base64UrlUnpadded::encode_string(&random_salt);
                 let mut p2s_json = Vec::with_capacity(p2s_b64.len() + 2);
@@ -112,32 +111,32 @@ macro_rules! pbes2_algorithm {
                 encrypted_key: &[u8],
                 header: &[u8],
                 _cek_len: usize,
-            ) -> Result<Vec<u8>, JoseError> {
+            ) -> JoseResult<Vec<u8>> {
                 let p2s_b64 = no_way_jose_core::json::read_header_string(header, "p2s")?;
                 let random_salt = Base64UrlUnpadded::decode_vec(&p2s_b64)
-                    .map_err(|_| JoseError::InvalidToken("invalid base64url in p2s"))?;
+                    .map_err(|_| Report::new(JoseError::Base64Decode))?;
                 let p2c = no_way_jose_core::json::read_header_i64(header, "p2c")?;
                 if p2c <= 0 {
-                    return Err(JoseError::InvalidToken("p2c must be positive"));
+                    return Err(Report::new(JoseError::MalformedToken));
                 }
-                let p2c_u32 = u32::try_from(p2c)
-                    .map_err(|_| JoseError::InvalidToken("p2c out of range for u32"))?;
+                let p2c_u32 =
+                    u32::try_from(p2c).map_err(|_| Report::new(JoseError::MalformedToken))?;
 
                 let salt_input = pbes2_salt_input($alg, &random_salt);
 
                 let mut derived_key = [0u8; $dk_len];
                 pbkdf2::pbkdf2::<$hmac>(password, &salt_input, p2c_u32, &mut derived_key)
-                    .map_err(|_| JoseError::CryptoError)?;
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
 
-                let kek =
-                    <$kek_type>::new_from_slice(&derived_key).map_err(|_| JoseError::InvalidKey)?;
+                let kek = <$kek_type>::new_from_slice(&derived_key)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
 
                 if encrypted_key.len() < aes_kw::IV_LEN {
-                    return Err(JoseError::InvalidToken("encrypted key too short"));
+                    return Err(Report::new(JoseError::MalformedToken));
                 }
                 let mut buf = vec![0u8; encrypted_key.len() - aes_kw::IV_LEN];
                 kek.unwrap_key(encrypted_key, &mut buf)
-                    .map_err(|_| JoseError::CryptoError)?;
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
                 Ok(buf)
             }
         }

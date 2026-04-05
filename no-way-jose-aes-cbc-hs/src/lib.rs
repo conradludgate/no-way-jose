@@ -13,10 +13,11 @@ use alloc::vec::Vec;
 
 use cbc::cipher::block_padding::Pkcs7;
 use cbc::cipher::{BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
+use error_stack::Report;
 use hmac::{KeyInit, Mac};
 pub use no_way_jose_core;
 use no_way_jose_core::__private::Sealed;
-use no_way_jose_core::JoseError;
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     ContentDecryptor, ContentEncryptor, EncryptionOutput, JweContentEncryption,
 };
@@ -62,27 +63,23 @@ macro_rules! aes_cbc_hs_algorithm {
         }
 
         impl ContentEncryptor for $name {
-            fn encrypt(
-                cek: &[u8],
-                aad: &[u8],
-                plaintext: &[u8],
-            ) -> Result<EncryptionOutput, JoseError> {
+            fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> JoseResult<EncryptionOutput> {
                 if cek.len() != $key_len {
-                    return Err(JoseError::InvalidKey);
+                    return Err(Report::new(JoseError::InvalidKey));
                 }
                 let mac_key = &cek[..$mac_key_len];
                 let enc_key = &cek[$mac_key_len..];
 
                 let mut iv = [0u8; IV_LEN];
-                getrandom::fill(&mut iv).map_err(|_| JoseError::CryptoError)?;
+                getrandom::fill(&mut iv).map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let ciphertext = cbc::Encryptor::<$aes>::new_from_slices(enc_key, &iv)
-                    .map_err(|_| JoseError::InvalidKey)?
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?
                     .encrypt_padded_vec::<Pkcs7>(plaintext);
 
                 let hmac_data = hmac_input(aad, &iv, &ciphertext);
-                let mut mac =
-                    <$hmac>::new_from_slice(mac_key).map_err(|_| JoseError::InvalidKey)?;
+                let mut mac = <$hmac>::new_from_slice(mac_key)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 mac.update(&hmac_data);
                 let tag = mac.finalize().into_bytes()[..$tag_len].to_vec();
 
@@ -101,33 +98,33 @@ macro_rules! aes_cbc_hs_algorithm {
                 aad: &[u8],
                 ciphertext: &[u8],
                 tag: &[u8],
-            ) -> Result<Vec<u8>, JoseError> {
+            ) -> JoseResult<Vec<u8>> {
                 if cek.len() != $key_len {
-                    return Err(JoseError::InvalidKey);
+                    return Err(Report::new(JoseError::InvalidKey));
                 }
                 if iv.len() != IV_LEN {
-                    return Err(JoseError::InvalidToken("invalid IV length"));
+                    return Err(Report::new(JoseError::MalformedToken));
                 }
                 if tag.len() != $tag_len {
-                    return Err(JoseError::InvalidToken("invalid tag length"));
+                    return Err(Report::new(JoseError::MalformedToken));
                 }
                 let mac_key = &cek[..$mac_key_len];
                 let enc_key = &cek[$mac_key_len..];
 
                 // Authenticate before decrypting
                 let hmac_data = hmac_input(aad, iv, ciphertext);
-                let mut mac =
-                    <$hmac>::new_from_slice(mac_key).map_err(|_| JoseError::InvalidKey)?;
+                let mut mac = <$hmac>::new_from_slice(mac_key)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 mac.update(&hmac_data);
                 let expected_tag = &mac.finalize().into_bytes()[..$tag_len];
                 if !constant_time_eq(tag, expected_tag) {
-                    return Err(JoseError::CryptoError);
+                    return Err(Report::new(JoseError::CryptoError));
                 }
 
                 cbc::Decryptor::<$aes>::new_from_slices(enc_key, iv)
-                    .map_err(|_| JoseError::InvalidKey)?
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?
                     .decrypt_padded_vec::<Pkcs7>(ciphertext)
-                    .map_err(|_| JoseError::CryptoError)
+                    .map_err(|_| Report::new(JoseError::CryptoError))
             }
         }
     };

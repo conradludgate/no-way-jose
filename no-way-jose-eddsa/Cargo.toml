@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 no-way-jose-core = { workspace = true }
+error-stack = { workspace = true }
 ed25519-dalek = { workspace = true }

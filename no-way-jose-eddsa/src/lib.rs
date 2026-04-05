@@ -11,9 +11,10 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
+use error_stack::Report;
 pub use no_way_jose_core;
-use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OkpParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
@@ -35,7 +36,7 @@ impl HasKey<Verifying> for EdDsa {
 }
 
 impl Signer for EdDsa {
-    fn sign(key: &ed25519_dalek::SigningKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn sign(key: &ed25519_dalek::SigningKey, signing_input: &[u8]) -> JoseResult<Vec<u8>> {
         use ed25519_dalek::Signer;
         let sig = key.sign(signing_input);
         Ok(sig.to_bytes().to_vec())
@@ -47,12 +48,14 @@ impl Verifier for EdDsa {
         key: &ed25519_dalek::VerifyingKey,
         signing_input: &[u8],
         signature: &[u8],
-    ) -> Result<(), JoseError> {
+    ) -> JoseResult<()> {
         use ed25519_dalek::Verifier;
-        let sig_bytes: [u8; 64] = signature.try_into().map_err(|_| JoseError::CryptoError)?;
+        let sig_bytes: [u8; 64] = signature
+            .try_into()
+            .map_err(|_| Report::new(JoseError::CryptoError))?;
         let sig = ed25519_dalek::Signature::from_bytes(&sig_bytes);
         key.verify(signing_input, &sig)
-            .map_err(|_| JoseError::CryptoError)
+            .map_err(|_| Report::new(JoseError::CryptoError))
     }
 }
 
@@ -72,15 +75,20 @@ impl JwkKeyConvert<Signing> for EdDsa {
         }
     }
 
-    fn key_from_jwk(jwk: &Jwk) -> Result<ed25519_dalek::SigningKey, JoseError> {
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<ed25519_dalek::SigningKey> {
         validate_okp_jwk(jwk)?;
         match &jwk.params {
             JwkParams::Okp(p) => {
-                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
-                let bytes: [u8; 32] = d.as_slice().try_into().map_err(|_| JoseError::InvalidKey)?;
+                let d =
+                    p.d.as_ref()
+                        .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+                let bytes: [u8; 32] = d
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 Ok(ed25519_dalek::SigningKey::from_bytes(&bytes))
             }
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         }
     }
 }
@@ -101,33 +109,34 @@ impl JwkKeyConvert<Verifying> for EdDsa {
         }
     }
 
-    fn key_from_jwk(jwk: &Jwk) -> Result<ed25519_dalek::VerifyingKey, JoseError> {
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<ed25519_dalek::VerifyingKey> {
         validate_okp_jwk(jwk)?;
         match &jwk.params {
             JwkParams::Okp(p) => {
                 let bytes: [u8; 32] =
                     p.x.as_slice()
                         .try_into()
-                        .map_err(|_| JoseError::InvalidKey)?;
-                ed25519_dalek::VerifyingKey::from_bytes(&bytes).map_err(|_| JoseError::InvalidKey)
+                        .map_err(|_| Report::new(JoseError::InvalidKey))?;
+                ed25519_dalek::VerifyingKey::from_bytes(&bytes)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))
             }
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         }
     }
 }
 
-fn validate_okp_jwk(jwk: &Jwk) -> Result<(), JoseError> {
+fn validate_okp_jwk(jwk: &Jwk) -> JoseResult<()> {
     if jwk.kty != "OKP" {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     if let Some(alg) = &jwk.alg
         && alg != "EdDSA"
     {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     match &jwk.params {
         JwkParams::Okp(p) if p.crv == "Ed25519" => Ok(()),
-        _ => Err(JoseError::InvalidKey),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 
@@ -146,10 +155,10 @@ pub fn signing_key_from_bytes(bytes: &[u8; 32]) -> SigningKey {
 ///
 /// # Errors
 /// Returns `JoseError::InvalidKey` if the public key bytes are invalid.
-pub fn verifying_key_from_bytes(bytes: &[u8; 32]) -> Result<VerifyingKey, JoseError> {
+pub fn verifying_key_from_bytes(bytes: &[u8; 32]) -> JoseResult<VerifyingKey> {
     ed25519_dalek::VerifyingKey::from_bytes(bytes)
         .map(no_way_jose_core::key::Key::new)
-        .map_err(|_| JoseError::InvalidKey)
+        .map_err(|_| Report::new(JoseError::InvalidKey))
 }
 
 /// Derive the `EdDSA` verifying key from a signing key.

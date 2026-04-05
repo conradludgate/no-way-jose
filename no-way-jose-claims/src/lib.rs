@@ -18,7 +18,7 @@
 #![warn(clippy::pedantic)]
 
 pub use jiff;
-use no_way_jose_core::JoseError;
+use no_way_jose_core::error::{ClaimsError, JoseError};
 use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, ToJson};
 pub use no_way_jose_core::validation::Validate;
 
@@ -140,11 +140,9 @@ pub struct HasExpiry;
 impl Validate for HasExpiry {
     type Claims = RegisteredClaims;
 
-    /// # Errors
-    /// Returns [`JoseError::ClaimsError`] if the `exp` claim is missing.
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         if claims.exp.is_none() {
-            return Err(JoseError::ClaimsError("missing exp claim"));
+            return Err(JoseError::ClaimsValidation(ClaimsError::MissingExpiry));
         }
         Ok(())
     }
@@ -175,18 +173,16 @@ impl Time {
 impl Validate for Time {
     type Claims = RegisteredClaims;
 
-    /// # Errors
-    /// Returns [`JoseError::ClaimsError`] if the token is expired or not yet valid per `exp` / `nbf`.
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         if let Some(exp) = claims.exp
             && exp < self.now
         {
-            return Err(JoseError::ClaimsError("token expired"));
+            return Err(JoseError::ClaimsValidation(ClaimsError::Expired));
         }
         if let Some(nbf) = claims.nbf
             && self.now < nbf
         {
-            return Err(JoseError::ClaimsError("token not yet valid"));
+            return Err(JoseError::ClaimsValidation(ClaimsError::NotYetValid));
         }
         Ok(())
     }
@@ -198,11 +194,9 @@ pub struct FromIssuer<T: AsRef<str>>(pub T);
 impl<T: AsRef<str>> Validate for FromIssuer<T> {
     type Claims = RegisteredClaims;
 
-    /// # Errors
-    /// Returns [`JoseError::ClaimsError`] if the `iss` claim does not match the expected issuer.
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         if claims.iss.as_deref() != Some(self.0.as_ref()) {
-            return Err(JoseError::ClaimsError("issuer mismatch"));
+            return Err(JoseError::ClaimsValidation(ClaimsError::IssuerMismatch));
         }
         Ok(())
     }
@@ -214,12 +208,10 @@ pub struct ForAudience<T: AsRef<str>>(pub T);
 impl<T: AsRef<str>> Validate for ForAudience<T> {
     type Claims = RegisteredClaims;
 
-    /// # Errors
-    /// Returns [`JoseError::ClaimsError`] if the `aud` claim does not include the expected audience.
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
         match &claims.aud {
             Some(auds) if auds.iter().any(|a| a == self.0.as_ref()) => Ok(()),
-            _ => Err(JoseError::ClaimsError("audience mismatch")),
+            _ => Err(JoseError::ClaimsValidation(ClaimsError::AudienceMismatch)),
         }
     }
 }

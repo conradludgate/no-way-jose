@@ -2,7 +2,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::__private::Sealed;
-use crate::JoseError;
+use crate::JoseResult;
 use crate::key::{Decrypting, Encrypting, HasKey, KeyInner};
 
 /// Marker trait for JWE key management algorithm identifiers (RFC 7518 §4).
@@ -36,7 +36,7 @@ pub trait KeyEncryptor: JweKeyManagement + HasKey<Encrypting> {
     fn encrypt_cek(
         key: &KeyInner<Self, Encrypting>,
         cek_len: usize,
-    ) -> Result<KeyEncryptionResult, JoseError>;
+    ) -> JoseResult<KeyEncryptionResult>;
 }
 
 /// Decrypt/unwrap a Content Encryption Key using a key management algorithm.
@@ -56,7 +56,7 @@ pub trait KeyDecryptor: JweKeyManagement + HasKey<Decrypting> {
         encrypted_key: &[u8],
         header: &[u8],
         cek_len: usize,
-    ) -> Result<Vec<u8>, JoseError>;
+    ) -> JoseResult<Vec<u8>>;
 }
 
 /// Encrypt plaintext using a content encryption algorithm.
@@ -64,7 +64,7 @@ pub trait KeyDecryptor: JweKeyManagement + HasKey<Decrypting> {
 pub trait ContentEncryptor: JweContentEncryption {
     /// # Errors
     /// Returns [`crate::JoseError::CryptoError`] if encryption fails.
-    fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> Result<EncryptionOutput, JoseError>;
+    fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> JoseResult<EncryptionOutput>;
 }
 
 /// Decrypt ciphertext using a content encryption algorithm.
@@ -79,7 +79,7 @@ pub trait ContentDecryptor: JweContentEncryption {
         aad: &[u8],
         ciphertext: &[u8],
         tag: &[u8],
-    ) -> Result<Vec<u8>, JoseError>;
+    ) -> JoseResult<Vec<u8>>;
 }
 
 /// Output of content encryption: IV, ciphertext, and authentication tag.

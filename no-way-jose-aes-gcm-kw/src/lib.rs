@@ -22,18 +22,19 @@ pub use no_way_jose_core;
 
 type Aes192Gcm = AesGcm<aes::Aes192, U12>;
 
+use error_stack::Report;
 use no_way_jose_core::__private::Sealed;
-use no_way_jose_core::JoseError;
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
 };
 use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OctParams};
 use no_way_jose_core::key::{Decrypting, Encrypting, HasKey};
 
-fn make_kek(bytes: impl Into<Vec<u8>>, expected_len: usize) -> Result<Vec<u8>, JoseError> {
+fn make_kek(bytes: impl Into<Vec<u8>>, expected_len: usize) -> JoseResult<Vec<u8>> {
     let raw = bytes.into();
     if raw.len() != expected_len {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     Ok(raw)
 }
@@ -68,18 +69,16 @@ macro_rules! aes_gcm_kw_algorithm {
         }
 
         impl KeyEncryptor for $name {
-            fn encrypt_cek(
-                key: &Vec<u8>,
-                cek_len: usize,
-            ) -> Result<KeyEncryptionResult, JoseError> {
-                let cipher = <$cipher>::new_from_slice(key).map_err(|_| JoseError::InvalidKey)?;
+            fn encrypt_cek(key: &Vec<u8>, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
+                let cipher = <$cipher>::new_from_slice(key)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
 
                 let mut iv_bytes = [0u8; 12];
-                getrandom::fill(&mut iv_bytes).map_err(|_| JoseError::CryptoError)?;
+                getrandom::fill(&mut iv_bytes).map_err(|_| Report::new(JoseError::CryptoError))?;
                 let nonce = Nonce::from(iv_bytes);
 
                 let mut cek = vec![0u8; cek_len];
-                getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
+                getrandom::fill(&mut cek).map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let payload = aes_gcm::aead::Payload {
                     msg: &cek,
@@ -87,7 +86,7 @@ macro_rules! aes_gcm_kw_algorithm {
                 };
                 let ciphertext_with_tag = cipher
                     .encrypt(&nonce, payload)
-                    .map_err(|_| JoseError::CryptoError)?;
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let tag_start = ciphertext_with_tag.len() - 16;
                 let encrypted_key = ciphertext_with_tag[..tag_start].to_vec();
@@ -112,17 +111,18 @@ macro_rules! aes_gcm_kw_algorithm {
                 encrypted_key: &[u8],
                 header: &[u8],
                 _cek_len: usize,
-            ) -> Result<Vec<u8>, JoseError> {
-                let cipher = <$cipher>::new_from_slice(key).map_err(|_| JoseError::InvalidKey)?;
+            ) -> JoseResult<Vec<u8>> {
+                let cipher = <$cipher>::new_from_slice(key)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
 
                 let iv_bytes = no_way_jose_core::json::read_header_b64(header, "iv")?;
                 let tag_bytes = no_way_jose_core::json::read_header_b64(header, "tag")?;
 
                 if iv_bytes.len() != 12 {
-                    return Err(JoseError::InvalidToken("AES-GCM-KW iv must be 12 bytes"));
+                    return Err(Report::new(JoseError::MalformedToken));
                 }
                 if tag_bytes.len() != 16 {
-                    return Err(JoseError::InvalidToken("AES-GCM-KW tag must be 16 bytes"));
+                    return Err(Report::new(JoseError::MalformedToken));
                 }
 
                 #[allow(deprecated)]
@@ -138,7 +138,7 @@ macro_rules! aes_gcm_kw_algorithm {
                 };
                 cipher
                     .decrypt(nonce, payload)
-                    .map_err(|_| JoseError::CryptoError)
+                    .map_err(|_| Report::new(JoseError::CryptoError))
             }
         }
     };
@@ -181,18 +181,18 @@ fn oct_to_jwk(key_bytes: &[u8], alg: &str) -> Jwk {
     }
 }
 
-fn oct_from_jwk(jwk: &Jwk, expected_alg: &str, expected_len: usize) -> Result<Vec<u8>, JoseError> {
+fn oct_from_jwk(jwk: &Jwk, expected_alg: &str, expected_len: usize) -> JoseResult<Vec<u8>> {
     if jwk.kty != "oct" {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     match &jwk.params {
         JwkParams::Oct(p) => make_kek(p.k.clone(), expected_len),
-        _ => Err(JoseError::InvalidKey),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 
@@ -202,7 +202,7 @@ macro_rules! aes_gcm_kw_jwk_impls {
             fn key_to_jwk(key: &Vec<u8>) -> Jwk {
                 oct_to_jwk(key, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<Vec<u8>, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<Vec<u8>> {
                 oct_from_jwk(jwk, $alg, $kek_len)
             }
         }
@@ -210,7 +210,7 @@ macro_rules! aes_gcm_kw_jwk_impls {
             fn key_to_jwk(key: &Vec<u8>) -> Jwk {
                 oct_to_jwk(key, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<Vec<u8>, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<Vec<u8>> {
                 oct_from_jwk(jwk, $alg, $kek_len)
             }
         }
@@ -231,7 +231,7 @@ pub mod a128gcmkw {
     /// Returns `JoseError::InvalidKey` if the KEK length is not 16 bytes.
     pub fn encryption_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<EncryptionKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<EncryptionKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_kek(bytes, 16)?))
     }
 
@@ -239,7 +239,7 @@ pub mod a128gcmkw {
     /// Returns `JoseError::InvalidKey` if the KEK length is not 16 bytes.
     pub fn decryption_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<DecryptionKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<DecryptionKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_kek(bytes, 16)?))
     }
 }
@@ -254,7 +254,7 @@ pub mod a192gcmkw {
     /// Returns `JoseError::InvalidKey` if the KEK length is not 24 bytes.
     pub fn encryption_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<EncryptionKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<EncryptionKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_kek(bytes, 24)?))
     }
 
@@ -262,7 +262,7 @@ pub mod a192gcmkw {
     /// Returns `JoseError::InvalidKey` if the KEK length is not 24 bytes.
     pub fn decryption_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<DecryptionKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<DecryptionKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_kek(bytes, 24)?))
     }
 }
@@ -277,7 +277,7 @@ pub mod a256gcmkw {
     /// Returns `JoseError::InvalidKey` if the KEK length is not 32 bytes.
     pub fn encryption_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<EncryptionKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<EncryptionKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_kek(bytes, 32)?))
     }
 
@@ -285,7 +285,7 @@ pub mod a256gcmkw {
     /// Returns `JoseError::InvalidKey` if the KEK length is not 32 bytes.
     pub fn decryption_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<DecryptionKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<DecryptionKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_kek(bytes, 32)?))
     }
 }

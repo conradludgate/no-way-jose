@@ -12,9 +12,10 @@ extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
 
+use error_stack::Report;
 pub use no_way_jose_core;
-use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, RsaParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
@@ -38,7 +39,7 @@ macro_rules! rsa_jws_algorithm {
         }
 
         impl Signer for $name {
-            fn sign(key: &rsa::RsaPrivateKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
+            fn sign(key: &rsa::RsaPrivateKey, signing_input: &[u8]) -> JoseResult<Vec<u8>> {
                 use rsa::signature::{SignatureEncoding, Signer as _};
                 let signing_key = <$signing_key>::new(key.clone());
                 let sig = signing_key.sign(signing_input);
@@ -51,13 +52,14 @@ macro_rules! rsa_jws_algorithm {
                 key: &rsa::RsaPublicKey,
                 signing_input: &[u8],
                 signature: &[u8],
-            ) -> Result<(), JoseError> {
+            ) -> JoseResult<()> {
                 use rsa::signature::Verifier as _;
                 let verifying_key = <$verifying_key>::new(key.clone());
-                let sig = <$sig_type>::try_from(signature).map_err(|_| JoseError::CryptoError)?;
+                let sig = <$sig_type>::try_from(signature)
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
                 verifying_key
                     .verify(signing_input, &sig)
-                    .map_err(|_| JoseError::CryptoError)
+                    .map_err(|_| Report::new(JoseError::CryptoError))
             }
         }
     };
@@ -200,35 +202,39 @@ fn boxed_uint_from_be_bytes(bytes: &[u8]) -> rsa::BoxedUint {
     rsa::BoxedUint::from_be_slice(bytes, bits).expect("valid byte length")
 }
 
-fn validate_rsa_jwk(jwk: &Jwk, expected_alg: &str) -> Result<(), JoseError> {
+fn validate_rsa_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<()> {
     if jwk.kty != "RSA" {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     Ok(())
 }
 
-fn rsa_pubkey_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPublicKey, JoseError> {
+fn rsa_pubkey_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPublicKey> {
     match &jwk.params {
         JwkParams::Rsa(p) => {
             let n = boxed_uint_from_be_bytes(&p.n);
             let e = boxed_uint_from_be_bytes(&p.e);
-            rsa::RsaPublicKey::new_with_max_size(n, e, 16384).map_err(|_| JoseError::InvalidKey)
+            rsa::RsaPublicKey::new_with_max_size(n, e, 16384)
+                .map_err(|_| Report::new(JoseError::InvalidKey))
         }
-        _ => Err(JoseError::InvalidKey),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 
-fn rsa_privkey_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPrivateKey, JoseError> {
+fn rsa_privkey_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPrivateKey> {
     match &jwk.params {
         JwkParams::Rsa(p) => {
             let n = boxed_uint_from_be_bytes(&p.n);
             let e = boxed_uint_from_be_bytes(&p.e);
-            let d = boxed_uint_from_be_bytes(p.d.as_ref().ok_or(JoseError::InvalidKey)?);
+            let d = boxed_uint_from_be_bytes(
+                p.d.as_ref()
+                    .ok_or_else(|| Report::new(JoseError::InvalidKey))?,
+            );
             let mut primes = Vec::new();
             if let Some(p_val) = &p.p {
                 primes.push(boxed_uint_from_be_bytes(p_val));
@@ -236,9 +242,10 @@ fn rsa_privkey_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPrivateKey, JoseError> {
             if let Some(q) = &p.q {
                 primes.push(boxed_uint_from_be_bytes(q));
             }
-            rsa::RsaPrivateKey::from_components(n, e, d, primes).map_err(|_| JoseError::InvalidKey)
+            rsa::RsaPrivateKey::from_components(n, e, d, primes)
+                .map_err(|_| Report::new(JoseError::InvalidKey))
         }
-        _ => Err(JoseError::InvalidKey),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 
@@ -248,7 +255,7 @@ macro_rules! rsa_jwk_impls {
             fn key_to_jwk(key: &rsa::RsaPrivateKey) -> Jwk {
                 rsa_privkey_to_jwk(key, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPrivateKey, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPrivateKey> {
                 validate_rsa_jwk(jwk, $alg)?;
                 rsa_privkey_from_jwk(jwk)
             }
@@ -257,7 +264,7 @@ macro_rules! rsa_jwk_impls {
             fn key_to_jwk(key: &rsa::RsaPublicKey) -> Jwk {
                 rsa_pubkey_to_jwk(key, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPublicKey, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPublicKey> {
                 validate_rsa_jwk(jwk, $alg)?;
                 rsa_pubkey_from_jwk(jwk)
             }
@@ -268,7 +275,7 @@ macro_rules! rsa_jwk_impls {
             fn key_to_jwk(key: &rsa::RsaPublicKey) -> Jwk {
                 rsa_pubkey_to_jwk(key, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPublicKey, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPublicKey> {
                 validate_rsa_jwk(jwk, $alg)?;
                 rsa_pubkey_from_jwk(jwk)
             }
@@ -277,7 +284,7 @@ macro_rules! rsa_jwk_impls {
             fn key_to_jwk(key: &rsa::RsaPrivateKey) -> Jwk {
                 rsa_privkey_to_jwk(key, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<rsa::RsaPrivateKey, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPrivateKey> {
                 validate_rsa_jwk(jwk, $alg)?;
                 rsa_privkey_from_jwk(jwk)
             }
@@ -426,14 +433,14 @@ macro_rules! rsa_kw_algorithm {
             fn encrypt_cek(
                 key: &rsa::RsaPublicKey,
                 cek_len: usize,
-            ) -> Result<KeyEncryptionResult, JoseError> {
+            ) -> JoseResult<KeyEncryptionResult> {
                 let mut cek = vec![0u8; cek_len];
-                getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
+                getrandom::fill(&mut cek).map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
                 let encrypted_key = key
                     .encrypt(&mut rng, $pad_encrypt, &cek)
-                    .map_err(|_| JoseError::CryptoError)?;
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 Ok(KeyEncryptionResult {
                     encrypted_key,
@@ -449,9 +456,9 @@ macro_rules! rsa_kw_algorithm {
                 encrypted_key: &[u8],
                 _header: &[u8],
                 _cek_len: usize,
-            ) -> Result<Vec<u8>, JoseError> {
+            ) -> JoseResult<Vec<u8>> {
                 key.decrypt($pad_decrypt, encrypted_key)
-                    .map_err(|_| JoseError::CryptoError)
+                    .map_err(|_| Report::new(JoseError::CryptoError))
             }
         }
     };

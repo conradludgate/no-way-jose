@@ -50,6 +50,11 @@ inter-service communication.
 - **Sealed traits.** Algorithm traits are sealed -- users cannot create custom
   algorithm types that could weaken security guarantees.
 
+- **Structured errors.** All operations return `Report<JoseError>` via
+  [`error-stack`](https://docs.rs/error-stack). Errors carry context chains
+  (e.g. `Base64Decode`, `MalformedToken`, `CryptoError`) without exposing
+  internal dependency types, preserving semver stability.
+
 - **`no_std`-ready.** The core crate and all algorithm crates use `#![no_std]`
   with `alloc`.
 

@@ -15,9 +15,10 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
+use error_stack::Report;
 pub use no_way_jose_core;
-use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwk::{EcParams, Jwk, JwkKeyConvert, JwkParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
@@ -41,7 +42,7 @@ impl HasKey<Verifying> for Es256 {
 }
 
 impl Signer for Es256 {
-    fn sign(key: &p256::ecdsa::SigningKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn sign(key: &p256::ecdsa::SigningKey, signing_input: &[u8]) -> JoseResult<Vec<u8>> {
         use p256::ecdsa::signature::Signer;
         let sig: p256::ecdsa::Signature = key.sign(signing_input);
         Ok(sig.to_bytes().to_vec())
@@ -53,12 +54,12 @@ impl Verifier for Es256 {
         key: &p256::ecdsa::VerifyingKey,
         signing_input: &[u8],
         signature: &[u8],
-    ) -> Result<(), JoseError> {
+    ) -> JoseResult<()> {
         use p256::ecdsa::signature::Verifier;
-        let sig =
-            p256::ecdsa::Signature::from_slice(signature).map_err(|_| JoseError::CryptoError)?;
+        let sig = p256::ecdsa::Signature::from_slice(signature)
+            .map_err(|_| Report::new(JoseError::CryptoError))?;
         key.verify(signing_input, &sig)
-            .map_err(|_| JoseError::CryptoError)
+            .map_err(|_| Report::new(JoseError::CryptoError))
     }
 }
 
@@ -81,14 +82,17 @@ impl JwkKeyConvert<Signing> for Es256 {
         }
     }
 
-    fn key_from_jwk(jwk: &Jwk) -> Result<p256::ecdsa::SigningKey, JoseError> {
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<p256::ecdsa::SigningKey> {
         validate_ec_jwk(jwk, "ES256", "P-256")?;
         match &jwk.params {
             JwkParams::Ec(p) => {
-                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
-                p256::ecdsa::SigningKey::from_slice(d).map_err(|_| JoseError::InvalidKey)
+                let d =
+                    p.d.as_ref()
+                        .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+                p256::ecdsa::SigningKey::from_slice(d)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))
             }
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         }
     }
 }
@@ -111,11 +115,11 @@ impl JwkKeyConvert<Verifying> for Es256 {
         }
     }
 
-    fn key_from_jwk(jwk: &Jwk) -> Result<p256::ecdsa::VerifyingKey, JoseError> {
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<p256::ecdsa::VerifyingKey> {
         validate_ec_jwk(jwk, "ES256", "P-256")?;
         match &jwk.params {
             JwkParams::Ec(p) => p256_verifying_key_from_xy(&p.x, &p.y),
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         }
     }
 }
@@ -129,20 +133,20 @@ pub type VerifyingKey = no_way_jose_core::VerifyingKey<Es256>;
 ///
 /// # Errors
 /// Returns `JoseError::InvalidKey` if the scalar bytes are invalid.
-pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, JoseError> {
+pub fn signing_key_from_bytes(bytes: &[u8]) -> JoseResult<SigningKey> {
     p256::ecdsa::SigningKey::from_slice(bytes)
         .map(no_way_jose_core::key::Key::new)
-        .map_err(|_| JoseError::InvalidKey)
+        .map_err(|_| Report::new(JoseError::InvalidKey))
 }
 
 /// Create an ES256 verifying key from SEC1-encoded public key bytes.
 ///
 /// # Errors
 /// Returns `JoseError::InvalidKey` if the SEC1 bytes are invalid.
-pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
+pub fn verifying_key_from_sec1(bytes: &[u8]) -> JoseResult<VerifyingKey> {
     p256::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
         .map(no_way_jose_core::key::Key::new)
-        .map_err(|_| JoseError::InvalidKey)
+        .map_err(|_| Report::new(JoseError::InvalidKey))
 }
 
 /// Derive the ES256 verifying key from a signing key.
@@ -171,7 +175,7 @@ impl HasKey<Verifying> for Es384 {
 }
 
 impl Signer for Es384 {
-    fn sign(key: &p384::ecdsa::SigningKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn sign(key: &p384::ecdsa::SigningKey, signing_input: &[u8]) -> JoseResult<Vec<u8>> {
         use p384::ecdsa::signature::Signer;
         let sig: p384::ecdsa::Signature = key.sign(signing_input);
         Ok(sig.to_bytes().to_vec())
@@ -183,12 +187,12 @@ impl Verifier for Es384 {
         key: &p384::ecdsa::VerifyingKey,
         signing_input: &[u8],
         signature: &[u8],
-    ) -> Result<(), JoseError> {
+    ) -> JoseResult<()> {
         use p384::ecdsa::signature::Verifier;
-        let sig =
-            p384::ecdsa::Signature::from_slice(signature).map_err(|_| JoseError::CryptoError)?;
+        let sig = p384::ecdsa::Signature::from_slice(signature)
+            .map_err(|_| Report::new(JoseError::CryptoError))?;
         key.verify(signing_input, &sig)
-            .map_err(|_| JoseError::CryptoError)
+            .map_err(|_| Report::new(JoseError::CryptoError))
     }
 }
 
@@ -211,14 +215,17 @@ impl JwkKeyConvert<Signing> for Es384 {
         }
     }
 
-    fn key_from_jwk(jwk: &Jwk) -> Result<p384::ecdsa::SigningKey, JoseError> {
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<p384::ecdsa::SigningKey> {
         validate_ec_jwk(jwk, "ES384", "P-384")?;
         match &jwk.params {
             JwkParams::Ec(p) => {
-                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
-                p384::ecdsa::SigningKey::from_slice(d).map_err(|_| JoseError::InvalidKey)
+                let d =
+                    p.d.as_ref()
+                        .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+                p384::ecdsa::SigningKey::from_slice(d)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))
             }
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         }
     }
 }
@@ -241,11 +248,11 @@ impl JwkKeyConvert<Verifying> for Es384 {
         }
     }
 
-    fn key_from_jwk(jwk: &Jwk) -> Result<p384::ecdsa::VerifyingKey, JoseError> {
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<p384::ecdsa::VerifyingKey> {
         validate_ec_jwk(jwk, "ES384", "P-384")?;
         match &jwk.params {
             JwkParams::Ec(p) => p384_verifying_key_from_xy(&p.x, &p.y),
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         }
     }
 }
@@ -270,7 +277,7 @@ impl HasKey<Verifying> for Es512 {
 }
 
 impl Signer for Es512 {
-    fn sign(key: &p521::ecdsa::SigningKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn sign(key: &p521::ecdsa::SigningKey, signing_input: &[u8]) -> JoseResult<Vec<u8>> {
         use p521::ecdsa::signature::Signer;
         let sig: p521::ecdsa::Signature = key.sign(signing_input);
         Ok(sig.to_bytes().to_vec())
@@ -282,12 +289,12 @@ impl Verifier for Es512 {
         key: &p521::ecdsa::VerifyingKey,
         signing_input: &[u8],
         signature: &[u8],
-    ) -> Result<(), JoseError> {
+    ) -> JoseResult<()> {
         use p521::ecdsa::signature::Verifier;
-        let sig =
-            p521::ecdsa::Signature::from_slice(signature).map_err(|_| JoseError::CryptoError)?;
+        let sig = p521::ecdsa::Signature::from_slice(signature)
+            .map_err(|_| Report::new(JoseError::CryptoError))?;
         key.verify(signing_input, &sig)
-            .map_err(|_| JoseError::CryptoError)
+            .map_err(|_| Report::new(JoseError::CryptoError))
     }
 }
 
@@ -310,14 +317,17 @@ impl JwkKeyConvert<Signing> for Es512 {
         }
     }
 
-    fn key_from_jwk(jwk: &Jwk) -> Result<p521::ecdsa::SigningKey, JoseError> {
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<p521::ecdsa::SigningKey> {
         validate_ec_jwk(jwk, "ES512", "P-521")?;
         match &jwk.params {
             JwkParams::Ec(p) => {
-                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
-                p521::ecdsa::SigningKey::from_slice(d).map_err(|_| JoseError::InvalidKey)
+                let d =
+                    p.d.as_ref()
+                        .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+                p521::ecdsa::SigningKey::from_slice(d)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))
             }
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         }
     }
 }
@@ -340,74 +350,78 @@ impl JwkKeyConvert<Verifying> for Es512 {
         }
     }
 
-    fn key_from_jwk(jwk: &Jwk) -> Result<p521::ecdsa::VerifyingKey, JoseError> {
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<p521::ecdsa::VerifyingKey> {
         validate_ec_jwk(jwk, "ES512", "P-521")?;
         match &jwk.params {
             JwkParams::Ec(p) => p521_verifying_key_from_xy(&p.x, &p.y),
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         }
     }
 }
 
-fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> Result<(), JoseError> {
+fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> JoseResult<()> {
     if jwk.kty != "EC" {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     match &jwk.params {
         JwkParams::Ec(p) if p.crv == expected_crv => Ok(()),
-        _ => Err(JoseError::InvalidKey),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 
-fn p256_verifying_key_from_xy(x: &[u8], y: &[u8]) -> Result<p256::ecdsa::VerifyingKey, JoseError> {
+fn p256_verifying_key_from_xy(x: &[u8], y: &[u8]) -> JoseResult<p256::ecdsa::VerifyingKey> {
     let mut sec1 = Vec::with_capacity(1 + x.len() + y.len());
     sec1.push(0x04);
     sec1.extend_from_slice(x);
     sec1.extend_from_slice(y);
-    p256::ecdsa::VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| JoseError::InvalidKey)
+    p256::ecdsa::VerifyingKey::from_sec1_bytes(&sec1)
+        .map_err(|_| Report::new(JoseError::InvalidKey))
 }
 
-fn p384_verifying_key_from_xy(x: &[u8], y: &[u8]) -> Result<p384::ecdsa::VerifyingKey, JoseError> {
+fn p384_verifying_key_from_xy(x: &[u8], y: &[u8]) -> JoseResult<p384::ecdsa::VerifyingKey> {
     let mut sec1 = Vec::with_capacity(1 + x.len() + y.len());
     sec1.push(0x04);
     sec1.extend_from_slice(x);
     sec1.extend_from_slice(y);
-    p384::ecdsa::VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| JoseError::InvalidKey)
+    p384::ecdsa::VerifyingKey::from_sec1_bytes(&sec1)
+        .map_err(|_| Report::new(JoseError::InvalidKey))
 }
 
-fn p521_verifying_key_from_xy(x: &[u8], y: &[u8]) -> Result<p521::ecdsa::VerifyingKey, JoseError> {
+fn p521_verifying_key_from_xy(x: &[u8], y: &[u8]) -> JoseResult<p521::ecdsa::VerifyingKey> {
     let mut sec1 = Vec::with_capacity(1 + x.len() + y.len());
     sec1.push(0x04);
     sec1.extend_from_slice(x);
     sec1.extend_from_slice(y);
-    p521::ecdsa::VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| JoseError::InvalidKey)
+    p521::ecdsa::VerifyingKey::from_sec1_bytes(&sec1)
+        .map_err(|_| Report::new(JoseError::InvalidKey))
 }
 
 pub mod es384 {
-    use no_way_jose_core::JoseError;
+    use error_stack::Report;
+    use no_way_jose_core::error::{JoseError, JoseResult};
 
     pub type SigningKey = no_way_jose_core::SigningKey<super::Es384>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Es384>;
 
     /// # Errors
     /// Returns `JoseError::InvalidKey` if the scalar bytes are invalid.
-    pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, JoseError> {
+    pub fn signing_key_from_bytes(bytes: &[u8]) -> JoseResult<SigningKey> {
         p384::ecdsa::SigningKey::from_slice(bytes)
             .map(no_way_jose_core::key::Key::new)
-            .map_err(|_| JoseError::InvalidKey)
+            .map_err(|_| Report::new(JoseError::InvalidKey))
     }
 
     /// # Errors
     /// Returns `JoseError::InvalidKey` if the SEC1 bytes are invalid.
-    pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
+    pub fn verifying_key_from_sec1(bytes: &[u8]) -> JoseResult<VerifyingKey> {
         p384::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
             .map(no_way_jose_core::key::Key::new)
-            .map_err(|_| JoseError::InvalidKey)
+            .map_err(|_| Report::new(JoseError::InvalidKey))
     }
 
     #[must_use]
@@ -417,25 +431,26 @@ pub mod es384 {
 }
 
 pub mod es512 {
-    use no_way_jose_core::JoseError;
+    use error_stack::Report;
+    use no_way_jose_core::error::{JoseError, JoseResult};
 
     pub type SigningKey = no_way_jose_core::SigningKey<super::Es512>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Es512>;
 
     /// # Errors
     /// Returns `JoseError::InvalidKey` if the scalar bytes are invalid.
-    pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, JoseError> {
+    pub fn signing_key_from_bytes(bytes: &[u8]) -> JoseResult<SigningKey> {
         p521::ecdsa::SigningKey::from_slice(bytes)
             .map(no_way_jose_core::key::Key::new)
-            .map_err(|_| JoseError::InvalidKey)
+            .map_err(|_| Report::new(JoseError::InvalidKey))
     }
 
     /// # Errors
     /// Returns `JoseError::InvalidKey` if the SEC1 bytes are invalid.
-    pub fn verifying_key_from_sec1(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
+    pub fn verifying_key_from_sec1(bytes: &[u8]) -> JoseResult<VerifyingKey> {
         p521::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
             .map(no_way_jose_core::key::Key::new)
-            .map_err(|_| JoseError::InvalidKey)
+            .map_err(|_| Report::new(JoseError::InvalidKey))
     }
 
     #[must_use]

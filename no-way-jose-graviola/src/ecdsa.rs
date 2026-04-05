@@ -1,7 +1,8 @@
+use error_stack::Report;
 use graviola::hashing::{Sha256, Sha384};
 use graviola::signing::ecdsa;
-use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwk::{EcParams, Jwk, JwkKeyConvert, JwkParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
@@ -25,14 +26,11 @@ macro_rules! ecdsa_algorithm {
         }
 
         impl Signer for $name {
-            fn sign(
-                key: &ecdsa::SigningKey<$curve>,
-                signing_input: &[u8],
-            ) -> Result<Vec<u8>, JoseError> {
+            fn sign(key: &ecdsa::SigningKey<$curve>, signing_input: &[u8]) -> JoseResult<Vec<u8>> {
                 let mut buf = [0u8; $sig_len];
                 let sig = key
                     .sign::<$hash>(&[signing_input], &mut buf)
-                    .map_err(|_| JoseError::CryptoError)?;
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
                 Ok(sig.to_vec())
             }
         }
@@ -42,9 +40,9 @@ macro_rules! ecdsa_algorithm {
                 key: &ecdsa::VerifyingKey<$curve>,
                 signing_input: &[u8],
                 signature: &[u8],
-            ) -> Result<(), JoseError> {
+            ) -> JoseResult<()> {
                 key.verify::<$hash>(&[signing_input], signature)
-                    .map_err(|_| JoseError::CryptoError)
+                    .map_err(|_| Report::new(JoseError::CryptoError))
             }
         }
     };
@@ -91,16 +89,18 @@ macro_rules! ecdsa_jwk_impls {
                 }
             }
 
-            fn key_from_jwk(jwk: &Jwk) -> Result<ecdsa::SigningKey<$curve>, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<ecdsa::SigningKey<$curve>> {
                 validate_ec_jwk(jwk, $alg, $crv)?;
                 match &jwk.params {
                     JwkParams::Ec(p) => {
-                        let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
-                        let private_key =
-                            <$privkey>::from_bytes(d).map_err(|_| JoseError::InvalidKey)?;
+                        let d =
+                            p.d.as_ref()
+                                .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+                        let private_key = <$privkey>::from_bytes(d)
+                            .map_err(|_| Report::new(JoseError::InvalidKey))?;
                         Ok(ecdsa::SigningKey { private_key })
                     }
-                    _ => Err(JoseError::InvalidKey),
+                    _ => Err(Report::new(JoseError::InvalidKey)),
                 }
             }
         }
@@ -123,7 +123,7 @@ macro_rules! ecdsa_jwk_impls {
                 }
             }
 
-            fn key_from_jwk(jwk: &Jwk) -> Result<ecdsa::VerifyingKey<$curve>, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<ecdsa::VerifyingKey<$curve>> {
                 validate_ec_jwk(jwk, $alg, $crv)?;
                 match &jwk.params {
                     JwkParams::Ec(p) => {
@@ -132,28 +132,28 @@ macro_rules! ecdsa_jwk_impls {
                         uncompressed.extend_from_slice(&p.x);
                         uncompressed.extend_from_slice(&p.y);
                         let public_key = <$pubkey>::from_x962_uncompressed(&uncompressed)
-                            .map_err(|_| JoseError::InvalidKey)?;
+                            .map_err(|_| Report::new(JoseError::InvalidKey))?;
                         Ok(ecdsa::VerifyingKey { public_key })
                     }
-                    _ => Err(JoseError::InvalidKey),
+                    _ => Err(Report::new(JoseError::InvalidKey)),
                 }
             }
         }
     };
 }
 
-fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> Result<(), JoseError> {
+fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> JoseResult<()> {
     if jwk.kty != "EC" {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     match &jwk.params {
         JwkParams::Ec(p) if p.crv == expected_crv => Ok(()),
-        _ => Err(JoseError::InvalidKey),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 
@@ -181,39 +181,42 @@ pub type VerifyingKey = no_way_jose_core::VerifyingKey<Es256>;
 
 /// # Errors
 /// Returns [`JoseError::InvalidKey`] if the key bytes are invalid.
-pub fn signing_key_from_sec1_der(bytes: &[u8]) -> Result<SigningKey, JoseError> {
+pub fn signing_key_from_sec1_der(bytes: &[u8]) -> JoseResult<SigningKey> {
     ecdsa::SigningKey::from_sec1_der(bytes)
         .map(no_way_jose_core::key::Key::new)
-        .map_err(|_| JoseError::InvalidKey)
+        .map_err(|_| Report::new(JoseError::InvalidKey))
 }
 
 /// # Errors
 /// Returns [`JoseError::InvalidKey`] if the key bytes are invalid.
-pub fn verifying_key_from_x962(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
+pub fn verifying_key_from_x962(bytes: &[u8]) -> JoseResult<VerifyingKey> {
     ecdsa::VerifyingKey::from_x962_uncompressed(bytes)
         .map(no_way_jose_core::key::Key::new)
-        .map_err(|_| JoseError::InvalidKey)
+        .map_err(|_| Report::new(JoseError::InvalidKey))
 }
 
 pub mod es384 {
-    use super::{Es384, JoseError, ecdsa};
+    use error_stack::Report;
+    use no_way_jose_core::error::{JoseError, JoseResult};
+
+    use super::{Es384, ecdsa};
 
     pub type SigningKey = no_way_jose_core::SigningKey<Es384>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<Es384>;
 
     /// # Errors
     /// Returns [`JoseError::InvalidKey`] if the key bytes are invalid.
-    pub fn signing_key_from_sec1_der(bytes: &[u8]) -> Result<SigningKey, JoseError> {
+    pub fn signing_key_from_sec1_der(bytes: &[u8]) -> JoseResult<SigningKey> {
         ecdsa::SigningKey::from_sec1_der(bytes)
             .map(no_way_jose_core::key::Key::new)
-            .map_err(|_| JoseError::InvalidKey)
+            .map_err(|_| Report::new(JoseError::InvalidKey))
     }
 
     /// # Errors
     /// Returns [`JoseError::InvalidKey`] if the key bytes are invalid.
-    pub fn verifying_key_from_x962(bytes: &[u8]) -> Result<VerifyingKey, JoseError> {
+    pub fn verifying_key_from_x962(bytes: &[u8]) -> JoseResult<VerifyingKey> {
         ecdsa::VerifyingKey::from_x962_uncompressed(bytes)
             .map(no_way_jose_core::key::Key::new)
-            .map_err(|_| JoseError::InvalidKey)
+            .map_err(|_| Report::new(JoseError::InvalidKey))
     }
 }

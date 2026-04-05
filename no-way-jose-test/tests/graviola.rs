@@ -1,7 +1,8 @@
+use no_way_jose_core::UnsignedToken;
+use no_way_jose_core::error::JsonError;
 use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, ToJson};
 use no_way_jose_core::jwk::{FromJwk, JwkParams, ToJwk};
 use no_way_jose_core::validation::NoValidation;
-use no_way_jose_core::{JoseError, UnsignedToken};
 
 #[derive(Debug)]
 struct Claims {
@@ -31,8 +32,8 @@ impl FromJson for Claims {
             }
         }
         Ok(Self {
-            sub: sub.ok_or(JoseError::InvalidToken("missing sub"))?,
-            admin: admin.ok_or(JoseError::InvalidToken("missing admin"))?,
+            sub: sub.ok_or(JsonError::MissingField)?,
+            admin: admin.ok_or(JsonError::MissingField)?,
         })
     }
 }

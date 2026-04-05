@@ -1,7 +1,10 @@
 use alloc::vec::Vec;
 
+use error_stack::Report;
+
 use crate::__private::Sealed;
-use crate::JoseError;
+use crate::JoseResult;
+use crate::error::JoseError;
 use crate::jwe_algorithm::{JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor};
 use crate::key::{Decrypting, Encrypting, HasKey, Key};
 
@@ -23,10 +26,22 @@ impl HasKey<Decrypting> for Dir {
     type Key = Vec<u8>;
 }
 
+/// Non-empty `encrypted_key` in direct key agreement.
+#[derive(Debug, Clone)]
+pub struct NonEmptyEncryptedKey;
+
+impl core::fmt::Display for NonEmptyEncryptedKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("dir: encrypted_key must be empty")
+    }
+}
+
+impl core::error::Error for NonEmptyEncryptedKey {}
+
 impl KeyEncryptor for Dir {
-    fn encrypt_cek(key: &Vec<u8>, cek_len: usize) -> Result<KeyEncryptionResult, JoseError> {
+    fn encrypt_cek(key: &Vec<u8>, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
         if key.len() != cek_len {
-            return Err(JoseError::InvalidKey);
+            return Err(Report::new(JoseError::InvalidKey));
         }
         Ok(KeyEncryptionResult {
             encrypted_key: Vec::new(),
@@ -42,9 +57,9 @@ impl KeyDecryptor for Dir {
         encrypted_key: &[u8],
         _header: &[u8],
         _cek_len: usize,
-    ) -> Result<Vec<u8>, JoseError> {
+    ) -> JoseResult<Vec<u8>> {
         if !encrypted_key.is_empty() {
-            return Err(JoseError::InvalidToken("dir: encrypted_key must be empty"));
+            return Err(Report::new(NonEmptyEncryptedKey).change_context(JoseError::MalformedToken));
         }
         Ok(key.clone())
     }

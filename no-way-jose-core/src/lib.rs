@@ -23,6 +23,7 @@ extern crate std;
 pub mod algorithm;
 pub mod base64url;
 pub mod dir;
+pub mod error;
 pub mod header;
 pub mod json;
 pub mod jwe_algorithm;
@@ -32,13 +33,12 @@ pub mod purpose;
 pub mod tokens;
 pub mod validation;
 
+pub use error::*;
+
 #[doc(hidden)]
 pub mod __private {
     pub trait Sealed {}
 }
-
-use alloc::boxed::Box;
-use core::error::Error;
 
 /// Private key used for JWS signing, parameterized by algorithm.
 pub type SigningKey<A> = key::Key<A, key::Signing>;
@@ -69,43 +69,3 @@ pub type CompactJwe<KM, CE, M = json::RawJson> = tokens::CompactJwe<KM, CE, M>;
 
 /// A parsed JWE token whose algorithms are determined at runtime.
 pub type UntypedCompactJwe<M = json::RawJson> = tokens::UntypedCompactJwe<M>;
-
-/// Errors returned by token operations.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum JoseError {
-    /// Base64url decoding failed.
-    Base64DecodeError,
-    /// The key material is invalid or too short.
-    InvalidKey,
-    /// The token structure or header is malformed.
-    InvalidToken(&'static str),
-    /// Signature verification or decryption failed.
-    CryptoError,
-    /// Claims validation failed (expiry, issuer, audience, etc.).
-    ClaimsError(&'static str),
-    /// The payload could not be serialized or deserialized.
-    PayloadError(Box<dyn Error + Send + Sync>),
-}
-
-impl Error for JoseError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            JoseError::PayloadError(x) => Some(&**x),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for JoseError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            JoseError::Base64DecodeError => f.write_str("could not base64url-decode the token"),
-            JoseError::InvalidKey => f.write_str("could not parse the key"),
-            JoseError::InvalidToken(msg) => write!(f, "invalid token: {msg}"),
-            JoseError::CryptoError => f.write_str("signature or decryption verification failed"),
-            JoseError::ClaimsError(msg) => write!(f, "claims validation failed: {msg}"),
-            JoseError::PayloadError(x) => write!(f, "payload encoding error: {x}"),
-        }
-    }
-}

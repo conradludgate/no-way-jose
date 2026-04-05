@@ -1,11 +1,12 @@
 use base64ct::{Base64UrlUnpadded, Encoding};
 use no_way_jose_aes_cbc_hs::{A128CbcHs256, A256CbcHs512};
 use no_way_jose_aes_gcm::{A128Gcm, A192Gcm, A256Gcm};
+use no_way_jose_core::dir;
+use no_way_jose_core::error::{HeaderError, JoseError, JsonError};
 use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, RawJson, ToJson};
 use no_way_jose_core::purpose::Encrypted;
 use no_way_jose_core::tokens::{CompactJwe, UnsealedToken};
 use no_way_jose_core::validation::NoValidation;
-use no_way_jose_core::{JoseError, dir};
 use no_way_jose_pbes2::Pbes2Hs512A256Kw;
 use no_way_jose_rsa::{RsaOaep, RsaOaep256};
 
@@ -37,8 +38,8 @@ impl FromJson for Claims {
             }
         }
         Ok(Self {
-            sub: sub.ok_or(JoseError::InvalidToken("missing sub"))?,
-            admin: admin.ok_or(JoseError::InvalidToken("missing admin"))?,
+            sub: sub.ok_or(JsonError::MissingField)?,
+            admin: admin.ok_or(JsonError::MissingField)?,
         })
     }
 }
@@ -1203,10 +1204,12 @@ fn untyped_jwe_alg_mismatch() {
         .to_string();
 
     let untyped: no_way_jose_core::UntypedCompactJwe<Claims> = token_str.parse().unwrap();
-    let result = untyped.into_typed::<no_way_jose_aes_kw::A128Kw, A256Gcm>();
+    let Err(err) = untyped.into_typed::<no_way_jose_aes_kw::A128Kw, A256Gcm>() else {
+        panic!("expected AlgorithmMismatch error");
+    };
     assert!(matches!(
-        result,
-        Err(JoseError::InvalidToken("alg mismatch"))
+        err.current_context(),
+        JoseError::AlgorithmMismatch
     ));
 }
 
@@ -1225,10 +1228,12 @@ fn untyped_jwe_enc_mismatch() {
         .to_string();
 
     let untyped: no_way_jose_core::UntypedCompactJwe<Claims> = token_str.parse().unwrap();
-    let result = untyped.into_typed::<dir::Dir, A128Gcm>();
+    let Err(err) = untyped.into_typed::<dir::Dir, A128Gcm>() else {
+        panic!("expected AlgorithmMismatch error");
+    };
     assert!(matches!(
-        result,
-        Err(JoseError::InvalidToken("enc mismatch"))
+        err.current_context(),
+        JoseError::AlgorithmMismatch
     ));
 }
 
@@ -1366,10 +1371,12 @@ fn nested_jwt_require_cty_mismatch() {
     let serialized = encrypted.to_string();
 
     let parsed: CompactJwe<dir::Dir, A256Gcm> = serialized.parse().unwrap();
-    let result = parsed.require_cty("at+jwt");
+    let Err(err) = parsed.require_cty("at+jwt") else {
+        panic!("expected CtyMismatch error");
+    };
     assert!(matches!(
-        result,
-        Err(JoseError::InvalidToken("cty mismatch"))
+        err.current_context(),
+        JoseError::HeaderValidation(HeaderError::CtyMismatch)
     ));
 }
 
@@ -1386,9 +1393,11 @@ fn nested_jwt_require_cty_missing() {
     let serialized = encrypted.to_string();
 
     let parsed: CompactJwe<dir::Dir, A256Gcm, Claims> = serialized.parse().unwrap();
-    let result = parsed.require_cty("JWT");
+    let Err(err) = parsed.require_cty("JWT") else {
+        panic!("expected CtyMismatch error");
+    };
     assert!(matches!(
-        result,
-        Err(JoseError::InvalidToken("cty mismatch"))
+        err.current_context(),
+        JoseError::HeaderValidation(HeaderError::CtyMismatch)
     ));
 }

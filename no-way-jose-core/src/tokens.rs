@@ -2,7 +2,10 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
+use error_stack::{Report, ResultExt};
+
 use crate::algorithm::{JwsAlgorithm, Signer, Verifier};
+use crate::error::{HeaderError, JoseError, JoseResult, TokenFormatError};
 use crate::json::{FromJson, JsonReader, RawJson, ToJson};
 use crate::jwe_algorithm::{
     ContentDecryptor, ContentEncryptor, JweContentEncryption, JweKeyManagement, KeyDecryptor,
@@ -10,7 +13,7 @@ use crate::jwe_algorithm::{
 };
 use crate::purpose::{Encrypted, EncryptedData, Purpose, Signed, SignedData};
 use crate::validation::Validate;
-use crate::{DecryptionKey, EncryptionKey, JoseError, SigningKey, VerifyingKey};
+use crate::{DecryptionKey, EncryptionKey, SigningKey, VerifyingKey};
 
 /// A parsed but unverified/undecrypted compact-serialized token.
 ///
@@ -35,8 +38,8 @@ impl<P: Purpose, M> CompactToken<P, M> {
     /// Decode and return the JOSE header.
     ///
     /// # Errors
-    /// Returns [`JoseError::Base64DecodeError`] or [`JoseError::InvalidToken`] if the header cannot be parsed.
-    pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
+    /// Returns [`JoseError::Base64Decode`] or [`JoseError::MalformedToken`] if the header cannot be parsed.
+    pub fn header(&self) -> JoseResult<crate::header::OwnedHeader> {
         crate::header::parse_header_owned(&self.header_b64)
     }
 
@@ -48,24 +51,28 @@ impl<P: Purpose, M> CompactToken<P, M> {
     /// Validate that the header's `typ` field matches the expected value (RFC 8725 §3.11).
     ///
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`] if `typ` is missing or does not match `expected`.
-    pub fn require_typ(self, expected: &str) -> Result<Self, JoseError> {
+    /// Returns [`JoseError::HeaderValidation`] if `typ` is missing or does not match `expected`.
+    pub fn require_typ(self, expected: &str) -> JoseResult<Self> {
         let header = self.header()?;
         match header.typ.as_deref() {
             Some(t) if t.eq_ignore_ascii_case(expected) => Ok(self),
-            _ => Err(JoseError::InvalidToken("typ mismatch")),
+            _ => Err(Report::new(JoseError::HeaderValidation(
+                HeaderError::TypMismatch,
+            ))),
         }
     }
 
     /// Validate that the header's `cty` field matches the expected value (RFC 7519 §5.2).
     ///
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`] if `cty` is missing or does not match `expected`.
-    pub fn require_cty(self, expected: &str) -> Result<Self, JoseError> {
+    /// Returns [`JoseError::HeaderValidation`] if `cty` is missing or does not match `expected`.
+    pub fn require_cty(self, expected: &str) -> JoseResult<Self> {
         let header = self.header()?;
         match header.cty.as_deref() {
             Some(c) if c.eq_ignore_ascii_case(expected) => Ok(self),
-            _ => Err(JoseError::InvalidToken("cty mismatch")),
+            _ => Err(Report::new(JoseError::HeaderValidation(
+                HeaderError::CtyMismatch,
+            ))),
         }
     }
 }
@@ -74,8 +81,8 @@ impl<P: Purpose, M> UnsealedToken<P, M> {
     /// Decode and return the JOSE header.
     ///
     /// # Errors
-    /// Returns [`JoseError::Base64DecodeError`] or [`JoseError::InvalidToken`] if the header cannot be parsed.
-    pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
+    /// Returns [`JoseError::Base64Decode`] or [`JoseError::MalformedToken`] if the header cannot be parsed.
+    pub fn header(&self) -> JoseResult<crate::header::OwnedHeader> {
         crate::header::parse_header_owned(&self.header_b64)
     }
 
@@ -132,14 +139,12 @@ where
     M: ToJson,
 {
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`], [`JoseError::Base64DecodeError`], [`JoseError::CryptoError`], or related errors if signing fails.
-    pub fn sign(self, key: &SigningKey<A>) -> Result<CompactJws<A, M>, JoseError> {
+    /// Returns a [`JoseError`] if signing fails.
+    pub fn sign(self, key: &SigningKey<A>) -> JoseResult<CompactJws<A, M>> {
         let header_bytes = crate::base64url::decode(&self.header_b64)?;
         let hdr = parse_header(&header_bytes)?;
         if hdr.alg != A::ALG {
-            return Err(JoseError::InvalidToken(
-                "header alg does not match type parameter",
-            ));
+            return Err(Report::new(JoseError::AlgorithmMismatch));
         }
 
         let payload_bytes = self.claims.to_json_bytes();
@@ -167,19 +172,20 @@ where
     M: FromJson,
 {
     /// # Errors
-    /// Returns [`JoseError::CryptoError`], [`JoseError::Base64DecodeError`], [`JoseError::PayloadError`], [`JoseError::ClaimsError`], or [`JoseError::InvalidToken`] on failure.
+    /// Returns a [`JoseError`] if verification or claims validation fails.
     pub fn verify(
         self,
         key: &VerifyingKey<A>,
         v: &impl Validate<Claims = M>,
-    ) -> Result<UnsealedToken<Signed<A>, M>, JoseError> {
+    ) -> JoseResult<UnsealedToken<Signed<A>, M>> {
         let signing_input = alloc::format!("{}.{}", self.header_b64, self.data.payload_b64);
         A::verify(key.inner(), signing_input.as_bytes(), &self.data.signature)?;
 
         let payload_bytes = crate::base64url::decode(&self.data.payload_b64)?;
-        let claims: M = M::from_json_bytes(&payload_bytes).map_err(JoseError::PayloadError)?;
+        let claims: M = M::from_json_bytes(&payload_bytes)
+            .map_err(|e| Report::new(JoseError::PayloadError).attach(e))?;
 
-        v.validate(&claims)?;
+        v.validate(&claims).map_err(Report::new)?;
 
         Ok(UnsealedToken {
             header_b64: self.header_b64,
@@ -212,22 +218,27 @@ struct JwsParts {
     signature: Vec<u8>,
 }
 
-fn parse_jws_compact(s: &str) -> Result<JwsParts, JoseError> {
+fn parse_jws_compact(s: &str) -> JoseResult<JwsParts> {
     let mut parts = s.splitn(3, '.');
     let header_b64 = parts
         .next()
-        .ok_or(JoseError::InvalidToken("missing header"))?;
+        .ok_or_else(|| Report::new(TokenFormatError::MissingHeader))
+        .change_context(JoseError::MalformedToken)?;
     let payload_b64 = parts
         .next()
-        .ok_or(JoseError::InvalidToken("missing payload"))?;
+        .ok_or_else(|| Report::new(TokenFormatError::MissingPayload))
+        .change_context(JoseError::MalformedToken)?;
     let signature_b64 = parts
         .next()
-        .ok_or(JoseError::InvalidToken("missing signature"))?;
+        .ok_or_else(|| Report::new(TokenFormatError::MissingSignature))
+        .change_context(JoseError::MalformedToken)?;
 
     let header_bytes = crate::base64url::decode(header_b64)?;
     let hdr = parse_header(&header_bytes)?;
     if hdr.crit.is_some() {
-        return Err(JoseError::InvalidToken("unsupported crit extension"));
+        return Err(Report::new(JoseError::HeaderValidation(
+            HeaderError::UnsupportedCritExtension,
+        )));
     }
 
     let signature = crate::base64url::decode(signature_b64)?;
@@ -241,14 +252,12 @@ fn parse_jws_compact(s: &str) -> Result<JwsParts, JoseError> {
 }
 
 impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
-    type Err = JoseError;
+    type Err = Report<JoseError>;
 
-    /// # Errors
-    /// Returns [`JoseError::InvalidToken`] or [`JoseError::Base64DecodeError`] if the string is not a valid compact JWS or `alg` mismatches.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = parse_jws_compact(s)?;
         if parts.alg != A::ALG {
-            return Err(JoseError::InvalidToken("alg mismatch"));
+            return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         Ok(CompactToken {
             header_b64: parts.header_b64,
@@ -282,8 +291,8 @@ impl<M> UntypedCompactJws<M> {
     }
 
     /// # Errors
-    /// Returns [`JoseError::Base64DecodeError`] or [`JoseError::InvalidToken`] if the header cannot be parsed.
-    pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
+    /// Returns [`JoseError::Base64Decode`] or [`JoseError::MalformedToken`] if the header cannot be parsed.
+    pub fn header(&self) -> JoseResult<crate::header::OwnedHeader> {
         crate::header::parse_header_owned(&self.header_b64)
     }
 
@@ -293,30 +302,34 @@ impl<M> UntypedCompactJws<M> {
     }
 
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`] if `typ` is missing or does not match `expected`.
-    pub fn require_typ(self, expected: &str) -> Result<Self, JoseError> {
+    /// Returns [`JoseError::HeaderValidation`] if `typ` is missing or does not match `expected`.
+    pub fn require_typ(self, expected: &str) -> JoseResult<Self> {
         let header = self.header()?;
         match header.typ.as_deref() {
             Some(t) if t.eq_ignore_ascii_case(expected) => Ok(self),
-            _ => Err(JoseError::InvalidToken("typ mismatch")),
+            _ => Err(Report::new(JoseError::HeaderValidation(
+                HeaderError::TypMismatch,
+            ))),
         }
     }
 
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`] if `cty` is missing or does not match `expected`.
-    pub fn require_cty(self, expected: &str) -> Result<Self, JoseError> {
+    /// Returns [`JoseError::HeaderValidation`] if `cty` is missing or does not match `expected`.
+    pub fn require_cty(self, expected: &str) -> JoseResult<Self> {
         let header = self.header()?;
         match header.cty.as_deref() {
             Some(c) if c.eq_ignore_ascii_case(expected) => Ok(self),
-            _ => Err(JoseError::InvalidToken("cty mismatch")),
+            _ => Err(Report::new(JoseError::HeaderValidation(
+                HeaderError::CtyMismatch,
+            ))),
         }
     }
 
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`] if the runtime `alg` does not match `A::ALG`.
-    pub fn into_typed<A: JwsAlgorithm>(self) -> Result<CompactJws<A, M>, JoseError> {
+    /// Returns [`JoseError::AlgorithmMismatch`] if the runtime `alg` does not match `A::ALG`.
+    pub fn into_typed<A: JwsAlgorithm>(self) -> JoseResult<CompactJws<A, M>> {
         if self.alg != A::ALG {
-            return Err(JoseError::InvalidToken("alg mismatch"));
+            return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         Ok(CompactToken {
             header_b64: self.header_b64,
@@ -327,10 +340,8 @@ impl<M> UntypedCompactJws<M> {
 }
 
 impl<M> core::str::FromStr for UntypedCompactJws<M> {
-    type Err = JoseError;
+    type Err = Report<JoseError>;
 
-    /// # Errors
-    /// Returns [`JoseError::InvalidToken`] or [`JoseError::Base64DecodeError`] if the string is not a valid compact JWS.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = parse_jws_compact(s)?;
         Ok(UntypedCompactJws {
@@ -401,21 +412,17 @@ where
     M: ToJson,
 {
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`], [`JoseError::Base64DecodeError`], [`JoseError::CryptoError`], or related errors if encryption fails.
-    pub fn encrypt(self, key: &EncryptionKey<KM>) -> Result<CompactJwe<KM, CE, M>, JoseError> {
+    /// Returns a [`JoseError`] if encryption fails.
+    pub fn encrypt(self, key: &EncryptionKey<KM>) -> JoseResult<CompactJwe<KM, CE, M>> {
         let header_bytes = crate::base64url::decode(&self.header_b64)?;
         let hdr = parse_header(&header_bytes)?;
         if hdr.alg != KM::ALG {
-            return Err(JoseError::InvalidToken(
-                "header alg does not match key management type",
-            ));
+            return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         match hdr.enc.as_deref() {
             Some(e) if e == CE::ENC => {}
             _ => {
-                return Err(JoseError::InvalidToken(
-                    "header enc does not match content encryption type",
-                ));
+                return Err(Report::new(JoseError::AlgorithmMismatch));
             }
         }
 
@@ -453,12 +460,12 @@ where
     M: FromJson,
 {
     /// # Errors
-    /// Returns [`JoseError::CryptoError`], [`JoseError::PayloadError`], [`JoseError::ClaimsError`], or [`JoseError::InvalidToken`] on failure.
+    /// Returns a [`JoseError`] if decryption or claims validation fails.
     pub fn decrypt(
         self,
         key: &DecryptionKey<KM>,
         v: &impl Validate<Claims = M>,
-    ) -> Result<UnsealedToken<Encrypted<KM, CE>, M>, JoseError> {
+    ) -> JoseResult<UnsealedToken<Encrypted<KM, CE>, M>> {
         let header_bytes = crate::base64url::decode(&self.header_b64)?;
         let cek = KM::decrypt_cek(
             key.inner(),
@@ -476,8 +483,9 @@ where
             &self.data.tag,
         )?;
 
-        let claims: M = M::from_json_bytes(&plaintext).map_err(JoseError::PayloadError)?;
-        v.validate(&claims)?;
+        let claims: M = M::from_json_bytes(&plaintext)
+            .map_err(|e| Report::new(JoseError::PayloadError).attach(e))?;
+        v.validate(&claims).map_err(Report::new)?;
 
         Ok(UnsealedToken {
             header_b64: self.header_b64,
@@ -517,28 +525,40 @@ struct JweParts {
     tag: Vec<u8>,
 }
 
-fn parse_jwe_compact(s: &str) -> Result<JweParts, JoseError> {
+fn parse_jwe_compact(s: &str) -> JoseResult<JweParts> {
     let mut parts = s.splitn(5, '.');
     let header_b64 = parts
         .next()
-        .ok_or(JoseError::InvalidToken("missing header"))?;
+        .ok_or_else(|| Report::new(TokenFormatError::MissingHeader))
+        .change_context(JoseError::MalformedToken)?;
     let ek_b64 = parts
         .next()
-        .ok_or(JoseError::InvalidToken("missing encrypted_key"))?;
-    let iv_b64 = parts.next().ok_or(JoseError::InvalidToken("missing iv"))?;
+        .ok_or_else(|| Report::new(TokenFormatError::MissingEncryptedKey))
+        .change_context(JoseError::MalformedToken)?;
+    let iv_b64 = parts
+        .next()
+        .ok_or_else(|| Report::new(TokenFormatError::MissingIv))
+        .change_context(JoseError::MalformedToken)?;
     let ct_b64 = parts
         .next()
-        .ok_or(JoseError::InvalidToken("missing ciphertext"))?;
-    let tag_b64 = parts.next().ok_or(JoseError::InvalidToken("missing tag"))?;
+        .ok_or_else(|| Report::new(TokenFormatError::MissingCiphertext))
+        .change_context(JoseError::MalformedToken)?;
+    let tag_b64 = parts
+        .next()
+        .ok_or_else(|| Report::new(TokenFormatError::MissingTag))
+        .change_context(JoseError::MalformedToken)?;
 
     let header_bytes = crate::base64url::decode(header_b64)?;
     let hdr = parse_header(&header_bytes)?;
     if hdr.crit.is_some() {
-        return Err(JoseError::InvalidToken("unsupported crit extension"));
+        return Err(Report::new(JoseError::HeaderValidation(
+            HeaderError::UnsupportedCritExtension,
+        )));
     }
     let enc = hdr
         .enc
-        .ok_or(JoseError::InvalidToken("missing enc in header"))?;
+        .ok_or_else(|| Report::new(TokenFormatError::MissingEnc))
+        .change_context(JoseError::MalformedToken)?;
 
     Ok(JweParts {
         alg: hdr.alg,
@@ -554,17 +574,15 @@ fn parse_jwe_compact(s: &str) -> Result<JweParts, JoseError> {
 impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
     for CompactToken<Encrypted<KM, CE>, M>
 {
-    type Err = JoseError;
+    type Err = Report<JoseError>;
 
-    /// # Errors
-    /// Returns [`JoseError::InvalidToken`] or [`JoseError::Base64DecodeError`] if the string is not a valid compact JWE or algorithms mismatch.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = parse_jwe_compact(s)?;
         if parts.alg != KM::ALG {
-            return Err(JoseError::InvalidToken("alg mismatch"));
+            return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         if parts.enc != CE::ENC {
-            return Err(JoseError::InvalidToken("enc mismatch"));
+            return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         Ok(CompactToken {
             header_b64: parts.header_b64,
@@ -608,8 +626,8 @@ impl<M> UntypedCompactJwe<M> {
     }
 
     /// # Errors
-    /// Returns [`JoseError::Base64DecodeError`] or [`JoseError::InvalidToken`] if the header cannot be parsed.
-    pub fn header(&self) -> Result<crate::header::OwnedHeader, JoseError> {
+    /// Returns [`JoseError::Base64Decode`] or [`JoseError::MalformedToken`] if the header cannot be parsed.
+    pub fn header(&self) -> JoseResult<crate::header::OwnedHeader> {
         crate::header::parse_header_owned(&self.header_b64)
     }
 
@@ -619,37 +637,41 @@ impl<M> UntypedCompactJwe<M> {
     }
 
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`] if `typ` is missing or does not match `expected`.
-    pub fn require_typ(self, expected: &str) -> Result<Self, JoseError> {
+    /// Returns [`JoseError::HeaderValidation`] if `typ` is missing or does not match `expected`.
+    pub fn require_typ(self, expected: &str) -> JoseResult<Self> {
         let header = self.header()?;
         match header.typ.as_deref() {
             Some(t) if t.eq_ignore_ascii_case(expected) => Ok(self),
-            _ => Err(JoseError::InvalidToken("typ mismatch")),
+            _ => Err(Report::new(JoseError::HeaderValidation(
+                HeaderError::TypMismatch,
+            ))),
         }
     }
 
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`] if `cty` is missing or does not match `expected`.
-    pub fn require_cty(self, expected: &str) -> Result<Self, JoseError> {
+    /// Returns [`JoseError::HeaderValidation`] if `cty` is missing or does not match `expected`.
+    pub fn require_cty(self, expected: &str) -> JoseResult<Self> {
         let header = self.header()?;
         match header.cty.as_deref() {
             Some(c) if c.eq_ignore_ascii_case(expected) => Ok(self),
-            _ => Err(JoseError::InvalidToken("cty mismatch")),
+            _ => Err(Report::new(JoseError::HeaderValidation(
+                HeaderError::CtyMismatch,
+            ))),
         }
     }
 
     /// Convert to a typed `CompactJwe<KM, CE, M>` after verifying algorithm match.
     ///
     /// # Errors
-    /// Returns [`JoseError::InvalidToken`] if the runtime `alg` or `enc` does not match.
+    /// Returns [`JoseError::AlgorithmMismatch`] if the runtime `alg` or `enc` does not match.
     pub fn into_typed<KM: JweKeyManagement, CE: JweContentEncryption>(
         self,
-    ) -> Result<CompactJwe<KM, CE, M>, JoseError> {
+    ) -> JoseResult<CompactJwe<KM, CE, M>> {
         if self.alg != KM::ALG {
-            return Err(JoseError::InvalidToken("alg mismatch"));
+            return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         if self.enc != CE::ENC {
-            return Err(JoseError::InvalidToken("enc mismatch"));
+            return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         Ok(CompactToken {
             header_b64: self.header_b64,
@@ -660,10 +682,8 @@ impl<M> UntypedCompactJwe<M> {
 }
 
 impl<M> core::str::FromStr for UntypedCompactJwe<M> {
-    type Err = JoseError;
+    type Err = Report<JoseError>;
 
-    /// # Errors
-    /// Returns [`JoseError::InvalidToken`] or [`JoseError::Base64DecodeError`] if the string is not a valid compact JWE.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = parse_jwe_compact(s)?;
         Ok(UntypedCompactJwe {
@@ -765,46 +785,46 @@ struct ParsedHeader {
     crit: Option<Vec<String>>,
 }
 
-/// Single-pass extraction of `alg`, optional `enc`, and optional `crit` from a JOSE header.
-fn parse_header(bytes: &[u8]) -> Result<ParsedHeader, JoseError> {
-    let mut reader =
-        JsonReader::new(bytes).map_err(|_| JoseError::InvalidToken("malformed header JSON"))?;
+fn parse_header(bytes: &[u8]) -> JoseResult<ParsedHeader> {
+    let mut reader = JsonReader::new(bytes).change_context(JoseError::MalformedToken)?;
     let mut alg = None;
     let mut enc = None;
     let mut crit = None;
     while let Some(key) = reader
         .next_key()
-        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?
+        .change_context(JoseError::MalformedToken)?
     {
         match key {
             "alg" => {
                 alg = Some(
                     reader
                         .read_string()
-                        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
+                        .change_context(JoseError::MalformedToken)?,
                 );
             }
             "enc" => {
                 enc = Some(
                     reader
                         .read_string()
-                        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
+                        .change_context(JoseError::MalformedToken)?,
                 );
             }
             "crit" => {
                 crit = Some(
                     reader
                         .read_string_array()
-                        .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
+                        .change_context(JoseError::MalformedToken)?,
                 );
             }
             _ => reader
                 .skip_value()
-                .map_err(|_| JoseError::InvalidToken("malformed header JSON"))?,
+                .change_context(JoseError::MalformedToken)?,
         }
     }
     Ok(ParsedHeader {
-        alg: alg.ok_or(JoseError::InvalidToken("missing alg in header"))?,
+        alg: alg
+            .ok_or_else(|| Report::new(TokenFormatError::MissingAlg))
+            .change_context(JoseError::MalformedToken)?,
         enc,
         crit,
     })

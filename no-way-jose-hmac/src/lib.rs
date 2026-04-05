@@ -15,10 +15,11 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
+use error_stack::Report;
 use hmac::{Hmac, KeyInit, Mac};
 pub use no_way_jose_core;
-use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OctParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
@@ -26,10 +27,10 @@ use no_way_jose_core::key::{HasKey, Signing, Verifying};
 #[derive(Clone)]
 pub struct HmacKey(Vec<u8>);
 
-fn make_key(bytes: impl Into<Vec<u8>>, min_len: usize) -> Result<HmacKey, JoseError> {
+fn make_key(bytes: impl Into<Vec<u8>>, min_len: usize) -> JoseResult<HmacKey> {
     let bytes = bytes.into();
     if bytes.len() < min_len {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     Ok(HmacKey(bytes))
 }
@@ -54,25 +55,21 @@ macro_rules! hmac_algorithm {
         }
 
         impl Signer for $name {
-            fn sign(key: &HmacKey, signing_input: &[u8]) -> Result<Vec<u8>, JoseError> {
-                let mut mac =
-                    Hmac::<$hash>::new_from_slice(&key.0).map_err(|_| JoseError::InvalidKey)?;
+            fn sign(key: &HmacKey, signing_input: &[u8]) -> JoseResult<Vec<u8>> {
+                let mut mac = Hmac::<$hash>::new_from_slice(&key.0)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 mac.update(signing_input);
                 Ok(mac.finalize().into_bytes().to_vec())
             }
         }
 
         impl Verifier for $name {
-            fn verify(
-                key: &HmacKey,
-                signing_input: &[u8],
-                signature: &[u8],
-            ) -> Result<(), JoseError> {
-                let mut mac =
-                    Hmac::<$hash>::new_from_slice(&key.0).map_err(|_| JoseError::InvalidKey)?;
+            fn verify(key: &HmacKey, signing_input: &[u8], signature: &[u8]) -> JoseResult<()> {
+                let mut mac = Hmac::<$hash>::new_from_slice(&key.0)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 mac.update(signing_input);
                 mac.verify_slice(signature)
-                    .map_err(|_| JoseError::CryptoError)
+                    .map_err(|_| Report::new(JoseError::CryptoError))
             }
         }
 
@@ -80,7 +77,7 @@ macro_rules! hmac_algorithm {
             fn key_to_jwk(key: &HmacKey) -> Jwk {
                 oct_to_jwk(&key.0, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<HmacKey, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<HmacKey> {
                 oct_from_jwk(jwk, $alg, $min_key_len)
             }
         }
@@ -89,7 +86,7 @@ macro_rules! hmac_algorithm {
             fn key_to_jwk(key: &HmacKey) -> Jwk {
                 oct_to_jwk(&key.0, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<HmacKey, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<HmacKey> {
                 oct_from_jwk(jwk, $alg, $min_key_len)
             }
         }
@@ -109,18 +106,18 @@ fn oct_to_jwk(key_bytes: &[u8], alg: &str) -> Jwk {
     }
 }
 
-fn oct_from_jwk(jwk: &Jwk, expected_alg: &str, min_len: usize) -> Result<HmacKey, JoseError> {
+fn oct_from_jwk(jwk: &Jwk, expected_alg: &str, min_len: usize) -> JoseResult<HmacKey> {
     if jwk.kty != "oct" {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     match &jwk.params {
         JwkParams::Oct(p) => make_key(p.k.clone(), min_len),
-        _ => Err(JoseError::InvalidKey),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 
@@ -156,7 +153,7 @@ pub mod hs256 {
     /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn symmetric_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<SigningKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<SigningKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_key(bytes, 32)?))
     }
 
@@ -164,7 +161,7 @@ pub mod hs256 {
     /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn verifying_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<VerifyingKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<VerifyingKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_key(bytes, 32)?))
     }
 }
@@ -179,7 +176,7 @@ pub mod hs384 {
     /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn symmetric_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<SigningKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<SigningKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_key(bytes, 48)?))
     }
 
@@ -187,7 +184,7 @@ pub mod hs384 {
     /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn verifying_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<VerifyingKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<VerifyingKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_key(bytes, 48)?))
     }
 }
@@ -202,7 +199,7 @@ pub mod hs512 {
     /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn symmetric_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<SigningKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<SigningKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_key(bytes, 64)?))
     }
 
@@ -210,7 +207,7 @@ pub mod hs512 {
     /// Returns `JoseError::InvalidKey` if the key bytes are too short.
     pub fn verifying_key(
         bytes: impl Into<Vec<u8>>,
-    ) -> Result<VerifyingKey, no_way_jose_core::JoseError> {
+    ) -> no_way_jose_core::error::JoseResult<VerifyingKey> {
         Ok(no_way_jose_core::key::Key::new(super::make_key(bytes, 64)?))
     }
 }
@@ -224,7 +221,7 @@ pub type VerifyingKey = hs256::VerifyingKey;
 ///
 /// # Errors
 /// Returns `JoseError::InvalidKey` if the key bytes are too short.
-pub fn symmetric_key(bytes: impl Into<Vec<u8>>) -> Result<SigningKey, JoseError> {
+pub fn symmetric_key(bytes: impl Into<Vec<u8>>) -> JoseResult<SigningKey> {
     hs256::symmetric_key(bytes)
 }
 
@@ -232,6 +229,6 @@ pub fn symmetric_key(bytes: impl Into<Vec<u8>>) -> Result<SigningKey, JoseError>
 ///
 /// # Errors
 /// Returns `JoseError::InvalidKey` if the key bytes are too short.
-pub fn verifying_key(bytes: impl Into<Vec<u8>>) -> Result<VerifyingKey, JoseError> {
+pub fn verifying_key(bytes: impl Into<Vec<u8>>) -> JoseResult<VerifyingKey> {
     hs256::verifying_key(bytes)
 }

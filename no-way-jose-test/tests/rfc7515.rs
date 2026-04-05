@@ -1,6 +1,6 @@
 /// RFC 7515 Appendix A test vectors and compact JWS tests.
 use base64ct::{Base64UrlUnpadded, Encoding};
-use no_way_jose_core::JoseError;
+use no_way_jose_core::error::JsonError;
 use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, RawJson, ToJson};
 use no_way_jose_core::validation::NoValidation;
 
@@ -34,8 +34,8 @@ impl FromJson for RoundtripClaims {
             }
         }
         Ok(Self {
-            sub: sub.ok_or(JoseError::InvalidToken("missing sub"))?,
-            name: name.ok_or(JoseError::InvalidToken("missing name"))?,
+            sub: sub.ok_or(JsonError::MissingField)?,
+            name: name.ok_or(JsonError::MissingField)?,
         })
     }
 }
@@ -68,8 +68,8 @@ impl FromJson for AdminClaims {
             }
         }
         Ok(Self {
-            sub: sub.ok_or(JoseError::InvalidToken("missing sub"))?,
-            admin: admin.ok_or(JoseError::InvalidToken("missing admin"))?,
+            sub: sub.ok_or(JsonError::MissingField)?,
+            admin: admin.ok_or(JsonError::MissingField)?,
         })
     }
 }

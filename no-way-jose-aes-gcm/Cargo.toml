@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 no-way-jose-core = { workspace = true }
+error-stack = { workspace = true }
 aes = { workspace = true }
 aes-gcm = { workspace = true }
 getrandom = { workspace = true }

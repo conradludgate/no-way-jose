@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 base64ct = { workspace = true }
+error-stack = { workspace = true }

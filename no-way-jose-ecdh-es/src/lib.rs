@@ -13,9 +13,10 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
+use error_stack::Report;
 pub use no_way_jose_core;
 use no_way_jose_core::__private::Sealed;
-use no_way_jose_core::JoseError;
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
 };
@@ -83,7 +84,7 @@ fn ecdh_encrypt(
     alg: &str,
     cek_len: usize,
     wrap_key_len: Option<usize>,
-) -> Result<KeyEncryptionResult, JoseError> {
+) -> JoseResult<KeyEncryptionResult> {
     let (shared_secret, epk_fields) = match recipient_pub {
         EcPublicKey::P256(pub_key) => curve::p256_ecdh_ephemeral(pub_key),
         EcPublicKey::P384(pub_key) => curve::p384_ecdh_ephemeral(pub_key),
@@ -95,7 +96,7 @@ fn ecdh_encrypt(
 
     let (encrypted_key, cek) = if wrap_key_len.is_some() {
         let mut cek = vec![0u8; cek_len];
-        getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
+        getrandom::fill(&mut cek).map_err(|_| Report::new(JoseError::CryptoError))?;
         let wrapped = aes_kw_wrap(&derived_key, &cek)?;
         (wrapped, cek)
     } else {
@@ -119,7 +120,7 @@ fn ecdh_decrypt(
     alg: &str,
     cek_len: usize,
     wrap_key_len: Option<usize>,
-) -> Result<Vec<u8>, JoseError> {
+) -> JoseResult<Vec<u8>> {
     let epk_fields = EpkFields::from_header(header)?;
 
     let shared_secret = match recipient_priv {
@@ -144,53 +145,51 @@ fn ecdh_decrypt(
         aes_kw_unwrap(&derived_key, encrypted_key)
     } else {
         if !encrypted_key.is_empty() {
-            return Err(JoseError::InvalidToken(
-                "ECDH-ES: encrypted_key must be empty for direct agreement",
-            ));
+            return Err(Report::new(JoseError::MalformedToken));
         }
         Ok(derived_key)
     }
 }
 
-fn aes_kw_wrap(kek_bytes: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, JoseError> {
+fn aes_kw_wrap(kek_bytes: &[u8], plaintext: &[u8]) -> JoseResult<Vec<u8>> {
     use aes_kw::KeyInit;
     let mut out = vec![0u8; plaintext.len() + aes_kw::IV_LEN];
     macro_rules! wrap {
         ($ty:ty) => {
             <$ty>::new_from_slice(kek_bytes)
-                .map_err(|_| JoseError::InvalidKey)?
+                .map_err(|_| Report::new(JoseError::InvalidKey))?
                 .wrap_key(plaintext, &mut out)
-                .map_err(|_| JoseError::CryptoError)
+                .map_err(|_| Report::new(JoseError::CryptoError))
         };
     }
     match kek_bytes.len() {
         16 => wrap!(aes_kw::KwAes128),
         24 => wrap!(aes_kw::KwAes192),
         32 => wrap!(aes_kw::KwAes256),
-        _ => return Err(JoseError::InvalidKey),
+        _ => return Err(Report::new(JoseError::InvalidKey)),
     }?;
     Ok(out)
 }
 
-fn aes_kw_unwrap(kek_bytes: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, JoseError> {
+fn aes_kw_unwrap(kek_bytes: &[u8], ciphertext: &[u8]) -> JoseResult<Vec<u8>> {
     use aes_kw::KeyInit;
     if ciphertext.len() < aes_kw::IV_LEN {
-        return Err(JoseError::InvalidToken("encrypted key too short"));
+        return Err(Report::new(JoseError::MalformedToken));
     }
     let mut out = vec![0u8; ciphertext.len() - aes_kw::IV_LEN];
     macro_rules! unwrap {
         ($ty:ty) => {
             <$ty>::new_from_slice(kek_bytes)
-                .map_err(|_| JoseError::InvalidKey)?
+                .map_err(|_| Report::new(JoseError::InvalidKey))?
                 .unwrap_key(ciphertext, &mut out)
-                .map_err(|_| JoseError::CryptoError)
+                .map_err(|_| Report::new(JoseError::CryptoError))
         };
     }
     match kek_bytes.len() {
         16 => unwrap!(aes_kw::KwAes128),
         24 => unwrap!(aes_kw::KwAes192),
         32 => unwrap!(aes_kw::KwAes256),
-        _ => return Err(JoseError::InvalidKey),
+        _ => return Err(Report::new(JoseError::InvalidKey)),
     }?;
     Ok(out)
 }
@@ -206,10 +205,7 @@ macro_rules! ecdh_es_impl {
         }
 
         impl KeyEncryptor for $name {
-            fn encrypt_cek(
-                key: &EcPublicKey,
-                cek_len: usize,
-            ) -> Result<KeyEncryptionResult, JoseError> {
+            fn encrypt_cek(key: &EcPublicKey, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
                 ecdh_encrypt(key, <$name>::ALG, cek_len, $wrap_key_len)
             }
         }
@@ -220,7 +216,7 @@ macro_rules! ecdh_es_impl {
                 encrypted_key: &[u8],
                 header: &[u8],
                 cek_len: usize,
-            ) -> Result<Vec<u8>, JoseError> {
+            ) -> JoseResult<Vec<u8>> {
                 ecdh_decrypt(
                     key,
                     encrypted_key,
@@ -249,7 +245,7 @@ impl HasKey<Decrypting> for EcdhEs {
 }
 
 impl KeyEncryptor for EcdhEs {
-    fn encrypt_cek(key: &EcPublicKey, cek_len: usize) -> Result<KeyEncryptionResult, JoseError> {
+    fn encrypt_cek(key: &EcPublicKey, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
         ecdh_encrypt(key, "ECDH-ES", cek_len, None)
     }
 }
@@ -260,7 +256,7 @@ impl KeyDecryptor for EcdhEs {
         encrypted_key: &[u8],
         header: &[u8],
         cek_len: usize,
-    ) -> Result<Vec<u8>, JoseError> {
+    ) -> JoseResult<Vec<u8>> {
         ecdh_decrypt(key, encrypted_key, header, "ECDH-ES", cek_len, None)
     }
 }
@@ -368,11 +364,11 @@ fn ec_privkey_to_jwk(key: &EcPrivateKey, alg: &str) -> Jwk {
     }
 }
 
-fn ec_pubkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> Result<EcPublicKey, JoseError> {
+fn ec_pubkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPublicKey> {
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     match jwk.kty.as_str() {
         "EC" => match &jwk.params {
@@ -383,7 +379,7 @@ fn ec_pubkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> Result<EcPublicKey, Jose
                     sec1.extend_from_slice(&p.x);
                     sec1.extend_from_slice(&p.y);
                     let pk = p256::PublicKey::from_sec1_bytes(&sec1)
-                        .map_err(|_| JoseError::InvalidKey)?;
+                        .map_err(|_| Report::new(JoseError::InvalidKey))?;
                     Ok(EcPublicKey::P256(pk))
                 }
                 "P-384" => {
@@ -392,64 +388,67 @@ fn ec_pubkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> Result<EcPublicKey, Jose
                     sec1.extend_from_slice(&p.x);
                     sec1.extend_from_slice(&p.y);
                     let pk = p384::PublicKey::from_sec1_bytes(&sec1)
-                        .map_err(|_| JoseError::InvalidKey)?;
+                        .map_err(|_| Report::new(JoseError::InvalidKey))?;
                     Ok(EcPublicKey::P384(pk))
                 }
-                _ => Err(JoseError::InvalidKey),
+                _ => Err(Report::new(JoseError::InvalidKey)),
             },
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         },
         "OKP" => match &jwk.params {
             JwkParams::Okp(p) if p.crv == "X25519" => {
                 let x: [u8; 32] =
                     p.x.as_slice()
                         .try_into()
-                        .map_err(|_| JoseError::InvalidKey)?;
+                        .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 Ok(EcPublicKey::X25519(x25519_dalek::PublicKey::from(x)))
             }
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         },
-        _ => Err(JoseError::InvalidKey),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 
-fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> Result<EcPrivateKey, JoseError> {
+fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPrivateKey> {
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
-        return Err(JoseError::InvalidKey);
+        return Err(Report::new(JoseError::InvalidKey));
     }
     match jwk.kty.as_str() {
         "EC" => match &jwk.params {
             JwkParams::Ec(p) => {
-                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
+                let d = p.d.as_ref().ok_or(Report::new(JoseError::InvalidKey))?;
                 match p.crv.as_str() {
                     "P-256" => {
-                        let sk =
-                            p256::SecretKey::from_slice(d).map_err(|_| JoseError::InvalidKey)?;
+                        let sk = p256::SecretKey::from_slice(d)
+                            .map_err(|_| Report::new(JoseError::InvalidKey))?;
                         Ok(EcPrivateKey::P256(sk))
                     }
                     "P-384" => {
-                        let sk =
-                            p384::SecretKey::from_slice(d).map_err(|_| JoseError::InvalidKey)?;
+                        let sk = p384::SecretKey::from_slice(d)
+                            .map_err(|_| Report::new(JoseError::InvalidKey))?;
                         Ok(EcPrivateKey::P384(sk))
                     }
-                    _ => Err(JoseError::InvalidKey),
+                    _ => Err(Report::new(JoseError::InvalidKey)),
                 }
             }
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         },
         "OKP" => match &jwk.params {
             JwkParams::Okp(p) if p.crv == "X25519" => {
-                let d = p.d.as_ref().ok_or(JoseError::InvalidKey)?;
-                let d_arr: [u8; 32] = d.as_slice().try_into().map_err(|_| JoseError::InvalidKey)?;
+                let d = p.d.as_ref().ok_or(Report::new(JoseError::InvalidKey))?;
+                let d_arr: [u8; 32] = d
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 Ok(EcPrivateKey::X25519(x25519_dalek::StaticSecret::from(
                     d_arr,
                 )))
             }
-            _ => Err(JoseError::InvalidKey),
+            _ => Err(Report::new(JoseError::InvalidKey)),
         },
-        _ => Err(JoseError::InvalidKey),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 
@@ -459,7 +458,7 @@ macro_rules! ecdh_es_jwk_impls {
             fn key_to_jwk(key: &EcPublicKey) -> Jwk {
                 ec_pubkey_to_jwk(key, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<EcPublicKey, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<EcPublicKey> {
                 ec_pubkey_from_jwk(jwk, $alg)
             }
         }
@@ -467,7 +466,7 @@ macro_rules! ecdh_es_jwk_impls {
             fn key_to_jwk(key: &EcPrivateKey) -> Jwk {
                 ec_privkey_to_jwk(key, $alg)
             }
-            fn key_from_jwk(jwk: &Jwk) -> Result<EcPrivateKey, JoseError> {
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<EcPrivateKey> {
                 ec_privkey_from_jwk(jwk, $alg)
             }
         }

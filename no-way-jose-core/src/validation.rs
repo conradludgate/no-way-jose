@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use crate::JoseError;
+use crate::error::JoseError;
 
 /// Validation rules for the claims in a JWT.
 pub trait Validate {

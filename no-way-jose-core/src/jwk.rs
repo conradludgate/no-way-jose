@@ -31,8 +31,11 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use error_stack::{Report, ResultExt};
+
+use crate::base64url;
+use crate::error::{JoseError, JoseResult, JsonError};
 use crate::json::{JsonReader, JsonWriter};
-use crate::{JoseError, base64url};
 
 /// Intended use of a public key.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -118,8 +121,8 @@ pub trait ToJwk {
 /// Deserialize a key from JWK form.
 pub trait FromJwk: Sized {
     /// # Errors
-    /// Returns [`crate::JoseError::InvalidKey`] if the JWK does not match this key type.
-    fn from_jwk(jwk: &Jwk) -> Result<Self, JoseError>;
+    /// Returns [`JoseError::InvalidKey`] if the JWK does not match this key type.
+    fn from_jwk(jwk: &Jwk) -> JoseResult<Self>;
 }
 
 /// Algorithm-level JWK conversion. Implement this on algorithm ZSTs so
@@ -128,8 +131,8 @@ pub trait JwkKeyConvert<K: crate::key::KeyPurpose>: crate::key::HasKey<K> {
     fn key_to_jwk(key: &<Self as crate::key::HasKey<K>>::Key) -> Jwk;
 
     /// # Errors
-    /// Returns [`crate::JoseError::InvalidKey`] if the JWK does not represent a valid key for this algorithm.
-    fn key_from_jwk(jwk: &Jwk) -> Result<<Self as crate::key::HasKey<K>>::Key, JoseError>;
+    /// Returns [`JoseError::InvalidKey`] if the JWK does not represent a valid key for this algorithm.
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<<Self as crate::key::HasKey<K>>::Key>;
 }
 
 impl<A, K> ToJwk for crate::key::Key<A, K>
@@ -147,7 +150,7 @@ where
     A: JwkKeyConvert<K>,
     K: crate::key::KeyPurpose,
 {
-    fn from_jwk(jwk: &Jwk) -> Result<Self, JoseError> {
+    fn from_jwk(jwk: &Jwk) -> JoseResult<Self> {
         A::key_from_jwk(jwk).map(crate::key::Key::new)
     }
 }
@@ -225,10 +228,10 @@ impl Jwk {
     }
 
     /// # Errors
-    /// Returns [`crate::JoseError::InvalidToken`] or [`crate::JoseError::Base64DecodeError`] on malformed JSON or invalid fields, or [`crate::JoseError::InvalidKey`] for unknown `kty` or bad `use`.
-    #[allow(clippy::many_single_char_names)] // RFC 7518 RSA field names: n, e, d, p, q, …
-    pub fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
-        let mut reader = JsonReader::new(bytes)?;
+    /// Returns [`JoseError::MalformedToken`] or [`JoseError::InvalidKey`] on failure.
+    #[allow(clippy::many_single_char_names)]
+    pub fn from_json_bytes(bytes: &[u8]) -> JoseResult<Self> {
+        let mut reader = JsonReader::new(bytes).change_context(JoseError::MalformedToken)?;
 
         let mut kty = None;
         let mut kid = None;
@@ -248,21 +251,56 @@ impl Jwk {
         let mut qi = None;
         let mut k = None;
 
-        while let Some(key) = reader.next_key()? {
+        while let Some(key) = reader
+            .next_key()
+            .change_context(JoseError::MalformedToken)?
+        {
             match key {
-                "kty" => kty = Some(reader.read_string()?),
-                "kid" => kid = Some(reader.read_string()?),
-                "alg" => alg = Some(reader.read_string()?),
+                "kty" => {
+                    kty = Some(
+                        reader
+                            .read_string()
+                            .change_context(JoseError::MalformedToken)?,
+                    );
+                }
+                "kid" => {
+                    kid = Some(
+                        reader
+                            .read_string()
+                            .change_context(JoseError::MalformedToken)?,
+                    );
+                }
+                "alg" => {
+                    alg = Some(
+                        reader
+                            .read_string()
+                            .change_context(JoseError::MalformedToken)?,
+                    );
+                }
                 "use" => {
-                    let val = reader.read_string()?;
+                    let val = reader
+                        .read_string()
+                        .change_context(JoseError::MalformedToken)?;
                     use_ = Some(match val.as_str() {
                         "sig" => KeyUse::Sig,
                         "enc" => KeyUse::Enc,
-                        _ => return Err(JoseError::InvalidKey),
+                        _ => return Err(Report::new(JoseError::InvalidKey)),
                     });
                 }
-                "key_ops" => key_ops = Some(reader.read_string_array()?),
-                "crv" => crv = Some(reader.read_string()?),
+                "key_ops" => {
+                    key_ops = Some(
+                        reader
+                            .read_string_array()
+                            .change_context(JoseError::MalformedToken)?,
+                    );
+                }
+                "crv" => {
+                    crv = Some(
+                        reader
+                            .read_string()
+                            .change_context(JoseError::MalformedToken)?,
+                    );
+                }
                 "x" => x = Some(read_b64_string(&mut reader)?),
                 "y" => y = Some(read_b64_string(&mut reader)?),
                 "d" => d = Some(read_b64_string(&mut reader)?),
@@ -274,38 +312,16 @@ impl Jwk {
                 "dq" => dq = Some(read_b64_string(&mut reader)?),
                 "qi" => qi = Some(read_b64_string(&mut reader)?),
                 "k" => k = Some(read_b64_string(&mut reader)?),
-                _ => reader.skip_value()?,
+                _ => reader
+                    .skip_value()
+                    .change_context(JoseError::MalformedToken)?,
             }
         }
 
-        let kty = kty.ok_or(JoseError::InvalidKey)?;
-        let params = match kty.as_str() {
-            "EC" => JwkParams::Ec(EcParams {
-                crv: crv.ok_or(JoseError::InvalidKey)?,
-                x: x.ok_or(JoseError::InvalidKey)?,
-                y: y.ok_or(JoseError::InvalidKey)?,
-                d,
-            }),
-            "RSA" => JwkParams::Rsa(RsaParams {
-                n: n.ok_or(JoseError::InvalidKey)?,
-                e: e.ok_or(JoseError::InvalidKey)?,
-                d,
-                p,
-                q,
-                dp,
-                dq,
-                qi,
-            }),
-            "oct" => JwkParams::Oct(OctParams {
-                k: k.ok_or(JoseError::InvalidKey)?,
-            }),
-            "OKP" => JwkParams::Okp(OkpParams {
-                crv: crv.ok_or(JoseError::InvalidKey)?,
-                x: x.ok_or(JoseError::InvalidKey)?,
-                d,
-            }),
-            _ => return Err(JoseError::InvalidKey),
-        };
+        let kty = kty
+            .ok_or_else(|| Report::new(JsonError::MissingField))
+            .change_context(JoseError::InvalidKey)?;
+        let params = build_jwk_params(&kty, crv, x, y, d, n, e, p, q, dp, dq, qi, k)?;
 
         Ok(Jwk {
             kty,
@@ -318,8 +334,58 @@ impl Jwk {
     }
 }
 
-fn read_b64_string(reader: &mut JsonReader<'_>) -> Result<Vec<u8>, JoseError> {
-    let s = reader.read_string()?;
+#[allow(clippy::too_many_arguments, clippy::many_single_char_names)]
+fn build_jwk_params(
+    kty: &str,
+    crv: Option<String>,
+    x: Option<Vec<u8>>,
+    y: Option<Vec<u8>>,
+    d: Option<Vec<u8>>,
+    n: Option<Vec<u8>>,
+    e: Option<Vec<u8>>,
+    p: Option<Vec<u8>>,
+    q: Option<Vec<u8>>,
+    dp: Option<Vec<u8>>,
+    dq: Option<Vec<u8>>,
+    qi: Option<Vec<u8>>,
+    k: Option<Vec<u8>>,
+) -> JoseResult<JwkParams> {
+    fn required<T>(v: Option<T>) -> JoseResult<T> {
+        v.ok_or_else(|| Report::new(JsonError::MissingField))
+            .change_context(JoseError::InvalidKey)
+    }
+
+    match kty {
+        "EC" => Ok(JwkParams::Ec(EcParams {
+            crv: required(crv)?,
+            x: required(x)?,
+            y: required(y)?,
+            d,
+        })),
+        "RSA" => Ok(JwkParams::Rsa(RsaParams {
+            n: required(n)?,
+            e: required(e)?,
+            d,
+            p,
+            q,
+            dp,
+            dq,
+            qi,
+        })),
+        "oct" => Ok(JwkParams::Oct(OctParams { k: required(k)? })),
+        "OKP" => Ok(JwkParams::Okp(OkpParams {
+            crv: required(crv)?,
+            x: required(x)?,
+            d,
+        })),
+        _ => Err(Report::new(JoseError::InvalidKey)),
+    }
+}
+
+fn read_b64_string(reader: &mut JsonReader<'_>) -> JoseResult<Vec<u8>> {
+    let s = reader
+        .read_string()
+        .change_context(JoseError::MalformedToken)?;
     base64url::decode(&s)
 }
 
@@ -339,33 +405,43 @@ impl JwkSet {
     }
 
     /// # Errors
-    /// Returns [`crate::JoseError::InvalidToken`] or [`crate::JoseError::InvalidKey`] if the JWKS JSON is malformed or missing `keys`.
-    pub fn from_json_bytes(bytes: &[u8]) -> Result<Self, JoseError> {
-        let mut reader = JsonReader::new(bytes)?;
+    /// Returns [`JoseError::MalformedToken`] or [`JoseError::InvalidKey`] on failure.
+    pub fn from_json_bytes(bytes: &[u8]) -> JoseResult<Self> {
+        let mut reader = JsonReader::new(bytes).change_context(JoseError::MalformedToken)?;
         let mut keys = None;
-        while let Some(key) = reader.next_key()? {
+        while let Some(key) = reader
+            .next_key()
+            .change_context(JoseError::MalformedToken)?
+        {
             match key {
                 "keys" => {
                     keys = Some(read_jwk_array(&mut reader)?);
                 }
-                _ => reader.skip_value()?,
+                _ => reader
+                    .skip_value()
+                    .change_context(JoseError::MalformedToken)?,
             }
         }
         Ok(JwkSet {
-            keys: keys.ok_or(JoseError::InvalidKey)?,
+            keys: keys
+                .ok_or_else(|| Report::new(JsonError::MissingField))
+                .change_context(JoseError::InvalidKey)?,
         })
     }
 }
 
-fn read_jwk_array(reader: &mut JsonReader<'_>) -> Result<Vec<Jwk>, JoseError> {
+fn read_jwk_array(reader: &mut JsonReader<'_>) -> JoseResult<Vec<Jwk>> {
     let input = reader.input_bytes();
     let start = reader.current_pos();
     if input.get(start) != Some(&b'[') {
-        return Err(JoseError::InvalidToken("expected array"));
+        return Err(
+            Report::new(JsonError::ExpectedStringOrArray).change_context(JoseError::MalformedToken)
+        );
     }
 
-    // Skip past the array in the outer reader, then parse each element
-    reader.skip_value()?;
+    reader
+        .skip_value()
+        .change_context(JoseError::MalformedToken)?;
     let end = reader.current_pos();
     let array_bytes = &input[start..end];
 
@@ -379,7 +455,6 @@ fn read_jwk_array(reader: &mut JsonReader<'_>) -> Result<Vec<Jwk>, JoseError> {
             pos += 1;
             continue;
         }
-        // Find the extent of this object
         let obj_start = pos;
         let mut depth = 0u32;
         loop {
@@ -409,7 +484,10 @@ fn read_jwk_array(reader: &mut JsonReader<'_>) -> Result<Vec<Jwk>, JoseError> {
                     }
                 }
                 Some(_) => pos += 1,
-                None => return Err(JoseError::InvalidToken("unterminated array")),
+                None => {
+                    return Err(Report::new(JsonError::UnterminatedJson)
+                        .change_context(JoseError::MalformedToken));
+                }
             }
         }
         result.push(Jwk::from_json_bytes(&array_bytes[obj_start..pos])?);

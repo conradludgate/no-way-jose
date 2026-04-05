@@ -2,8 +2,10 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use base64ct::{Base64UrlUnpadded, Encoding};
+use error_stack::ResultExt;
 
-use crate::JoseError;
+use crate::JoseResult;
+use crate::error::JoseError;
 
 #[must_use]
 pub fn encode(bytes: &[u8]) -> String {
@@ -11,7 +13,7 @@ pub fn encode(bytes: &[u8]) -> String {
 }
 
 /// # Errors
-/// Returns [`crate::JoseError::Base64DecodeError`] if the input is not valid base64url.
-pub fn decode(s: &str) -> Result<Vec<u8>, JoseError> {
-    Base64UrlUnpadded::decode_vec(s).map_err(|_| JoseError::Base64DecodeError)
+/// Returns [`JoseError::Base64Decode`] if the input is not valid base64url.
+pub fn decode(s: &str) -> JoseResult<Vec<u8>> {
+    Base64UrlUnpadded::decode_vec(s).change_context(JoseError::Base64Decode)
 }

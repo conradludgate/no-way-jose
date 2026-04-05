@@ -1,6 +1,7 @@
+use error_stack::Report;
 use graviola::aead::AesGcm;
 use no_way_jose_core::__private::Sealed;
-use no_way_jose_core::JoseError;
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     ContentDecryptor, ContentEncryptor, EncryptionOutput, JweContentEncryption,
 };
@@ -21,19 +22,15 @@ macro_rules! aes_gcm_algorithm {
         }
 
         impl ContentEncryptor for $name {
-            fn encrypt(
-                cek: &[u8],
-                aad: &[u8],
-                plaintext: &[u8],
-            ) -> Result<EncryptionOutput, JoseError> {
+            fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> JoseResult<EncryptionOutput> {
                 if cek.len() != $key_len {
-                    return Err(JoseError::InvalidKey);
+                    return Err(Report::new(JoseError::InvalidKey));
                 }
 
                 let cipher = AesGcm::new(cek);
 
                 let mut iv = [0u8; 12];
-                graviola::random::fill(&mut iv).map_err(|_| JoseError::CryptoError)?;
+                graviola::random::fill(&mut iv).map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let mut ciphertext = plaintext.to_vec();
                 let mut tag = [0u8; 16];
@@ -54,12 +51,12 @@ macro_rules! aes_gcm_algorithm {
                 aad: &[u8],
                 ciphertext: &[u8],
                 tag: &[u8],
-            ) -> Result<Vec<u8>, JoseError> {
+            ) -> JoseResult<Vec<u8>> {
                 if cek.len() != $key_len {
-                    return Err(JoseError::InvalidKey);
+                    return Err(Report::new(JoseError::InvalidKey));
                 }
                 if iv.len() != 12 {
-                    return Err(JoseError::InvalidToken("invalid IV length"));
+                    return Err(Report::new(JoseError::MalformedToken));
                 }
                 let iv: [u8; 12] = {
                     let mut arr = [0u8; 12];
@@ -71,7 +68,7 @@ macro_rules! aes_gcm_algorithm {
                 let mut plaintext = ciphertext.to_vec();
                 cipher
                     .decrypt(&iv, aad, &mut plaintext, tag)
-                    .map_err(|_| JoseError::CryptoError)?;
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
                 Ok(plaintext)
             }
         }

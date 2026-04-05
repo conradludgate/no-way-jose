@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 no-way-jose-core = { workspace = true }
+error-stack = { workspace = true }
 pbkdf2 = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }

@@ -14,9 +14,10 @@ use alloc::vec::Vec;
 
 use aes_gcm::aead::Aead;
 use aes_gcm::{KeyInit, Nonce};
+use error_stack::Report;
 pub use no_way_jose_core;
 use no_way_jose_core::__private::Sealed;
-use no_way_jose_core::JoseError;
+use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     ContentDecryptor, ContentEncryptor, EncryptionOutput, JweContentEncryption,
 };
@@ -37,15 +38,12 @@ macro_rules! aes_gcm_algorithm {
         }
 
         impl ContentEncryptor for $name {
-            fn encrypt(
-                cek: &[u8],
-                aad: &[u8],
-                plaintext: &[u8],
-            ) -> Result<EncryptionOutput, JoseError> {
-                let cipher = <$cipher>::new_from_slice(cek).map_err(|_| JoseError::InvalidKey)?;
+            fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> JoseResult<EncryptionOutput> {
+                let cipher = <$cipher>::new_from_slice(cek)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
 
                 let mut iv = [0u8; 12];
-                getrandom::fill(&mut iv).map_err(|_| JoseError::CryptoError)?;
+                getrandom::fill(&mut iv).map_err(|_| Report::new(JoseError::CryptoError))?;
                 let nonce = Nonce::from(iv);
 
                 let payload = aes_gcm::aead::Payload {
@@ -54,7 +52,7 @@ macro_rules! aes_gcm_algorithm {
                 };
                 let ciphertext_with_tag = cipher
                     .encrypt(&nonce, payload)
-                    .map_err(|_| JoseError::CryptoError)?;
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let tag_start = ciphertext_with_tag.len() - 16;
                 let ciphertext = ciphertext_with_tag[..tag_start].to_vec();
@@ -75,10 +73,11 @@ macro_rules! aes_gcm_algorithm {
                 aad: &[u8],
                 ciphertext: &[u8],
                 tag: &[u8],
-            ) -> Result<Vec<u8>, JoseError> {
-                let cipher = <$cipher>::new_from_slice(cek).map_err(|_| JoseError::InvalidKey)?;
+            ) -> JoseResult<Vec<u8>> {
+                let cipher = <$cipher>::new_from_slice(cek)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 if iv.len() != 12 {
-                    return Err(JoseError::InvalidToken("invalid IV length"));
+                    return Err(Report::new(JoseError::MalformedToken));
                 }
                 #[allow(deprecated)]
                 let nonce = Nonce::from_slice(iv);
@@ -93,7 +92,7 @@ macro_rules! aes_gcm_algorithm {
                 };
                 cipher
                     .decrypt(nonce, payload)
-                    .map_err(|_| JoseError::CryptoError)
+                    .map_err(|_| Report::new(JoseError::CryptoError))
             }
         }
     };

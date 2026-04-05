@@ -324,6 +324,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "error-stack"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99a1a66f27cc1b82d6b8c2d24b3b1e90e6e67004a448081bbe58bd537f72a7c8"
+dependencies = [
+ "rustc_version",
+]
+
+[[package]]
 name = "fiat-crypto"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -541,6 +550,7 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "cbc",
+ "error-stack",
  "getrandom 0.4.2",
  "hmac",
  "no-way-jose-core",
@@ -553,6 +563,7 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "aes-gcm",
+ "error-stack",
  "getrandom 0.4.2",
  "no-way-jose-core",
 ]
@@ -564,6 +575,7 @@ dependencies = [
  "aes",
  "aes-gcm",
  "base64ct",
+ "error-stack",
  "getrandom 0.4.2",
  "no-way-jose-core",
 ]
@@ -573,6 +585,7 @@ name = "no-way-jose-aes-kw"
 version = "0.1.0"
 dependencies = [
  "aes-kw",
+ "error-stack",
  "getrandom 0.4.2",
  "no-way-jose-core",
 ]
@@ -581,6 +594,7 @@ dependencies = [
 name = "no-way-jose-claims"
 version = "0.1.0"
 dependencies = [
+ "error-stack",
  "jiff",
  "no-way-jose-core",
 ]
@@ -590,6 +604,7 @@ name = "no-way-jose-core"
 version = "0.1.0"
 dependencies = [
  "base64ct",
+ "error-stack",
 ]
 
 [[package]]
@@ -598,6 +613,7 @@ version = "0.1.0"
 dependencies = [
  "aes-kw",
  "base64ct",
+ "error-stack",
  "getrandom 0.4.2",
  "no-way-jose-core",
  "p256",
@@ -610,6 +626,7 @@ dependencies = [
 name = "no-way-jose-ecdsa"
 version = "0.1.0"
 dependencies = [
+ "error-stack",
  "no-way-jose-core",
  "p256",
  "p384",
@@ -621,6 +638,7 @@ name = "no-way-jose-eddsa"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
+ "error-stack",
  "no-way-jose-core",
 ]
 
@@ -628,6 +646,7 @@ dependencies = [
 name = "no-way-jose-graviola"
 version = "0.1.0"
 dependencies = [
+ "error-stack",
  "graviola",
  "no-way-jose-core",
 ]
@@ -636,6 +655,7 @@ dependencies = [
 name = "no-way-jose-hmac"
 version = "0.1.0"
 dependencies = [
+ "error-stack",
  "hmac",
  "no-way-jose-core",
  "sha2",
@@ -647,6 +667,7 @@ version = "0.1.0"
 dependencies = [
  "aes-kw",
  "base64ct",
+ "error-stack",
  "getrandom 0.4.2",
  "hmac",
  "no-way-jose-core",
@@ -658,6 +679,7 @@ dependencies = [
 name = "no-way-jose-rsa"
 version = "0.1.0"
 dependencies = [
+ "error-stack",
  "getrandom 0.4.2",
  "no-way-jose-core",
  "rsa",
@@ -670,6 +692,7 @@ name = "no-way-jose-test"
 version = "0.1.0"
 dependencies = [
  "base64ct",
+ "error-stack",
  "getrandom 0.4.2",
  "graviola",
  "no-way-jose-aes-cbc-hs",

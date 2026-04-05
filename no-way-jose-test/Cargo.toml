@@ -10,6 +10,7 @@ no-way-jose-aes-gcm = { workspace = true }
 no-way-jose-aes-gcm-kw = { workspace = true }
 no-way-jose-aes-kw = { workspace = true }
 no-way-jose-core = { workspace = true }
+error-stack = { workspace = true }
 no-way-jose-ecdh-es = { workspace = true }
 no-way-jose-ecdsa = { workspace = true }
 no-way-jose-eddsa = { workspace = true }

@@ -1,13 +1,14 @@
 use alloc::vec::Vec;
 
-use no_way_jose_core::JoseError;
+use error_stack::Report;
+use no_way_jose_core::error::{JoseError, JoseResult};
 use p256::elliptic_curve::sec1::ToSec1Point;
 
 use crate::epk::EpkFields;
 
 pub(crate) fn p256_ecdh_ephemeral(
     recipient_pub: &p256::PublicKey,
-) -> Result<(Vec<u8>, EpkFields), JoseError> {
+) -> JoseResult<(Vec<u8>, EpkFields)> {
     use p256::elliptic_curve::Generate;
     let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
     let ephemeral_secret = p256::ecdh::EphemeralSecret::generate_from_rng(&mut rng);
@@ -18,8 +19,16 @@ pub(crate) fn p256_ecdh_ephemeral(
     let epk = EpkFields {
         kty: "EC",
         crv: "P-256",
-        x: point.x().ok_or(JoseError::CryptoError)?.to_vec(),
-        y: Some(point.y().ok_or(JoseError::CryptoError)?.to_vec()),
+        x: point
+            .x()
+            .ok_or(Report::new(JoseError::CryptoError))?
+            .to_vec(),
+        y: Some(
+            point
+                .y()
+                .ok_or(Report::new(JoseError::CryptoError))?
+                .to_vec(),
+        ),
     };
 
     Ok((shared_secret.raw_secret_bytes().to_vec(), epk))
@@ -36,7 +45,7 @@ pub(crate) fn p256_ecdh_decrypt(
 
 pub(crate) fn p384_ecdh_ephemeral(
     recipient_pub: &p384::PublicKey,
-) -> Result<(Vec<u8>, EpkFields), JoseError> {
+) -> JoseResult<(Vec<u8>, EpkFields)> {
     use p256::elliptic_curve::Generate;
     let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
     let ephemeral_secret = p384::ecdh::EphemeralSecret::generate_from_rng(&mut rng);
@@ -47,8 +56,16 @@ pub(crate) fn p384_ecdh_ephemeral(
     let epk = EpkFields {
         kty: "EC",
         crv: "P-384",
-        x: point.x().ok_or(JoseError::CryptoError)?.to_vec(),
-        y: Some(point.y().ok_or(JoseError::CryptoError)?.to_vec()),
+        x: point
+            .x()
+            .ok_or(Report::new(JoseError::CryptoError))?
+            .to_vec(),
+        y: Some(
+            point
+                .y()
+                .ok_or(Report::new(JoseError::CryptoError))?
+                .to_vec(),
+        ),
     };
 
     Ok((shared_secret.raw_secret_bytes().to_vec(), epk))

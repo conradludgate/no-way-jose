@@ -98,6 +98,32 @@ The JSON parser is intentionally strict: whitespace between tokens is rejected.
 This is a deliberate design choice — JWTs should use compact JSON without
 extraneous whitespace.
 
+### Error handling
+
+All fallible operations return `JoseResult<T>`, which is
+`Result<T, error_stack::Report<JoseError>>`. The `error-stack` library
+(used with `default-features = false` for `no_std` compatibility) provides
+structured error context chains without losing underlying causes.
+
+```
+JoseError               Top-level context (payload-less variants)
+  ├─ Base64Decode       base64url decoding failed
+  ├─ MalformedToken     structural/format error (wraps TokenFormatError or JsonError)
+  ├─ AlgorithmMismatch  header alg/enc doesn't match expected type
+  ├─ HeaderValidation   wraps HeaderError (TypMismatch, CtyMismatch, UnsupportedCritExtension)
+  ├─ InvalidKey         wrong key type/length
+  ├─ CryptoError        signature verification or decryption failed
+  ├─ ClaimsValidation   wraps ClaimsError (Expired, NotYetValid, IssuerMismatch, etc.)
+  └─ PayloadError       FromJson deserialization failed
+```
+
+Errors propagate via `change_context(JoseError::...)` at module boundaries.
+Underlying errors (e.g. from `base64ct`, crypto libraries) are attached as
+displayable context but not exposed in the public API, avoiding semver coupling.
+
+The `Validate` trait returns bare `JoseError` (not `Report<JoseError>`) so
+user-facing validators don't need to depend on `error-stack`.
+
 ### JWE header parameter injection
 
 Some JWE key management algorithms (AES-GCM-KW, ECDH-ES, PBES2) produce
@@ -123,7 +149,7 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] `ToJson` / `FromJson` (custom, no serde dependency)
 - [x] `JsonWriter::raw_value` (for header parameter injection)
 - [x] `Validate` / `NoValidation`
-- [x] `JoseError`
+- [x] `JoseError` / `HeaderError` / `ClaimsError` / `JsonError` / `TokenFormatError` (structured errors via `error-stack`)
 - [x] `Jwk` / `JwkSet` / `JwkParams` (RFC 7517)
 - [x] `ToJwk` / `FromJwk` / `JwkKeyConvert<K>` (blanket impl on `Key<A, K>`)
 - [x] `Jwk::thumbprint_canonical_json()` (RFC 7638)
@@ -277,6 +303,7 @@ is not yet available). Key dependency versions as of the latest update:
 | `aes-kw` | 0.3.0-rc.2 | `KwAes{128,192,256}` types |
 | `cbc` | 0.2.0-rc.4 | |
 | `ed25519-dalek` | 3.0.0-pre.6 | |
+| `error-stack` | 0.7 | Structured error context chains (`no_std`, `default-features = false`) |
 | `getrandom` | 0.4 | Provides `SysRng` (replaces `OsRng`) |
 | `hmac` | 0.13.0-rc.6 | |
 | `p256` / `p384` | 0.14.0-rc.7/8 | |
