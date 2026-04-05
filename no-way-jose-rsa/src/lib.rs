@@ -1,8 +1,8 @@
-//! RSA PKCS#1 v1.5 JWS algorithm: [`Rs256`].
+//! RSA algorithms for JWS signing ([`Rs256`]) and JWE key management
+//! ([`Rsa1_5`], [`RsaOaep`], [`RsaOaep256`]).
 //!
-//! RSA is an asymmetric algorithm. Keys are constructed from the `rsa` crate's
-//! [`rsa::RsaPrivateKey`] and [`rsa::RsaPublicKey`] types via [`signing_key`]
-//! and [`verifying_key`].
+//! Keys are constructed from the `rsa` crate's [`rsa::RsaPrivateKey`] and
+//! [`rsa::RsaPublicKey`] types.
 
 pub use no_way_jose_core;
 
@@ -72,4 +72,124 @@ pub fn verifying_key(public_key: rsa::RsaPublicKey) -> VerifyingKey {
 /// Derive the RS256 verifying key from a signing key.
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(rsa::RsaPublicKey::from(key.inner()))
+}
+
+// ====================================================================
+// JWE key management algorithms
+// ====================================================================
+
+use no_way_jose_core::__private::Sealed;
+use no_way_jose_core::jwe_algorithm::{JweKeyManagement, KeyDecryptor, KeyEncryptor};
+use no_way_jose_core::key::{Decrypting, Encrypting};
+
+macro_rules! rsa_kw_algorithm {
+    ($name:ident, $alg:literal, $pad_encrypt:expr, $pad_decrypt:expr, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Clone, Copy, Debug, Default)]
+        pub struct $name;
+
+        impl Sealed for $name {}
+
+        impl JweKeyManagement for $name {
+            const ALG: &'static str = $alg;
+        }
+
+        impl HasKey<Encrypting> for $name {
+            type Key = rsa::RsaPublicKey;
+        }
+
+        impl HasKey<Decrypting> for $name {
+            type Key = rsa::RsaPrivateKey;
+        }
+
+        impl KeyEncryptor for $name {
+            fn encrypt_cek(
+                key: &rsa::RsaPublicKey,
+                cek_len: usize,
+            ) -> Result<(Vec<u8>, Vec<u8>), JoseError> {
+                let mut cek = vec![0u8; cek_len];
+                getrandom::fill(&mut cek).map_err(|_| JoseError::CryptoError)?;
+
+                let mut rng = rsa::rand_core::OsRng;
+                let encrypted_key = key
+                    .encrypt(&mut rng, $pad_encrypt, &cek)
+                    .map_err(|_| JoseError::CryptoError)?;
+
+                Ok((encrypted_key, cek))
+            }
+        }
+
+        impl KeyDecryptor for $name {
+            fn decrypt_cek(
+                key: &rsa::RsaPrivateKey,
+                encrypted_key: &[u8],
+            ) -> Result<Vec<u8>, JoseError> {
+                key.decrypt($pad_decrypt, encrypted_key)
+                    .map_err(|_| JoseError::CryptoError)
+            }
+        }
+    };
+}
+
+rsa_kw_algorithm!(
+    Rsa1_5,
+    "RSA1_5",
+    rsa::Pkcs1v15Encrypt,
+    rsa::Pkcs1v15Encrypt,
+    "RSA PKCS#1 v1.5 key encryption (RFC 7518 §4.2). Deprecated; prefer RSA-OAEP."
+);
+
+rsa_kw_algorithm!(
+    RsaOaep,
+    "RSA-OAEP",
+    rsa::Oaep::new::<sha1::Sha1>(),
+    rsa::Oaep::new::<sha1::Sha1>(),
+    "RSA-OAEP with SHA-1 key encryption (RFC 7518 §4.3)."
+);
+
+rsa_kw_algorithm!(
+    RsaOaep256,
+    "RSA-OAEP-256",
+    rsa::Oaep::new::<sha2::Sha256>(),
+    rsa::Oaep::new::<sha2::Sha256>(),
+    "RSA-OAEP with SHA-256 key encryption (RFC 7518 §4.3)."
+);
+
+pub mod rsa1_5 {
+    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Rsa1_5>;
+    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::Rsa1_5>;
+
+    pub fn encryption_key(public_key: rsa::RsaPublicKey) -> EncryptionKey {
+        no_way_jose_core::key::Key::new(public_key)
+    }
+
+    pub fn decryption_key(private_key: rsa::RsaPrivateKey) -> DecryptionKey {
+        no_way_jose_core::key::Key::new(private_key)
+    }
+}
+
+pub mod rsa_oaep {
+    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::RsaOaep>;
+    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::RsaOaep>;
+
+    pub fn encryption_key(public_key: rsa::RsaPublicKey) -> EncryptionKey {
+        no_way_jose_core::key::Key::new(public_key)
+    }
+
+    pub fn decryption_key(private_key: rsa::RsaPrivateKey) -> DecryptionKey {
+        no_way_jose_core::key::Key::new(private_key)
+    }
+}
+
+pub mod rsa_oaep_256 {
+    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::RsaOaep256>;
+    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::RsaOaep256>;
+
+    pub fn encryption_key(public_key: rsa::RsaPublicKey) -> EncryptionKey {
+        no_way_jose_core::key::Key::new(public_key)
+    }
+
+    pub fn decryption_key(private_key: rsa::RsaPrivateKey) -> DecryptionKey {
+        no_way_jose_core::key::Key::new(private_key)
+    }
 }

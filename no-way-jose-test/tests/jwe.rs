@@ -7,6 +7,7 @@ use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, RawJson, ToJson};
 use no_way_jose_core::purpose::Encrypted;
 use no_way_jose_core::tokens::{CompactJwe, UnsealedToken};
 use no_way_jose_core::validation::NoValidation;
+use no_way_jose_rsa::{RsaOaep, RsaOaep256};
 
 #[derive(Debug, PartialEq)]
 struct Claims {
@@ -469,5 +470,120 @@ fn a128kw_a128cbc_hs256_roundtrip() {
     let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
 
     assert_eq!(unsealed.claims.sub, "kw-cbc");
+    assert!(unsealed.claims.admin);
+}
+
+// ====================================================================
+// RSA key management tests
+// ====================================================================
+
+fn test_rsa_keypair() -> (rsa::RsaPublicKey, rsa::RsaPrivateKey) {
+    use rsa::rand_core::OsRng;
+    let private_key = rsa::RsaPrivateKey::new(&mut OsRng, 2048).unwrap();
+    let public_key = rsa::RsaPublicKey::from(&private_key);
+    (public_key, private_key)
+}
+
+#[test]
+fn rsa_oaep_a256gcm_roundtrip() {
+    let (pub_key, priv_key) = test_rsa_keypair();
+    let enc_key = no_way_jose_rsa::rsa_oaep::encryption_key(pub_key);
+    let dec_key = no_way_jose_rsa::rsa_oaep::decryption_key(priv_key);
+
+    let claims = Claims {
+        sub: "rsa-oaep".into(),
+        admin: true,
+    };
+
+    let token = UnsealedToken::<Encrypted<RsaOaep, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let serialized = compact.to_string();
+
+    let parsed: CompactJwe<RsaOaep, A256Gcm, Claims> = serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "rsa-oaep");
+    assert!(unsealed.claims.admin);
+}
+
+#[test]
+fn rsa_oaep256_a128gcm_roundtrip() {
+    let (pub_key, priv_key) = test_rsa_keypair();
+    let enc_key = no_way_jose_rsa::rsa_oaep_256::encryption_key(pub_key);
+    let dec_key = no_way_jose_rsa::rsa_oaep_256::decryption_key(priv_key);
+
+    let claims = Claims {
+        sub: "rsa-oaep-256".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<RsaOaep256, A128Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let serialized = compact.to_string();
+
+    let parsed: CompactJwe<RsaOaep256, A128Gcm, Claims> = serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "rsa-oaep-256");
+    assert!(!unsealed.claims.admin);
+}
+
+#[test]
+fn rsa_oaep_wrong_key_fails() {
+    let (pub_key, _) = test_rsa_keypair();
+    let (_, wrong_priv) = test_rsa_keypair();
+    let enc_key = no_way_jose_rsa::rsa_oaep::encryption_key(pub_key);
+    let wrong_dec = no_way_jose_rsa::rsa_oaep::decryption_key(wrong_priv);
+
+    let claims = Claims {
+        sub: "wrong".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<RsaOaep, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let result = compact.decrypt(&wrong_dec, &no_validation());
+    assert!(result.is_err());
+}
+
+#[test]
+fn rsa_oaep_header_correct() {
+    let (pub_key, _) = test_rsa_keypair();
+    let enc_key = no_way_jose_rsa::rsa_oaep::encryption_key(pub_key);
+
+    let claims = Claims {
+        sub: "hdr".into(),
+        admin: false,
+    };
+
+    let token = UnsealedToken::<Encrypted<RsaOaep, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+
+    let header = compact.header().unwrap();
+    assert_eq!(header.alg, "RSA-OAEP");
+    assert_eq!(header.enc.as_deref(), Some("A256GCM"));
+}
+
+#[test]
+fn rsa1_5_a128cbc_hs256_roundtrip() {
+    let (pub_key, priv_key) = test_rsa_keypair();
+    let enc_key = no_way_jose_rsa::rsa1_5::encryption_key(pub_key);
+    let dec_key = no_way_jose_rsa::rsa1_5::decryption_key(priv_key);
+
+    let claims = Claims {
+        sub: "rsa15".into(),
+        admin: true,
+    };
+
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_rsa::Rsa1_5, A128CbcHs256>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let serialized = compact.to_string();
+
+    let parsed: CompactJwe<no_way_jose_rsa::Rsa1_5, A128CbcHs256, Claims> =
+        serialized.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+
+    assert_eq!(unsealed.claims.sub, "rsa15");
     assert!(unsealed.claims.admin);
 }
