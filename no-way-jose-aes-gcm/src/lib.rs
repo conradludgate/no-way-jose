@@ -10,13 +10,11 @@
 
 extern crate alloc;
 
-pub use no_way_jose_core;
-
 use alloc::vec::Vec;
 
 use aes_gcm::aead::Aead;
 use aes_gcm::{KeyInit, Nonce};
-
+pub use no_way_jose_core;
 use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::jwe_algorithm::{

@@ -13,9 +13,9 @@
 
 extern crate alloc;
 
-pub use no_way_jose_core;
-
 use alloc::vec::Vec;
+
+pub use no_way_jose_core;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::jwk::{EcParams, Jwk, JwkKeyConvert, JwkParams};

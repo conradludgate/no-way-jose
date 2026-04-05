@@ -1,8 +1,7 @@
+use graviola::hashing::hmac::Hmac;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
-
-use graviola::hashing::hmac::Hmac;
 
 #[derive(Clone)]
 pub struct HmacKey(Vec<u8>);

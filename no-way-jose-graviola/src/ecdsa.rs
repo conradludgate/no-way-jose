@@ -1,9 +1,8 @@
+use graviola::hashing::{Sha256, Sha384};
+use graviola::signing::ecdsa;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
-
-use graviola::hashing::{Sha256, Sha384};
-use graviola::signing::ecdsa;
 
 macro_rules! ecdsa_algorithm {
     ($name:ident, $alg:literal, $curve:ty, $hash:ty, $sig_len:literal, $doc:literal) => {

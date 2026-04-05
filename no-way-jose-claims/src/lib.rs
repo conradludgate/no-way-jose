@@ -18,10 +18,9 @@
 #![warn(clippy::pedantic)]
 
 pub use jiff;
-pub use no_way_jose_core::validation::Validate;
-
 use no_way_jose_core::JoseError;
 use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, ToJson};
+pub use no_way_jose_core::validation::Validate;
 
 /// Registered JWT claims per RFC 7519 Section 4.1.
 #[derive(Default, Clone, Debug)]

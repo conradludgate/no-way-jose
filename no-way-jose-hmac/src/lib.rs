@@ -13,10 +13,10 @@
 
 extern crate alloc;
 
-pub use no_way_jose_core;
-
 use alloc::vec::Vec;
+
 use hmac::{Hmac, KeyInit, Mac};
+pub use no_way_jose_core;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OctParams};

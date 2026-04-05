@@ -2,7 +2,6 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use base64ct::{Base64UrlUnpadded, Encoding};
-
 use no_way_jose_core::JoseError;
 use no_way_jose_core::json::{JsonReader, JsonWriter};
 

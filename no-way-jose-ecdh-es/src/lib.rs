@@ -9,12 +9,11 @@
 
 extern crate alloc;
 
-pub use no_way_jose_core;
-
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
+pub use no_way_jose_core;
 use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::jwe_algorithm::{

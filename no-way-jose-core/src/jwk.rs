@@ -31,9 +31,8 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::JoseError;
-use crate::base64url;
 use crate::json::{JsonReader, JsonWriter};
+use crate::{JoseError, base64url};
 
 /// Intended use of a public key.
 #[derive(Clone, Debug, PartialEq, Eq)]

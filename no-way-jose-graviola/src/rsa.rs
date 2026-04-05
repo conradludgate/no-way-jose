@@ -1,8 +1,7 @@
+use graviola::signing::rsa;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
-
-use graviola::signing::rsa;
 
 macro_rules! rsa_algorithm {
     ($name:ident, $alg:literal, $sign_fn:ident, $verify_fn:ident, $doc:literal) => {
@@ -95,9 +94,8 @@ pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
 }
 
 pub mod ps256 {
-    use no_way_jose_core::JoseError;
-
     use graviola::signing::rsa;
+    use no_way_jose_core::JoseError;
 
     pub type SigningKey = no_way_jose_core::SigningKey<super::Ps256>;
     pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Ps256>;

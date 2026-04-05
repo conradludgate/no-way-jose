@@ -1,10 +1,9 @@
+use graviola::aead::AesGcm;
 use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::jwe_algorithm::{
     ContentDecryptor, ContentEncryptor, EncryptionOutput, JweContentEncryption,
 };
-
-use graviola::aead::AesGcm;
 
 macro_rules! aes_gcm_algorithm {
     ($name:ident, $enc:literal, $key_len:literal, $doc:literal) => {

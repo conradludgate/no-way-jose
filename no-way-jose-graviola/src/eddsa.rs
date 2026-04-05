@@ -1,8 +1,7 @@
+use graviola::signing::eddsa;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
-
-use graviola::signing::eddsa;
 
 /// `EdDSA`: Edwards-curve Digital Signature Algorithm using Ed25519 (graviola backend).
 pub struct EdDsa;

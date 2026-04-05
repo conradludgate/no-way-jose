@@ -1,8 +1,7 @@
 use alloc::vec::Vec;
 
-use p256::elliptic_curve::sec1::ToSec1Point;
-
 use no_way_jose_core::JoseError;
+use p256::elliptic_curve::sec1::ToSec1Point;
 
 use crate::epk::EpkFields;
 

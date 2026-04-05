@@ -10,8 +10,6 @@
 
 extern crate alloc;
 
-pub use no_way_jose_core;
-
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -20,6 +18,7 @@ use aes_gcm::aead::Aead;
 use aes_gcm::aead::consts::U12;
 use aes_gcm::{AesGcm, KeyInit, Nonce};
 use base64ct::{Base64UrlUnpadded, Encoding};
+pub use no_way_jose_core;
 
 type Aes192Gcm = AesGcm<aes::Aes192, U12>;
 

@@ -9,14 +9,12 @@
 
 extern crate alloc;
 
-pub use no_way_jose_core;
-
 use alloc::vec::Vec;
 
 use cbc::cipher::block_padding::Pkcs7;
 use cbc::cipher::{BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
 use hmac::{KeyInit, Mac};
-
+pub use no_way_jose_core;
 use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::JoseError;
 use no_way_jose_core::jwe_algorithm::{
