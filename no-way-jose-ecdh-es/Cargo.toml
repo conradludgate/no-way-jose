@@ -7,6 +7,7 @@ edition = "2024"
 no-way-jose-core = { workspace = true }
 p256 = { workspace = true }
 p384 = { workspace = true }
+x25519-dalek = { workspace = true, features = ["static_secrets"] }
 aes-kw = { workspace = true }
 sha2 = { workspace = true }
 base64ct = { workspace = true }

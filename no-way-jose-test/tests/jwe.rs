@@ -797,6 +797,35 @@ fn ecdh_es_header_contains_epk() {
     assert!(header_str.contains("\"P-256\""));
 }
 
+#[test]
+fn ecdh_es_x25519_a256gcm_roundtrip() {
+    let recipient_secret = x25519_dalek::StaticSecret::random_from_rng(
+        &mut getrandom::rand_core::UnwrapErr(getrandom::SysRng),
+    );
+    let recipient_public = x25519_dalek::PublicKey::from(&recipient_secret);
+
+    let enc_key = no_way_jose_ecdh_es::ecdh_es::encryption_key(
+        no_way_jose_ecdh_es::EcPublicKey::X25519(recipient_public),
+    );
+    let dec_key = no_way_jose_ecdh_es::ecdh_es::decryption_key(
+        no_way_jose_ecdh_es::EcPrivateKey::X25519(recipient_secret),
+    );
+
+    let claims = Claims {
+        sub: "x25519".into(),
+        admin: true,
+    };
+    let token =
+        UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEs, A256Gcm>, Claims>::new(claims);
+    let compact = token.encrypt(&enc_key).unwrap();
+    let token_str = compact.to_string();
+
+    let parsed: CompactJwe<no_way_jose_ecdh_es::EcdhEs, A256Gcm, Claims> =
+        token_str.parse().unwrap();
+    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+    assert_eq!(unsealed.claims.sub, "x25519");
+}
+
 // ====================================================================
 // PBES2 tests
 // ====================================================================

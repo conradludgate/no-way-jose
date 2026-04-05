@@ -16,6 +16,7 @@ pub(crate) fn p256_ecdh_ephemeral(
 
     let point = ephemeral_public.to_sec1_point(false);
     let epk = EpkFields {
+        kty: "EC",
         crv: "P-256",
         x: point.x().ok_or(JoseError::CryptoError)?.to_vec(),
         y: Some(point.y().ok_or(JoseError::CryptoError)?.to_vec()),
@@ -44,6 +45,7 @@ pub(crate) fn p384_ecdh_ephemeral(
 
     let point = ephemeral_public.to_sec1_point(false);
     let epk = EpkFields {
+        kty: "EC",
         crv: "P-384",
         x: point.x().ok_or(JoseError::CryptoError)?.to_vec(),
         y: Some(point.y().ok_or(JoseError::CryptoError)?.to_vec()),
@@ -59,4 +61,29 @@ pub(crate) fn p384_ecdh_decrypt(
     let shared_secret =
         p384::ecdh::diffie_hellman(secret_key.to_nonzero_scalar(), peer_pub.as_affine());
     shared_secret.raw_secret_bytes().to_vec()
+}
+
+pub(crate) fn x25519_ecdh_ephemeral(
+    recipient_pub: &x25519_dalek::PublicKey,
+) -> (Vec<u8>, EpkFields) {
+    let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
+    let ephemeral_secret = x25519_dalek::EphemeralSecret::random_from_rng(&mut rng);
+    let ephemeral_public = x25519_dalek::PublicKey::from(&ephemeral_secret);
+    let shared_secret = ephemeral_secret.diffie_hellman(recipient_pub);
+
+    let epk = EpkFields {
+        kty: "OKP",
+        crv: "X25519",
+        x: ephemeral_public.as_bytes().to_vec(),
+        y: None,
+    };
+
+    (shared_secret.as_bytes().to_vec(), epk)
+}
+
+pub(crate) fn x25519_ecdh_decrypt(
+    secret_key: &x25519_dalek::StaticSecret,
+    peer_pub: &x25519_dalek::PublicKey,
+) -> Vec<u8> {
+    secret_key.diffie_hellman(peer_pub).as_bytes().to_vec()
 }

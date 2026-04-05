@@ -34,6 +34,7 @@ no-way-jose-graviola = { path = "no-way-jose-graviola", version = "0.1.0" }
 graviola = "0.3"
 base64ct = { version = "1", default-features = false, features = ["alloc"] }
 ed25519-dalek = { version = "3.0.0-pre.6", default-features = false }
+x25519-dalek = { version = "3.0.0-pre.6", default-features = false }
 hmac = { version = "0.13.0-rc.6", default-features = false }
 pbkdf2 = { version = "0.13.0-rc.9", default-features = false }
 p256 = { version = "0.14.0-rc.7", default-features = false, features = ["ecdsa", "ecdh"] }

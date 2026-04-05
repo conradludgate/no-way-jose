@@ -23,6 +23,7 @@ p256 = { workspace = true }
 p384 = { workspace = true }
 p521 = { workspace = true }
 getrandom = { workspace = true }
+x25519-dalek = { workspace = true, features = ["static_secrets"] }
 graviola = { workspace = true }
 rsa = { workspace = true }
 sha2 = { workspace = true }
