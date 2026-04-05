@@ -1,13 +1,17 @@
 /// Claims validation tests.
-use jose_core::json::{FromJson, ToJson};
-use jose_core::validation::Validate;
 use jose_claims::jiff;
 use jose_claims::{ForAudience, FromIssuer, HasExpiry, RegisteredClaims, Time};
+use jose_core::json::{FromJson, ToJson};
+use jose_core::validation::Validate;
+
+fn ts(secs: i64) -> jiff::Timestamp {
+    jiff::Timestamp::from_second(secs).unwrap()
+}
 
 #[test]
 fn has_expiry_passes_when_present() {
     let claims = RegisteredClaims {
-        exp: Some(9999999999),
+        exp: Some(ts(9999999999)),
         ..Default::default()
     };
     assert!(HasExpiry.validate(&claims).is_ok());
@@ -21,33 +25,30 @@ fn has_expiry_fails_when_missing() {
 
 #[test]
 fn time_rejects_expired() {
-    let past = jiff::Timestamp::from_second(1000).unwrap();
     let claims = RegisteredClaims {
-        exp: Some(500),
+        exp: Some(ts(500)),
         ..Default::default()
     };
-    assert!(Time::valid_at(past).validate(&claims).is_err());
+    assert!(Time::valid_at(ts(1000)).validate(&claims).is_err());
 }
 
 #[test]
 fn time_accepts_valid() {
-    let now = jiff::Timestamp::from_second(1000).unwrap();
     let claims = RegisteredClaims {
-        exp: Some(2000),
-        nbf: Some(500),
+        exp: Some(ts(2000)),
+        nbf: Some(ts(500)),
         ..Default::default()
     };
-    assert!(Time::valid_at(now).validate(&claims).is_ok());
+    assert!(Time::valid_at(ts(1000)).validate(&claims).is_ok());
 }
 
 #[test]
 fn time_rejects_not_yet_valid() {
-    let early = jiff::Timestamp::from_second(100).unwrap();
     let claims = RegisteredClaims {
-        nbf: Some(500),
+        nbf: Some(ts(500)),
         ..Default::default()
     };
-    assert!(Time::valid_at(early).validate(&claims).is_err());
+    assert!(Time::valid_at(ts(100)).validate(&claims).is_err());
 }
 
 #[test]
@@ -103,14 +104,13 @@ fn composable_validators() {
     let claims = RegisteredClaims {
         iss: Some("example.com".into()),
         aud: Some(vec!["my-app".into()]),
-        exp: Some(9999999999),
-        nbf: Some(0),
+        exp: Some(ts(9999999999)),
+        nbf: Some(ts(0)),
         ..Default::default()
     };
 
-    let now = jiff::Timestamp::from_second(1000).unwrap();
     let v = HasExpiry
-        .and_then(Time::valid_at(now))
+        .and_then(Time::valid_at(ts(1000)))
         .and_then(FromIssuer("example.com"))
         .and_then(ForAudience("my-app"));
 

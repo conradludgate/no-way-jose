@@ -5,18 +5,23 @@ use jose_core::JoseError;
 use jose_core::json::{FromJson, JsonReader, JsonWriter, ToJson};
 
 /// Registered JWT claims per RFC 7519 Section 4.1.
-///
-/// Timestamps are NumericDate (seconds since epoch).
 #[derive(Default, Clone, Debug)]
 pub struct RegisteredClaims {
     pub iss: Option<String>,
     pub sub: Option<String>,
     /// RFC 7519 §4.1.3: may be a single string or an array of strings.
     pub aud: Option<Vec<String>>,
-    pub exp: Option<i64>,
-    pub nbf: Option<i64>,
-    pub iat: Option<i64>,
+    pub exp: Option<jiff::Timestamp>,
+    pub nbf: Option<jiff::Timestamp>,
+    pub iat: Option<jiff::Timestamp>,
     pub jti: Option<String>,
+}
+
+fn read_timestamp(
+    reader: &mut JsonReader,
+) -> Result<jiff::Timestamp, Box<dyn core::error::Error + Send + Sync>> {
+    let secs = reader.read_i64()?;
+    Ok(jiff::Timestamp::from_second(secs)?)
 }
 
 impl ToJson for RegisteredClaims {
@@ -32,13 +37,13 @@ impl ToJson for RegisteredClaims {
             w.string_or_array("aud", aud);
         }
         if let Some(exp) = self.exp {
-            w.number("exp", exp);
+            w.number("exp", exp.as_second());
         }
         if let Some(nbf) = self.nbf {
-            w.number("nbf", nbf);
+            w.number("nbf", nbf.as_second());
         }
         if let Some(iat) = self.iat {
-            w.number("iat", iat);
+            w.number("iat", iat.as_second());
         }
         if let Some(jti) = &self.jti {
             w.string("jti", jti);
@@ -56,9 +61,9 @@ impl FromJson for RegisteredClaims {
                 "iss" => claims.iss = Some(reader.read_string()?),
                 "sub" => claims.sub = Some(reader.read_string()?),
                 "aud" => claims.aud = Some(reader.read_string_or_string_array()?),
-                "exp" => claims.exp = Some(reader.read_i64()?),
-                "nbf" => claims.nbf = Some(reader.read_i64()?),
-                "iat" => claims.iat = Some(reader.read_i64()?),
+                "exp" => claims.exp = Some(read_timestamp(&mut reader)?),
+                "nbf" => claims.nbf = Some(read_timestamp(&mut reader)?),
+                "iat" => claims.iat = Some(read_timestamp(&mut reader)?),
                 "jti" => claims.jti = Some(reader.read_string()?),
                 _ => reader.skip_value()?,
             }
@@ -69,15 +74,13 @@ impl FromJson for RegisteredClaims {
 
 impl RegisteredClaims {
     pub fn new(now: jiff::Timestamp, ttl: jiff::SignedDuration) -> Self {
-        let now_secs = now.as_second();
-        let exp_secs = now.checked_add(ttl).expect("TTL overflow").as_second();
         Self {
             iss: None,
             sub: None,
             aud: None,
-            exp: Some(exp_secs),
-            nbf: Some(now_secs),
-            iat: Some(now_secs),
+            exp: Some(now.checked_add(ttl).expect("TTL overflow")),
+            nbf: Some(now),
+            iat: Some(now),
             jti: None,
         }
     }
@@ -118,20 +121,18 @@ impl Validate for HasExpiry {
 }
 
 pub struct Time {
-    now: i64,
+    now: jiff::Timestamp,
 }
 
 impl Time {
     pub fn valid_now() -> Self {
         Self {
-            now: jiff::Timestamp::now().as_second(),
+            now: jiff::Timestamp::now(),
         }
     }
 
     pub fn valid_at(ts: jiff::Timestamp) -> Self {
-        Self {
-            now: ts.as_second(),
-        }
+        Self { now: ts }
     }
 }
 
