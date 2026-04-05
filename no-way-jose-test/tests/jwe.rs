@@ -7,6 +7,7 @@ use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, RawJson, ToJson};
 use no_way_jose_core::purpose::Encrypted;
 use no_way_jose_core::tokens::{CompactJwe, UnsealedToken};
 use no_way_jose_core::validation::NoValidation;
+use no_way_jose_pbes2::Pbes2Hs512A256Kw;
 use no_way_jose_rsa::{RsaOaep, RsaOaep256};
 
 #[derive(Debug, PartialEq)]
@@ -896,4 +897,45 @@ fn pbes2_header_contains_p2s_and_p2c() {
     let header_str = core::str::from_utf8(&header_bytes).unwrap();
     assert!(header_str.contains("\"p2s\""));
     assert!(header_str.contains("\"p2c\""));
+}
+
+// ====================================================================
+// RFC 7520 test vectors
+// ====================================================================
+
+/// RFC 7520 Section 5.3 — PBES2-HS512+A256KW with A128CBC-HS256.
+/// Password from Figure 96: "entrap_o–peter_long–credit_tun" (EN DASH U+2013).
+const RFC7520_PBES2_TOKEN: &str = "\
+eyJhbGciOiJQQkVTMi1IUzUxMitBMjU2S1ciLCJwMnMiOiI4UTFTemluYXNSM3\
+hjaFl6NlpaY0hBIiwicDJjIjo4MTkyLCJjdHkiOiJqd2stc2V0K2pzb24iLCJl\
+bmMiOiJBMTI4Q0JDLUhTMjU2In0\
+.\
+d3qNhUWfqheyPp4H8sjOWsDYajoej4c5Je6rlUtFPWdgtURtmeDV1g\
+.\
+VBiCzVHNoLiR3F4V82uoTQ\
+.\
+23i-Tb1AV4n0WKVSSgcQrdg6GRqsUKxjruHXYsTHAJLZ2nsnGIX86vMXqIi6IR\
+sfywCRFzLxEcZBRnTvG3nhzPk0GDD7FMyXhUHpDjEYCNA_XOmzg8yZR9oyjo6l\
+TF6si4q9FZ2EhzgFQCLO_6h5EVg3vR75_hkBsnuoqoM3dwejXBtIodN84PeqMb\
+6asmas_dpSsz7H10fC5ni9xIz424givB1YLldF6exVmL93R3fOoOJbmk2GBQZL\
+_SEGllv2cQsBgeprARsaQ7Bq99tT80coH8ItBjgV08AtzXFFsx9qKvC982KLKd\
+PQMTlVJKkqtV4Ru5LEVpBZXBnZrtViSOgyg6AiuwaS-rCrcD_ePOGSuxvgtrok\
+AKYPqmXUeRdjFJwafkYEkiuDCV9vWGAi1DH2xTafhJwcmywIyzi4BqRpmdn_N-\
+zl5tuJYyuvKhjKv6ihbsV_k1hJGPGAxJ6wUpmwC4PTQ2izEm0TuSE8oMKdTw8V\
+3kobXZ77ulMwDs4p\
+.\
+0HlwodAhOCILG5SQ2LQ9dg";
+
+#[test]
+fn rfc7520_pbes2_hs512_a256kw_a128cbc_hs256_decrypt() {
+    let password = "entrap_o\u{2013}peter_long\u{2013}credit_tun";
+    let dec_key = no_way_jose_pbes2::pbes2_hs512_a256kw::decryption_key(password.as_bytes());
+
+    let token: CompactJwe<Pbes2Hs512A256Kw, A128CbcHs256, RawJson> =
+        RFC7520_PBES2_TOKEN.parse().unwrap();
+    let unsealed = token.decrypt(&dec_key, &no_validation()).unwrap();
+
+    let plaintext = core::str::from_utf8(&unsealed.claims.0).unwrap();
+    assert!(plaintext.contains("\"keys\""));
+    assert!(plaintext.contains("77c7e2b8-6e13-45cf-8672-617b5b45243a"));
 }
