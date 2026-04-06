@@ -176,7 +176,7 @@ All JWK enums (`JwkParams`, `EcCurve`, `OkpCurve`, `KeyUse`, `KeyOp`) are
 
 - [x] `CompactToken<P, M>`
 - [x] `UnsealedToken<P, M>`
-- [x] `SignedData` / `EncryptedData`
+- [x] Zero-copy compact string storage (deferred base64 decoding)
 - [x] `CompactJws<A, M>` / `UnsignedToken<A, M>` aliases
 - [x] `CompactJwe<KM, CE, M>` alias
 - [x] `UntypedCompactJws<M>` (dynamic algorithm path)

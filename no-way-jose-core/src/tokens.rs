@@ -11,18 +11,18 @@ use crate::jwe_algorithm::{
     ContentDecryptor, ContentEncryptor, JweContentEncryption, JweKeyManagement, KeyDecryptor,
     KeyEncryptor,
 };
-use crate::purpose::{Encrypted, EncryptedData, Purpose, Signed, SignedData};
+use crate::purpose::{Encrypted, Purpose, Signed};
 use crate::validation::Validate;
 use crate::{DecryptionKey, EncryptionKey, SigningKey, VerifyingKey};
 
 /// A parsed but unverified/undecrypted compact-serialized token.
 ///
-/// For JWS this is the three-part `header.payload.signature` form.
-/// The algorithm type parameter prevents using the wrong key type.
+/// Stores the raw compact string and defers all base64 decoding
+/// of payload/signature/ciphertext until verify/decrypt time.
+/// Only the header is decoded at parse time to check `alg`/`enc`/`crit`.
 pub struct CompactToken<P: Purpose, M = RawJson> {
-    header_b64: String,
-    data: P::SealedData,
-    _marker: PhantomData<M>,
+    compact: String,
+    _marker: PhantomData<(P, M)>,
 }
 
 /// A verified/decrypted token ready to be consumed, or a new token ready to be sealed.
@@ -45,12 +45,16 @@ impl<P: Purpose, M> CompactToken<P, M> {
     /// # Errors
     /// Returns [`JoseError::Base64Decode`] or [`JoseError::MalformedToken`] if the header cannot be parsed.
     pub fn header(&self) -> JoseResult<crate::header::OwnedHeader> {
-        crate::header::parse_header_owned(&self.header_b64)
+        crate::header::parse_header_owned(self.raw_header_b64())
     }
 
     /// Return the raw base64url-encoded header.
+    ///
+    /// # Panics
+    /// Cannot panic — the compact string structure is validated at parse/sign/encrypt time.
+    #[must_use]
     pub fn raw_header_b64(&self) -> &str {
-        &self.header_b64
+        self.compact.split_once('.').expect("validated at parse time").0
     }
 
     /// Validate that the header's `typ` field matches the expected value (RFC 8725 §3.11).
@@ -180,13 +184,10 @@ where
 
         let signing_input = alloc::format!("{header_b64}.{payload_b64}");
         let signature = A::sign(key.inner(), signing_input.as_bytes())?;
+        let sig_b64 = crate::base64url::encode(&signature);
 
         Ok(CompactToken {
-            header_b64,
-            data: SignedData {
-                payload_b64,
-                signature,
-            },
+            compact: alloc::format!("{signing_input}.{sig_b64}"),
             _marker: PhantomData,
         })
     }
@@ -195,26 +196,27 @@ where
 // -- Signature cache support --
 
 impl<A: JwsAlgorithm, M> CompactToken<Signed<A>, M> {
-    /// The `header.payload` bytes used as input to the signature algorithm.
+    /// The `header.payload` portion of the compact serialization.
     ///
-    /// Useful for building signature verification caches: hash this value
-    /// together with [`signature()`](Self::signature) to form a cache key,
+    /// This is the input to the JWS signature algorithm. Useful for building
+    /// signature verification caches: hash this value together with
+    /// [`signature_b64()`](Self::signature_b64) to form a cache key,
     /// then call [`verify()`](Self::verify) on cache miss and
     /// [`dangerous_verify_without_signature()`](Self::dangerous_verify_without_signature)
     /// on cache hit.
     #[must_use]
-    pub fn signing_input(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(self.header_b64.len() + 1 + self.data.payload_b64.len());
-        buf.extend_from_slice(self.header_b64.as_bytes());
-        buf.push(b'.');
-        buf.extend_from_slice(self.data.payload_b64.as_bytes());
-        buf
+    pub fn signing_input(&self) -> &str {
+        self.jws_split().0
     }
 
-    /// The raw signature bytes.
+    /// The base64url-encoded signature.
     #[must_use]
-    pub fn signature(&self) -> &[u8] {
-        &self.data.signature
+    pub fn signature_b64(&self) -> &str {
+        self.jws_split().1
+    }
+
+    fn jws_split(&self) -> (&str, &str) {
+        self.compact.rsplit_once('.').expect("validated at parse time")
     }
 }
 
@@ -227,15 +229,22 @@ where
 {
     /// # Errors
     /// Returns a [`JoseError`] if verification or claims validation fails.
+    ///
+    /// # Panics
+    /// Cannot panic — the compact string structure is validated at parse/sign time.
     pub fn verify(
         self,
         key: &VerifyingKey<A>,
         v: &impl Validate<Claims = M>,
     ) -> JoseResult<UnsealedToken<Signed<A>, M>> {
-        let signing_input = alloc::format!("{}.{}", self.header_b64, self.data.payload_b64);
-        A::verify(key.inner(), signing_input.as_bytes(), &self.data.signature)?;
+        let (header_payload, sig_b64) =
+            self.compact.rsplit_once('.').expect("validated at parse time");
+        let signature = crate::base64url::decode(sig_b64)?;
+        A::verify(key.inner(), header_payload.as_bytes(), &signature)?;
 
-        decode_claims(self.header_b64, &self.data.payload_b64, v)
+        let (header_b64, payload_b64) =
+            header_payload.split_once('.').expect("validated at parse time");
+        decode_claims(String::from(header_b64), payload_b64, v)
     }
 }
 
@@ -250,11 +259,18 @@ impl<A: JwsAlgorithm, M: FromJson> CompactToken<Signed<A>, M> {
     ///
     /// # Errors
     /// Returns a [`JoseError`] if payload decoding or claims validation fails.
+    ///
+    /// # Panics
+    /// Cannot panic — the compact string structure is validated at parse/sign time.
     pub fn dangerous_verify_without_signature(
         self,
         v: &impl Validate<Claims = M>,
     ) -> JoseResult<UnsealedToken<Signed<A>, M>> {
-        decode_claims(self.header_b64, &self.data.payload_b64, v)
+        let (header_payload, _sig) =
+            self.compact.rsplit_once('.').expect("validated at parse time");
+        let (header_b64, payload_b64) =
+            header_payload.split_once('.').expect("validated at parse time");
+        decode_claims(String::from(header_b64), payload_b64, v)
     }
 }
 
@@ -280,39 +296,27 @@ fn decode_claims<P: Purpose, M: FromJson>(
 
 impl<A: JwsAlgorithm, M> core::fmt::Display for CompactToken<Signed<A>, M> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}.{}.{}",
-            self.header_b64,
-            self.data.payload_b64,
-            crate::base64url::encode(&self.data.signature),
-        )
+        f.write_str(&self.compact)
     }
 }
 
 // -- FromStr (compact deserialization) --
 
-struct JwsParts {
-    alg: String,
-    header_b64: String,
-    payload_b64: String,
-    signature: Vec<u8>,
-}
-
-fn parse_jws_compact(s: &str) -> JoseResult<JwsParts> {
+fn validate_jws_compact(s: &str) -> JoseResult<String> {
     let mut parts = s.splitn(3, '.');
     let header_b64 = parts
         .next()
         .ok_or_else(|| Report::new(TokenFormatError::MissingHeader))
         .change_context(JoseError::MalformedToken)?;
-    let payload_b64 = parts
-        .next()
-        .ok_or_else(|| Report::new(TokenFormatError::MissingPayload))
-        .change_context(JoseError::MalformedToken)?;
-    let signature_b64 = parts
-        .next()
-        .ok_or_else(|| Report::new(TokenFormatError::MissingSignature))
-        .change_context(JoseError::MalformedToken)?;
+    if parts.next().is_none() {
+        return Err(
+            Report::new(TokenFormatError::MissingPayload).change_context(JoseError::MalformedToken)
+        );
+    }
+    if parts.next().is_none() {
+        return Err(Report::new(TokenFormatError::MissingSignature)
+            .change_context(JoseError::MalformedToken));
+    }
 
     let header_bytes = crate::base64url::decode(header_b64)?;
     let hdr = parse_header(&header_bytes)?;
@@ -322,14 +326,7 @@ fn parse_jws_compact(s: &str) -> JoseResult<JwsParts> {
         )));
     }
 
-    let signature = crate::base64url::decode(signature_b64)?;
-
-    Ok(JwsParts {
-        alg: hdr.alg,
-        header_b64: String::from(header_b64),
-        payload_b64: String::from(payload_b64),
-        signature,
-    })
+    Ok(hdr.alg)
 }
 
 impl<A: JwsAlgorithm, M> CompactJws<A, M> {
@@ -349,16 +346,12 @@ impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
     type Err = Report<JoseError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = parse_jws_compact(s)?;
-        if parts.alg != A::ALG {
+        let alg = validate_jws_compact(s)?;
+        if alg != A::ALG {
             return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         Ok(CompactToken {
-            header_b64: parts.header_b64,
-            data: SignedData {
-                payload_b64: parts.payload_b64,
-                signature: parts.signature,
-            },
+            compact: String::from(s),
             _marker: PhantomData,
         })
     }
@@ -373,8 +366,7 @@ impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
 /// inspecting the `alg` header.
 pub struct UntypedCompactJws<M = RawJson> {
     alg: String,
-    header_b64: String,
-    data: SignedData,
+    compact: String,
     _marker: PhantomData<M>,
 }
 
@@ -387,28 +379,32 @@ impl<M> UntypedCompactJws<M> {
     /// # Errors
     /// Returns [`JoseError::Base64Decode`] or [`JoseError::MalformedToken`] if the header cannot be parsed.
     pub fn header(&self) -> JoseResult<crate::header::OwnedHeader> {
-        crate::header::parse_header_owned(&self.header_b64)
+        crate::header::parse_header_owned(self.raw_header_b64())
     }
 
+    /// # Panics
+    /// Cannot panic — structure is validated at parse time.
     #[must_use]
     pub fn raw_header_b64(&self) -> &str {
-        &self.header_b64
+        self.compact.split_once('.').expect("validated at parse time").0
     }
 
-    /// The `header.payload` bytes used as input to the signature algorithm.
+    /// The `header.payload` portion of the compact serialization.
+    ///
+    /// # Panics
+    /// Cannot panic — structure is validated at parse time.
     #[must_use]
-    pub fn signing_input(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(self.header_b64.len() + 1 + self.data.payload_b64.len());
-        buf.extend_from_slice(self.header_b64.as_bytes());
-        buf.push(b'.');
-        buf.extend_from_slice(self.data.payload_b64.as_bytes());
-        buf
+    pub fn signing_input(&self) -> &str {
+        self.compact.rsplit_once('.').expect("validated at parse time").0
     }
 
-    /// The raw signature bytes.
+    /// The base64url-encoded signature.
+    ///
+    /// # Panics
+    /// Cannot panic — structure is validated at parse time.
     #[must_use]
-    pub fn signature(&self) -> &[u8] {
-        &self.data.signature
+    pub fn signature_b64(&self) -> &str {
+        self.compact.rsplit_once('.').expect("validated at parse time").1
     }
 
     /// # Errors
@@ -442,8 +438,7 @@ impl<M> UntypedCompactJws<M> {
             return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         Ok(CompactToken {
-            header_b64: self.header_b64,
-            data: self.data,
+            compact: self.compact,
             _marker: PhantomData,
         })
     }
@@ -466,14 +461,10 @@ impl<M> core::str::FromStr for UntypedCompactJws<M> {
     type Err = Report<JoseError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = parse_jws_compact(s)?;
+        let alg = validate_jws_compact(s)?;
         Ok(UntypedCompactJws {
-            alg: parts.alg,
-            header_b64: parts.header_b64,
-            data: SignedData {
-                payload_b64: parts.payload_b64,
-                signature: parts.signature,
-            },
+            alg,
+            compact: String::from(s),
             _marker: PhantomData,
         })
     }
@@ -481,13 +472,7 @@ impl<M> core::str::FromStr for UntypedCompactJws<M> {
 
 impl<M> core::fmt::Display for UntypedCompactJws<M> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}.{}.{}",
-            self.header_b64,
-            self.data.payload_b64,
-            crate::base64url::encode(&self.data.signature),
-        )
+        f.write_str(&self.compact)
     }
 }
 
@@ -567,14 +552,17 @@ where
         let aad = header_b64.as_bytes();
         let output = CE::encrypt(&result.cek, aad, plaintext.as_bytes())?;
 
-        Ok(CompactToken {
+        let compact = alloc::format!(
+            "{}.{}.{}.{}.{}",
             header_b64,
-            data: EncryptedData {
-                encrypted_key: result.encrypted_key,
-                iv: output.iv,
-                ciphertext: output.ciphertext,
-                tag: output.tag,
-            },
+            crate::base64url::encode(&result.encrypted_key),
+            crate::base64url::encode(&output.iv),
+            crate::base64url::encode(&output.ciphertext),
+            crate::base64url::encode(&output.tag),
+        );
+
+        Ok(CompactToken {
+            compact,
             _marker: PhantomData,
         })
     }
@@ -595,33 +583,39 @@ where
         key: &DecryptionKey<KM>,
         v: &impl Validate<Claims = M>,
     ) -> JoseResult<UnsealedToken<Encrypted<KM, CE>, M>> {
-        let header_bytes = crate::base64url::decode(&self.header_b64)?;
-        let cek = KM::decrypt_cek(
-            key.inner(),
-            &self.data.encrypted_key,
-            &header_bytes,
-            CE::KEY_LEN,
-        )?;
+        let (header_b64, ek_b64, iv_b64, ct_b64, tag_b64) = jwe_split(&self.compact);
 
-        let aad = self.header_b64.as_bytes();
-        let plaintext = CE::decrypt(
-            &cek,
-            &self.data.iv,
-            aad,
-            &self.data.ciphertext,
-            &self.data.tag,
-        )?;
+        let header_bytes = crate::base64url::decode(header_b64)?;
+        let encrypted_key = crate::base64url::decode(ek_b64)?;
+        let iv = crate::base64url::decode(iv_b64)?;
+        let ciphertext = crate::base64url::decode(ct_b64)?;
+        let tag = crate::base64url::decode(tag_b64)?;
+
+        let cek = KM::decrypt_cek(key.inner(), &encrypted_key, &header_bytes, CE::KEY_LEN)?;
+
+        let aad = header_b64.as_bytes();
+        let plaintext = CE::decrypt(&cek, &iv, aad, &ciphertext, &tag)?;
 
         let claims: M = M::from_json_bytes(&plaintext)
             .map_err(|e| Report::new(JoseError::PayloadError).attach(e))?;
         v.validate(&claims).map_err(Report::new)?;
 
         Ok(UnsealedToken {
-            header: UnsealedHeader::PreEncoded(self.header_b64),
+            header: UnsealedHeader::PreEncoded(String::from(header_b64)),
             claims,
             _marker: PhantomData,
         })
     }
+}
+
+fn jwe_split(compact: &str) -> (&str, &str, &str, &str, &str) {
+    let mut parts = compact.splitn(5, '.');
+    let header = parts.next().expect("validated at parse time");
+    let ek = parts.next().expect("validated at parse time");
+    let iv = parts.next().expect("validated at parse time");
+    let ct = parts.next().expect("validated at parse time");
+    let tag = parts.next().expect("validated at parse time");
+    (header, ek, iv, ct, tag)
 }
 
 // -- Display (JWE 5-part compact serialization) --
@@ -630,52 +624,41 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::fmt::Display
     for CompactToken<Encrypted<KM, CE>, M>
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}.{}.{}.{}.{}",
-            self.header_b64,
-            crate::base64url::encode(&self.data.encrypted_key),
-            crate::base64url::encode(&self.data.iv),
-            crate::base64url::encode(&self.data.ciphertext),
-            crate::base64url::encode(&self.data.tag),
-        )
+        f.write_str(&self.compact)
     }
 }
 
 // -- FromStr (JWE 5-part compact deserialization) --
 
-struct JweParts {
+struct JweValidation {
     alg: String,
     enc: String,
-    header_b64: String,
-    encrypted_key: Vec<u8>,
-    iv: Vec<u8>,
-    ciphertext: Vec<u8>,
-    tag: Vec<u8>,
 }
 
-fn parse_jwe_compact(s: &str) -> JoseResult<JweParts> {
+fn validate_jwe_compact(s: &str) -> JoseResult<JweValidation> {
     let mut parts = s.splitn(5, '.');
     let header_b64 = parts
         .next()
         .ok_or_else(|| Report::new(TokenFormatError::MissingHeader))
         .change_context(JoseError::MalformedToken)?;
-    let ek_b64 = parts
-        .next()
-        .ok_or_else(|| Report::new(TokenFormatError::MissingEncryptedKey))
-        .change_context(JoseError::MalformedToken)?;
-    let iv_b64 = parts
-        .next()
-        .ok_or_else(|| Report::new(TokenFormatError::MissingIv))
-        .change_context(JoseError::MalformedToken)?;
-    let ct_b64 = parts
-        .next()
-        .ok_or_else(|| Report::new(TokenFormatError::MissingCiphertext))
-        .change_context(JoseError::MalformedToken)?;
-    let tag_b64 = parts
-        .next()
-        .ok_or_else(|| Report::new(TokenFormatError::MissingTag))
-        .change_context(JoseError::MalformedToken)?;
+    if parts.next().is_none() {
+        return Err(Report::new(TokenFormatError::MissingEncryptedKey)
+            .change_context(JoseError::MalformedToken));
+    }
+    if parts.next().is_none() {
+        return Err(
+            Report::new(TokenFormatError::MissingIv).change_context(JoseError::MalformedToken)
+        );
+    }
+    if parts.next().is_none() {
+        return Err(Report::new(TokenFormatError::MissingCiphertext)
+            .change_context(JoseError::MalformedToken));
+    }
+    if parts.next().is_none() {
+        return Err(
+            Report::new(TokenFormatError::MissingTag).change_context(JoseError::MalformedToken)
+        );
+    }
 
     let header_bytes = crate::base64url::decode(header_b64)?;
     let hdr = parse_header(&header_bytes)?;
@@ -689,15 +672,7 @@ fn parse_jwe_compact(s: &str) -> JoseResult<JweParts> {
         .ok_or_else(|| Report::new(TokenFormatError::MissingEnc))
         .change_context(JoseError::MalformedToken)?;
 
-    Ok(JweParts {
-        alg: hdr.alg,
-        enc,
-        header_b64: String::from(header_b64),
-        encrypted_key: crate::base64url::decode(ek_b64)?,
-        iv: crate::base64url::decode(iv_b64)?,
-        ciphertext: crate::base64url::decode(ct_b64)?,
-        tag: crate::base64url::decode(tag_b64)?,
-    })
+    Ok(JweValidation { alg: hdr.alg, enc })
 }
 
 impl<KM: JweKeyManagement, CE: JweContentEncryption, M> CompactJwe<KM, CE, M> {
@@ -719,21 +694,15 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
     type Err = Report<JoseError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = parse_jwe_compact(s)?;
-        if parts.alg != KM::ALG {
+        let v = validate_jwe_compact(s)?;
+        if v.alg != KM::ALG {
             return Err(Report::new(JoseError::AlgorithmMismatch));
         }
-        if parts.enc != CE::ENC {
+        if v.enc != CE::ENC {
             return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         Ok(CompactToken {
-            header_b64: parts.header_b64,
-            data: EncryptedData {
-                encrypted_key: parts.encrypted_key,
-                iv: parts.iv,
-                ciphertext: parts.ciphertext,
-                tag: parts.tag,
-            },
+            compact: String::from(s),
             _marker: PhantomData,
         })
     }
@@ -749,8 +718,7 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
 pub struct UntypedCompactJwe<M = RawJson> {
     alg: String,
     enc: String,
-    header_b64: String,
-    data: EncryptedData,
+    compact: String,
     _marker: PhantomData<M>,
 }
 
@@ -770,12 +738,14 @@ impl<M> UntypedCompactJwe<M> {
     /// # Errors
     /// Returns [`JoseError::Base64Decode`] or [`JoseError::MalformedToken`] if the header cannot be parsed.
     pub fn header(&self) -> JoseResult<crate::header::OwnedHeader> {
-        crate::header::parse_header_owned(&self.header_b64)
+        crate::header::parse_header_owned(self.raw_header_b64())
     }
 
+    /// # Panics
+    /// Cannot panic — structure is validated at parse time.
     #[must_use]
     pub fn raw_header_b64(&self) -> &str {
-        &self.header_b64
+        self.compact.split_once('.').expect("validated at parse time").0
     }
 
     /// # Errors
@@ -816,8 +786,7 @@ impl<M> UntypedCompactJwe<M> {
             return Err(Report::new(JoseError::AlgorithmMismatch));
         }
         Ok(CompactToken {
-            header_b64: self.header_b64,
-            data: self.data,
+            compact: self.compact,
             _marker: PhantomData,
         })
     }
@@ -840,17 +809,11 @@ impl<M> core::str::FromStr for UntypedCompactJwe<M> {
     type Err = Report<JoseError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = parse_jwe_compact(s)?;
+        let v = validate_jwe_compact(s)?;
         Ok(UntypedCompactJwe {
-            alg: parts.alg,
-            enc: parts.enc,
-            header_b64: parts.header_b64,
-            data: EncryptedData {
-                encrypted_key: parts.encrypted_key,
-                iv: parts.iv,
-                ciphertext: parts.ciphertext,
-                tag: parts.tag,
-            },
+            alg: v.alg,
+            enc: v.enc,
+            compact: String::from(s),
             _marker: PhantomData,
         })
     }
@@ -858,15 +821,7 @@ impl<M> core::str::FromStr for UntypedCompactJwe<M> {
 
 impl<M> core::fmt::Display for UntypedCompactJwe<M> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}.{}.{}.{}.{}",
-            self.header_b64,
-            crate::base64url::encode(&self.data.encrypted_key),
-            crate::base64url::encode(&self.data.iv),
-            crate::base64url::encode(&self.data.ciphertext),
-            crate::base64url::encode(&self.data.tag),
-        )
+        f.write_str(&self.compact)
     }
 }
 

@@ -834,12 +834,12 @@ fn signature_cache_pattern() {
         .unwrap()
         .to_string();
 
-    let mut cache: HashSet<(Vec<u8>, Vec<u8>)> = HashSet::new();
+    let mut cache: HashSet<String> = HashSet::new();
 
     // First verification: cache miss — do real verify
     let parsed: no_way_jose_core::CompactJws<no_way_jose_hmac::Hs256, RoundtripClaims> =
         token_str.parse().unwrap();
-    let cache_key = (parsed.signing_input(), parsed.signature().to_vec());
+    let cache_key = format!("{}.{}", parsed.signing_input(), parsed.signature_b64());
     assert!(!cache.contains(&cache_key));
 
     let verified = parsed
@@ -851,7 +851,7 @@ fn signature_cache_pattern() {
     // Second verification: cache hit — skip signature check
     let parsed: no_way_jose_core::CompactJws<no_way_jose_hmac::Hs256, RoundtripClaims> =
         token_str.parse().unwrap();
-    let cache_key = (parsed.signing_input(), parsed.signature().to_vec());
+    let cache_key = format!("{}.{}", parsed.signing_input(), parsed.signature_b64());
     assert!(cache.contains(&cache_key));
 
     let verified = parsed
