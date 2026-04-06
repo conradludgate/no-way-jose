@@ -60,13 +60,13 @@ impl HeaderBuilder {
 
     #[must_use]
     pub fn build(self) -> String {
-        let json = self.header.to_json_bytes();
-        crate::base64url::encode(&json)
+        let json = self.header.to_json();
+        crate::base64url::encode(json.as_bytes())
     }
 }
 
 impl BuilderHeader {
-    fn to_json_bytes(&self) -> Vec<u8> {
+    fn to_json(&self) -> String {
         let mut w = JsonWriter::new();
         w.string("alg", self.alg);
         if let Some(enc) = self.enc {

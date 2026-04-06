@@ -17,11 +17,11 @@ struct Claims {
 }
 
 impl ToJson for Claims {
-    fn write_json(&self, buf: &mut Vec<u8>) {
+    fn write_json(&self, buf: &mut String) {
         let mut w = JsonWriter::new();
         w.string("sub", &self.sub);
         w.bool("admin", self.admin);
-        buf.extend_from_slice(&w.finish());
+        buf.push_str(&w.finish());
     }
 }
 
@@ -149,13 +149,13 @@ fn dir_a256gcm_raw_json_roundtrip() {
     let enc_key = dir::encryption_key(key_bytes.clone());
     let dec_key = dir::decryption_key(key_bytes);
 
-    let raw = RawJson(b"{\"hello\":\"world\"}".to_vec());
+    let raw = RawJson(r#"{"hello":"world"}"#.into());
 
     let token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::new(raw);
     let compact = token.encrypt(&enc_key).unwrap();
     let unsealed: UnsealedToken<_, _> = compact.decrypt(&dec_key, &no_validation()).unwrap();
 
-    assert_eq!(unsealed.claims.0, b"{\"hello\":\"world\"}");
+    assert_eq!(unsealed.claims.0, r#"{"hello":"world"}"#);
 }
 
 #[test]
@@ -238,13 +238,13 @@ a8Z7MOZ7UGxGIMvEmxrGCPeJa14slv2-gaqK0kEThkaSqdYw0FkQZF\
 ER7MWJZ1FBI_NKvn7Zb1Lw";
 
 /// RFC 7520 Figure 72 plaintext (Tolkien quote with EN DASH U+2013).
-fn rfc7520_plaintext() -> Vec<u8> {
-    let s = "You can trust us to stick with you through thick and \
-             thin\u{2013}to the bitter end. And you can trust us to \
-             keep any secret of yours\u{2013}closer than you keep it \
-             yourself. But you cannot trust us to let you face trouble \
-             alone, and go off without a word. We are your friends, Frodo.";
-    s.into()
+fn rfc7520_plaintext() -> String {
+    "You can trust us to stick with you through thick and \
+     thin\u{2013}to the bitter end. And you can trust us to \
+     keep any secret of yours\u{2013}closer than you keep it \
+     yourself. But you cannot trust us to let you face trouble \
+     alone, and go off without a word. We are your friends, Frodo."
+        .into()
 }
 
 #[test]
@@ -1154,9 +1154,8 @@ fn rfc7520_pbes2_hs512_a256kw_a128cbc_hs256_decrypt() {
         RFC7520_PBES2_TOKEN.parse().unwrap();
     let unsealed = token.decrypt(&dec_key, &no_validation()).unwrap();
 
-    let plaintext = core::str::from_utf8(&unsealed.claims.0).unwrap();
-    assert!(plaintext.contains("\"keys\""));
-    assert!(plaintext.contains("77c7e2b8-6e13-45cf-8672-617b5b45243a"));
+    assert!(unsealed.claims.0.contains("\"keys\""));
+    assert!(unsealed.claims.0.contains("77c7e2b8-6e13-45cf-8672-617b5b45243a"));
 }
 
 // -- UntypedCompactJwe dynamic dispatch --
@@ -1282,8 +1281,7 @@ fn rfc7520_section6_nested_jwt_roundtrip() {
     let dec_key = no_way_jose_rsa::rsa_oaep::decryption_key(enc_rsa);
 
     let inner_claims = RawJson(
-        br#"{"iss":"hobbiton.example","exp":1300819380,"http://example.com/is_root":true}"#
-            .to_vec(),
+        r#"{"iss":"hobbiton.example","exp":1300819380,"http://example.com/is_root":true}"#.into(),
     );
     let inner_token =
         no_way_jose_core::UnsignedToken::<no_way_jose_rsa::Ps256, _>::builder(inner_claims)
@@ -1294,7 +1292,7 @@ fn rfc7520_section6_nested_jwt_roundtrip() {
     let inner_compact = inner_token.to_string();
 
     let outer_token = UnsealedToken::<Encrypted<RsaOaep, A128Gcm>, RawJson>::builder(RawJson(
-        inner_compact.into_bytes(),
+        inner_compact,
     ))
     .cty("JWT")
     .build();
@@ -1305,15 +1303,10 @@ fn rfc7520_section6_nested_jwt_roundtrip() {
     let parsed = parsed.require_cty("JWT").unwrap();
     let decrypted = parsed.decrypt(&dec_key, &no_validation()).unwrap();
 
-    let inner_str = core::str::from_utf8(&decrypted.claims.0).unwrap();
     let inner_jws: no_way_jose_core::CompactJws<no_way_jose_rsa::Ps256> =
-        inner_str.parse().unwrap();
+        decrypted.claims.0.parse().unwrap();
     let verified = inner_jws.verify(&verify_key, &no_validation()).unwrap();
-    assert!(
-        core::str::from_utf8(&verified.claims.0)
-            .unwrap()
-            .contains("hobbiton.example")
-    );
+    assert!(verified.claims.0.contains("hobbiton.example"));
 }
 
 /// Sign-then-encrypt round-trip with simpler algorithms (HS256 inner, dir + A256GCM outer).
@@ -1338,7 +1331,7 @@ fn nested_jwt_sign_then_encrypt_roundtrip() {
     let inner_compact = inner_token.to_string();
 
     let outer_token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::builder(RawJson(
-        inner_compact.into_bytes(),
+        inner_compact,
     ))
     .cty("JWT")
     .build();
@@ -1349,9 +1342,8 @@ fn nested_jwt_sign_then_encrypt_roundtrip() {
     let parsed = parsed.require_cty("JWT").unwrap();
     let decrypted = parsed.decrypt(&dec_key, &no_validation()).unwrap();
 
-    let inner_str = core::str::from_utf8(&decrypted.claims.0).unwrap();
     let inner_jws: no_way_jose_core::CompactJws<no_way_jose_hmac::Hs256, Claims> =
-        inner_str.parse().unwrap();
+        decrypted.claims.0.parse().unwrap();
     let verified = inner_jws.verify(&verify_key, &no_validation()).unwrap();
     assert_eq!(verified.claims.sub, "nested");
     assert!(verified.claims.admin);
@@ -1363,7 +1355,7 @@ fn nested_jwt_require_cty_mismatch() {
     let enc_key = dir::encryption_key(key.clone());
 
     let token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::builder(RawJson(
-        b"inner-payload".to_vec(),
+        "inner-payload".into(),
     ))
     .cty("JWT")
     .build();

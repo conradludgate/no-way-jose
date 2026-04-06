@@ -344,8 +344,7 @@ impl Jwk {
                 }
             }
         }
-        // SAFETY: JsonWriter only produces valid UTF-8 (ASCII keys, base64url values, escaped strings).
-        unsafe { String::from_utf8_unchecked(w.finish()) }
+        w.finish()
     }
 
     /// # Errors
@@ -646,8 +645,7 @@ impl Jwk {
                 w.string("x", &base64url::encode(&p.x));
             }
         }
-        // SAFETY: JsonWriter only produces valid UTF-8.
-        unsafe { String::from_utf8_unchecked(w.finish()) }
+        w.finish()
     }
 }
 

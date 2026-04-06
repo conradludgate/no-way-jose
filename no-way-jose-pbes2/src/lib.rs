@@ -85,12 +85,9 @@ macro_rules! pbes2_algorithm {
                     .map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let p2s_b64 = Base64UrlUnpadded::encode_string(&random_salt);
-                let mut p2s_json = Vec::with_capacity(p2s_b64.len() + 2);
-                p2s_json.push(b'"');
-                p2s_json.extend_from_slice(p2s_b64.as_bytes());
-                p2s_json.push(b'"');
+                let p2s_json = alloc::format!("\"{p2s_b64}\"");
 
-                let p2c_json = alloc::format!("{}", DEFAULT_ITER_COUNT).into_bytes();
+                let p2c_json = alloc::format!("{DEFAULT_ITER_COUNT}");
 
                 let extra_headers = alloc::vec![
                     (String::from("p2s"), p2s_json),

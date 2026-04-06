@@ -123,7 +123,7 @@ fn hmac_jwk_roundtrip() {
     let vk: no_way_jose_hmac::VerifyingKey = FromJwk::from_jwk(&jwk).unwrap();
 
     let token = no_way_jose_core::UnsignedToken::<no_way_jose_hmac::Hs256, _>::new(
-        no_way_jose_core::json::RawJson(br#"{"sub":"test"}"#.to_vec()),
+        no_way_jose_core::json::RawJson(r#"{"sub":"test"}"#.into()),
     )
     .sign(&sk)
     .unwrap();
@@ -139,7 +139,7 @@ fn hmac_jwk_roundtrip() {
         .unwrap();
 
     let token2 = no_way_jose_core::UnsignedToken::<no_way_jose_hmac::Hs256, _>::new(
-        no_way_jose_core::json::RawJson(br#"{"sub":"test2"}"#.to_vec()),
+        no_way_jose_core::json::RawJson(r#"{"sub":"test2"}"#.into()),
     )
     .sign(&sk2)
     .unwrap();
@@ -179,7 +179,7 @@ fn ecdsa_es256_jwk_roundtrip() {
     let vk2: no_way_jose_ecdsa::VerifyingKey = FromJwk::from_jwk(&vk_jwk).unwrap();
 
     let token = no_way_jose_core::UnsignedToken::<no_way_jose_ecdsa::Es256, _>::new(
-        no_way_jose_core::json::RawJson(br#"{"sub":"ec"}"#.to_vec()),
+        no_way_jose_core::json::RawJson(r#"{"sub":"ec"}"#.into()),
     )
     .sign(&sk2)
     .unwrap();
@@ -219,7 +219,7 @@ fn eddsa_jwk_roundtrip() {
     let vk2: no_way_jose_eddsa::VerifyingKey = FromJwk::from_jwk(&vk_jwk).unwrap();
 
     let token = no_way_jose_core::UnsignedToken::<no_way_jose_eddsa::EdDsa, _>::new(
-        no_way_jose_core::json::RawJson(br#"{"sub":"ed"}"#.to_vec()),
+        no_way_jose_core::json::RawJson(r#"{"sub":"ed"}"#.into()),
     )
     .sign(&sk2)
     .unwrap();
@@ -263,7 +263,7 @@ fn rsa_rs256_jwk_roundtrip() {
     let vk2: no_way_jose_rsa::VerifyingKey = FromJwk::from_jwk(&vk_jwk).unwrap();
 
     let token = no_way_jose_core::UnsignedToken::<no_way_jose_rsa::Rs256, _>::new(
-        no_way_jose_core::json::RawJson(br#"{"sub":"rsa"}"#.to_vec()),
+        no_way_jose_core::json::RawJson(r#"{"sub":"rsa"}"#.into()),
     )
     .sign(&sk2)
     .unwrap();

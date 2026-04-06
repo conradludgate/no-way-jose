@@ -13,11 +13,11 @@ struct RoundtripClaims {
 }
 
 impl ToJson for RoundtripClaims {
-    fn write_json(&self, buf: &mut Vec<u8>) {
+    fn write_json(&self, buf: &mut String) {
         let mut w = JsonWriter::new();
         w.string("sub", &self.sub);
         w.string("name", &self.name);
-        buf.extend_from_slice(&w.finish());
+        buf.push_str(&w.finish());
     }
 }
 
@@ -47,11 +47,11 @@ struct AdminClaims {
 }
 
 impl ToJson for AdminClaims {
-    fn write_json(&self, buf: &mut Vec<u8>) {
+    fn write_json(&self, buf: &mut String) {
         let mut w = JsonWriter::new();
         w.string("sub", &self.sub);
         w.bool("admin", self.admin);
-        buf.extend_from_slice(&w.finish());
+        buf.push_str(&w.finish());
     }
 }
 

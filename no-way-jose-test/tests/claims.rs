@@ -90,13 +90,11 @@ fn aud_deserializes_string_and_array() {
     let array = RegisteredClaims::from_json_bytes(br#"{"aud":["x","y"]}"#).unwrap();
     assert_eq!(array.aud, Some(vec!["x".into(), "y".into()]));
 
-    let single_json = single.to_json_bytes();
-    let single_str = std::str::from_utf8(&single_json).unwrap();
-    assert!(single_str.contains(r#""aud":"x""#));
+    let single_json = single.to_json();
+    assert!(single_json.contains(r#""aud":"x""#));
 
-    let array_json = array.to_json_bytes();
-    let array_str = std::str::from_utf8(&array_json).unwrap();
-    assert!(array_str.contains(r#""aud":["x","y"]"#));
+    let array_json = array.to_json();
+    assert!(array_json.contains(r#""aud":["x","y"]"#));
 }
 
 #[test]

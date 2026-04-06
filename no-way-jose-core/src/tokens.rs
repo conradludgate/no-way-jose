@@ -147,8 +147,8 @@ where
             return Err(Report::new(JoseError::AlgorithmMismatch));
         }
 
-        let payload_bytes = self.claims.to_json_bytes();
-        let payload_b64 = crate::base64url::encode(&payload_bytes);
+        let payload_json = self.claims.to_json();
+        let payload_b64 = crate::base64url::encode(payload_json.as_bytes());
 
         let signing_input = alloc::format!("{}.{}", self.header_b64, payload_b64);
         let signature = A::sign(key.inner(), signing_input.as_bytes())?;
@@ -503,9 +503,9 @@ where
             rebuild_header_with_extras(&header_bytes, &result.extra_headers)
         };
 
-        let plaintext = self.claims.to_json_bytes();
+        let plaintext = self.claims.to_json();
         let aad = header_b64.as_bytes();
-        let output = CE::encrypt(&result.cek, aad, &plaintext)?;
+        let output = CE::encrypt(&result.cek, aad, plaintext.as_bytes())?;
 
         Ok(CompactToken {
             header_b64,
@@ -832,20 +832,18 @@ impl<P: Purpose, M> TokenBuilder<P, M> {
 }
 
 /// Splice extra key-value pairs into an existing compact JSON header and re-encode as base64url.
-fn rebuild_header_with_extras(header_bytes: &[u8], extras: &[(String, Vec<u8>)]) -> String {
-    let closing = header_bytes
-        .iter()
-        .rposition(|&b| b == b'}')
-        .expect("header must contain '}'");
-    let mut buf = Vec::with_capacity(header_bytes.len() + extras.len() * 32);
-    buf.extend_from_slice(&header_bytes[..closing]);
+fn rebuild_header_with_extras(header_bytes: &[u8], extras: &[(String, String)]) -> String {
+    let header_str = core::str::from_utf8(header_bytes).expect("header must be valid UTF-8");
+    let closing = header_str.rfind('}').expect("header must contain '}'");
+    let mut buf = String::with_capacity(header_str.len() + extras.len() * 32);
+    buf.push_str(&header_str[..closing]);
     for (key, value) in extras {
-        buf.push(b',');
+        buf.push(',');
         crate::json::write_json_key(&mut buf, key);
-        buf.extend_from_slice(value);
+        buf.push_str(value);
     }
-    buf.push(b'}');
-    crate::base64url::encode(&buf)
+    buf.push('}');
+    crate::base64url::encode(buf.as_bytes())
 }
 
 struct ParsedHeader {

@@ -11,11 +11,11 @@ struct Claims {
 }
 
 impl ToJson for Claims {
-    fn write_json(&self, buf: &mut Vec<u8>) {
+    fn write_json(&self, buf: &mut String) {
         let mut w = JsonWriter::new();
         w.string("sub", &self.sub);
         w.bool("admin", self.admin);
-        buf.extend_from_slice(&w.finish());
+        buf.push_str(&w.finish());
     }
 }
 

@@ -39,13 +39,9 @@ fn make_kek(bytes: impl Into<Vec<u8>>, expected_len: usize) -> JoseResult<Vec<u8
     Ok(raw)
 }
 
-fn b64_json_string(data: &[u8]) -> Vec<u8> {
+fn b64_json_string(data: &[u8]) -> String {
     let encoded = Base64UrlUnpadded::encode_string(data);
-    let mut buf = Vec::with_capacity(encoded.len() + 2);
-    buf.push(b'"');
-    buf.extend_from_slice(encoded.as_bytes());
-    buf.push(b'"');
-    buf
+    alloc::format!("\"{encoded}\"")
 }
 
 macro_rules! aes_gcm_kw_algorithm {

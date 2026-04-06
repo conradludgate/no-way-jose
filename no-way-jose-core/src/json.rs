@@ -5,14 +5,14 @@ use error_stack::ResultExt;
 
 use crate::error::{JoseError, JoseResult, JsonError};
 
-/// Serialize a value as compact JSON bytes.
+/// Serialize a value as compact JSON.
 pub trait ToJson {
     /// Write this value's JSON representation into `buf`.
-    fn write_json(&self, buf: &mut Vec<u8>);
+    fn write_json(&self, buf: &mut String);
 
-    /// Convenience wrapper that allocates and returns the JSON bytes.
-    fn to_json_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
+    /// Convenience wrapper that allocates and returns the JSON string.
+    fn to_json(&self) -> String {
+        let mut buf = String::new();
         self.write_json(&mut buf);
         buf
     }
@@ -28,11 +28,11 @@ pub trait FromJson: Sized {
 }
 
 /// Opaque JSON payload — stores raw bytes without parsing.
-pub struct RawJson(pub Vec<u8>);
+pub struct RawJson(pub String);
 
 impl ToJson for RawJson {
-    fn write_json(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(&self.0);
+    fn write_json(&self, buf: &mut String) {
+        buf.push_str(&self.0);
     }
 }
 
@@ -42,7 +42,7 @@ impl FromJson for RawJson {
     fn from_json_bytes(
         bytes: &[u8],
     ) -> Result<Self, alloc::boxed::Box<dyn core::error::Error + Send + Sync>> {
-        Ok(RawJson(bytes.to_vec()))
+        Ok(RawJson(String::from(core::str::from_utf8(bytes)?)))
     }
 }
 
@@ -50,7 +50,7 @@ impl FromJson for RawJson {
 
 /// Builds a compact JSON object incrementally.
 pub struct JsonWriter {
-    buf: Vec<u8>,
+    buf: String,
     first: bool,
 }
 
@@ -64,18 +64,18 @@ impl JsonWriter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            buf: alloc::vec![b'{'],
+            buf: String::from("{"),
             first: true,
         }
     }
 
     fn write_key(&mut self, key: &str) {
         if !self.first {
-            self.buf.push(b',');
+            self.buf.push(',');
         }
         self.first = false;
         write_escaped_string(&mut self.buf, key);
-        self.buf.push(b':');
+        self.buf.push(':');
     }
 
     pub fn string(&mut self, key: &str, value: &str) {
@@ -85,14 +85,12 @@ impl JsonWriter {
 
     pub fn number(&mut self, key: &str, value: i64) {
         self.write_key(key);
-        let s = alloc::format!("{value}");
-        self.buf.extend_from_slice(s.as_bytes());
+        let _ = alloc::fmt::Write::write_fmt(&mut self.buf, format_args!("{value}"));
     }
 
     pub fn bool(&mut self, key: &str, value: bool) {
         self.write_key(key);
-        self.buf
-            .extend_from_slice(if value { b"true" } else { b"false" });
+        self.buf.push_str(if value { "true" } else { "false" });
     }
 
     /// Write a single string when `values.len() == 1`, otherwise an array.
@@ -101,54 +99,54 @@ impl JsonWriter {
         if values.len() == 1 {
             write_escaped_string(&mut self.buf, &values[0]);
         } else {
-            self.buf.push(b'[');
+            self.buf.push('[');
             for (i, v) in values.iter().enumerate() {
                 if i > 0 {
-                    self.buf.push(b',');
+                    self.buf.push(',');
                 }
                 write_escaped_string(&mut self.buf, v);
             }
-            self.buf.push(b']');
+            self.buf.push(']');
         }
     }
 
     /// Write a pre-formed raw JSON value (no escaping or quoting applied).
-    pub fn raw_value(&mut self, key: &str, raw_json: &[u8]) {
+    pub fn raw_value(&mut self, key: &str, raw_json: &str) {
         self.write_key(key);
-        self.buf.extend_from_slice(raw_json);
+        self.buf.push_str(raw_json);
     }
 
     #[must_use]
-    pub fn finish(mut self) -> Vec<u8> {
-        self.buf.push(b'}');
+    pub fn finish(mut self) -> String {
+        self.buf.push('}');
         self.buf
     }
 }
 
 /// Write a JSON object key followed by `:` into `buf`. Used by header rebuild logic.
-pub(crate) fn write_json_key(buf: &mut Vec<u8>, key: &str) {
+pub(crate) fn write_json_key(buf: &mut String, key: &str) {
     write_escaped_string(buf, key);
-    buf.push(b':');
+    buf.push(':');
 }
 
-fn write_escaped_string(buf: &mut Vec<u8>, s: &str) {
-    buf.push(b'"');
+fn write_escaped_string(buf: &mut String, s: &str) {
+    buf.push('"');
     for &b in s.as_bytes() {
         match b {
-            b'"' => buf.extend_from_slice(b"\\\""),
-            b'\\' => buf.extend_from_slice(b"\\\\"),
-            b'\n' => buf.extend_from_slice(b"\\n"),
-            b'\r' => buf.extend_from_slice(b"\\r"),
-            b'\t' => buf.extend_from_slice(b"\\t"),
+            b'"' => buf.push_str("\\\""),
+            b'\\' => buf.push_str("\\\\"),
+            b'\n' => buf.push_str("\\n"),
+            b'\r' => buf.push_str("\\r"),
+            b'\t' => buf.push_str("\\t"),
             b if b < 0x20 => {
-                buf.extend_from_slice(b"\\u00");
-                buf.push(hex_nibble(b >> 4));
-                buf.push(hex_nibble(b & 0xf));
+                buf.push_str("\\u00");
+                buf.push(char::from(hex_nibble(b >> 4)));
+                buf.push(char::from(hex_nibble(b & 0xf)));
             }
-            _ => buf.push(b),
+            _ => buf.push(char::from(b)),
         }
     }
-    buf.push(b'"');
+    buf.push('"');
 }
 
 fn hex_nibble(n: u8) -> u8 {
@@ -598,13 +596,13 @@ mod tests {
         w.string("alg", "HS256");
         w.number("exp", 1_300_819_380);
         w.bool("admin", true);
-        let bytes = w.finish();
+        let json = w.finish();
         assert_eq!(
-            core::str::from_utf8(&bytes).unwrap(),
+            json,
             r#"{"alg":"HS256","exp":1300819380,"admin":true}"#
         );
 
-        let mut r = JsonReader::new(&bytes).unwrap();
+        let mut r = JsonReader::new(json.as_bytes()).unwrap();
         let k1 = r.next_key().unwrap().unwrap();
         assert_eq!(k1, "alg");
         assert_eq!(r.read_string().unwrap(), "HS256");
@@ -624,9 +622,9 @@ mod tests {
     fn string_escape_roundtrip() {
         let mut w = JsonWriter::new();
         w.string("msg", "line1\nline2\ttab\\slash\"quote");
-        let bytes = w.finish();
+        let json = w.finish();
 
-        let mut r = JsonReader::new(&bytes).unwrap();
+        let mut r = JsonReader::new(json.as_bytes()).unwrap();
         r.next_key().unwrap();
         assert_eq!(r.read_string().unwrap(), "line1\nline2\ttab\\slash\"quote");
     }

@@ -26,7 +26,7 @@ pub struct KeyEncryptionResult {
     /// Extra header parameters as `(key, raw_json_value)` pairs.
     /// Algorithms like AES-GCM-KW, ECDH-ES, and PBES2 use this to inject
     /// `iv`/`tag`, `epk`/`apu`/`apv`, or `p2s`/`p2c` into the JWE header.
-    pub extra_headers: Vec<(String, Vec<u8>)>,
+    pub extra_headers: Vec<(String, String)>,
 }
 
 /// Encrypt/wrap a Content Encryption Key using a key management algorithm.

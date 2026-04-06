@@ -16,7 +16,7 @@ pub(crate) struct EpkFields {
 
 impl EpkFields {
     /// Serialize as a raw JSON object (ready for `raw_value`).
-    pub fn to_json_bytes(&self) -> Vec<u8> {
+    pub fn to_json(&self) -> String {
         let mut w = JsonWriter::new();
         w.string("kty", self.kty);
         w.string("crv", self.crv);

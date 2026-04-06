@@ -105,7 +105,7 @@ fn ecdh_encrypt(
         (Vec::new(), derived_key)
     };
 
-    let epk_json = epk_fields.to_json_bytes();
+    let epk_json = epk_fields.to_json();
     let extra_headers = alloc::vec![(String::from("epk"), epk_json)];
 
     Ok(KeyEncryptionResult {
