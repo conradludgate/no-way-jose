@@ -814,3 +814,49 @@ fn jws_builder_kid_and_typ() {
         .unwrap();
     assert_eq!(verified.claims.sub, "builder-test");
 }
+
+// -- Signature cache pattern --
+
+#[test]
+fn signature_cache_pattern() {
+    use std::collections::HashSet;
+
+    let key =
+        no_way_jose_hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec()).unwrap();
+    let vk = no_way_jose_hmac::verifying_key(b"super-secret-key-for-testing-256".to_vec()).unwrap();
+
+    let claims = RoundtripClaims {
+        sub: "cached".into(),
+        name: "Cache Test".into(),
+    };
+    let token_str = no_way_jose_core::UnsignedToken::<no_way_jose_hmac::Hs256, _>::new(claims)
+        .sign(&key)
+        .unwrap()
+        .to_string();
+
+    let mut cache: HashSet<(Vec<u8>, Vec<u8>)> = HashSet::new();
+
+    // First verification: cache miss — do real verify
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_hmac::Hs256, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let cache_key = (parsed.signing_input(), parsed.signature().to_vec());
+    assert!(!cache.contains(&cache_key));
+
+    let verified = parsed
+        .verify(&vk, &NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "cached");
+    cache.insert(cache_key);
+
+    // Second verification: cache hit — skip signature check
+    let parsed: no_way_jose_core::CompactJws<no_way_jose_hmac::Hs256, RoundtripClaims> =
+        token_str.parse().unwrap();
+    let cache_key = (parsed.signing_input(), parsed.signature().to_vec());
+    assert!(cache.contains(&cache_key));
+
+    let verified = parsed
+        .dangerous_verify_without_signature(&NoValidation::dangerous_no_validation())
+        .unwrap();
+    assert_eq!(verified.claims.sub, "cached");
+    assert_eq!(verified.claims.name, "Cache Test");
+}

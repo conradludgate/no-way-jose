@@ -164,6 +164,32 @@ where
     }
 }
 
+// -- Signature cache support --
+
+impl<A: JwsAlgorithm, M> CompactToken<Signed<A>, M> {
+    /// The `header.payload` bytes used as input to the signature algorithm.
+    ///
+    /// Useful for building signature verification caches: hash this value
+    /// together with [`signature()`](Self::signature) to form a cache key,
+    /// then call [`verify()`](Self::verify) on cache miss and
+    /// [`dangerous_verify_without_signature()`](Self::dangerous_verify_without_signature)
+    /// on cache hit.
+    #[must_use]
+    pub fn signing_input(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(self.header_b64.len() + 1 + self.data.payload_b64.len());
+        buf.extend_from_slice(self.header_b64.as_bytes());
+        buf.push(b'.');
+        buf.extend_from_slice(self.data.payload_b64.as_bytes());
+        buf
+    }
+
+    /// The raw signature bytes.
+    #[must_use]
+    pub fn signature(&self) -> &[u8] {
+        &self.data.signature
+    }
+}
+
 // -- Verification --
 
 impl<A, M> CompactToken<Signed<A>, M>
@@ -181,18 +207,45 @@ where
         let signing_input = alloc::format!("{}.{}", self.header_b64, self.data.payload_b64);
         A::verify(key.inner(), signing_input.as_bytes(), &self.data.signature)?;
 
-        let payload_bytes = crate::base64url::decode(&self.data.payload_b64)?;
-        let claims: M = M::from_json_bytes(&payload_bytes)
-            .map_err(|e| Report::new(JoseError::PayloadError).attach(e))?;
-
-        v.validate(&claims).map_err(Report::new)?;
-
-        Ok(UnsealedToken {
-            header_b64: self.header_b64,
-            claims,
-            _marker: PhantomData,
-        })
+        decode_claims(self.header_b64, &self.data.payload_b64, v)
     }
+}
+
+impl<A: JwsAlgorithm, M: FromJson> CompactToken<Signed<A>, M> {
+    /// Decode claims and run validation **without checking the signature**.
+    ///
+    /// # Safety (logical)
+    ///
+    /// The caller **must** have already verified this token's signature
+    /// through some other means (e.g. a verification cache). Using this
+    /// on an unverified token completely bypasses authentication.
+    ///
+    /// # Errors
+    /// Returns a [`JoseError`] if payload decoding or claims validation fails.
+    pub fn dangerous_verify_without_signature(
+        self,
+        v: &impl Validate<Claims = M>,
+    ) -> JoseResult<UnsealedToken<Signed<A>, M>> {
+        decode_claims(self.header_b64, &self.data.payload_b64, v)
+    }
+}
+
+fn decode_claims<P: Purpose, M: FromJson>(
+    header_b64: String,
+    payload_b64: &str,
+    v: &impl Validate<Claims = M>,
+) -> JoseResult<UnsealedToken<P, M>> {
+    let payload_bytes = crate::base64url::decode(payload_b64)?;
+    let claims: M = M::from_json_bytes(&payload_bytes)
+        .map_err(|e| Report::new(JoseError::PayloadError).attach(e))?;
+
+    v.validate(&claims).map_err(Report::new)?;
+
+    Ok(UnsealedToken {
+        header_b64,
+        claims,
+        _marker: PhantomData,
+    })
 }
 
 // -- Display (compact serialization) --
@@ -299,6 +352,22 @@ impl<M> UntypedCompactJws<M> {
     #[must_use]
     pub fn raw_header_b64(&self) -> &str {
         &self.header_b64
+    }
+
+    /// The `header.payload` bytes used as input to the signature algorithm.
+    #[must_use]
+    pub fn signing_input(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(self.header_b64.len() + 1 + self.data.payload_b64.len());
+        buf.extend_from_slice(self.header_b64.as_bytes());
+        buf.push(b'.');
+        buf.extend_from_slice(self.data.payload_b64.as_bytes());
+        buf
+    }
+
+    /// The raw signature bytes.
+    #[must_use]
+    pub fn signature(&self) -> &[u8] {
+        &self.data.signature
     }
 
     /// # Errors
