@@ -336,10 +336,10 @@ let sk = no_way_jose_ecdsa::signing_key_from_bytes(&key_bytes).unwrap();
 
 // Export to JWK JSON
 let jwk: Jwk = sk.to_jwk();
-let jwk_json: Vec<u8> = jwk.to_json_bytes();
+let jwk_json: String = jwk.to_json();
 
 // Import from JWK JSON
-let jwk = Jwk::from_json_bytes(&jwk_json).unwrap();
+let jwk = Jwk::from_json(jwk_json.as_bytes()).unwrap();
 let vk: no_way_jose_ecdsa::VerifyingKey = FromJwk::from_jwk(&jwk).unwrap();
 ```
 
@@ -355,7 +355,7 @@ use no_way_jose_core::validation::NoValidation;
 use no_way_jose_claims::RegisteredClaims;
 
 // Parse a JWK Set (e.g. fetched from a /.well-known/jwks.json endpoint)
-let jwks = JwkSet::from_json_bytes(&jwks_json).unwrap();
+let jwks = JwkSet::from_json(&jwks_json).unwrap();
 
 // Parse the token without knowing the algorithm yet
 let untyped: UntypedCompactJws<RegisteredClaims> = token_string.parse().unwrap();
@@ -390,7 +390,7 @@ as a stable key identifier:
 use sha2::{Sha256, Digest};
 use no_way_jose_core::jwk::Jwk;
 
-let jwk = Jwk::from_json_bytes(&jwk_json).unwrap();
+let jwk = Jwk::from_json(&jwk_json).unwrap();
 let canonical = jwk.thumbprint_canonical_json();
 let thumbprint = Sha256::digest(&canonical);
 let thumbprint_b64 = no_way_jose_core::base64url::encode(&thumbprint);

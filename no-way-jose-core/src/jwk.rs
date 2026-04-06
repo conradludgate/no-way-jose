@@ -280,7 +280,7 @@ where
 
 impl Jwk {
     #[must_use]
-    pub fn to_json_bytes(&self) -> Vec<u8> {
+    pub fn to_json(&self) -> String {
         let mut w = JsonWriter::new();
         w.string("kty", self.kty());
         if let Some(kid) = &self.kid {
@@ -344,13 +344,14 @@ impl Jwk {
                 }
             }
         }
-        w.finish()
+        // SAFETY: JsonWriter only produces valid UTF-8 (ASCII keys, base64url values, escaped strings).
+        unsafe { String::from_utf8_unchecked(w.finish()) }
     }
 
     /// # Errors
     /// Returns [`JoseError::MalformedToken`] or [`JoseError::InvalidKey`] on failure.
     #[allow(clippy::many_single_char_names)]
-    pub fn from_json_bytes(bytes: &[u8]) -> JoseResult<Self> {
+    pub fn from_json(bytes: &[u8]) -> JoseResult<Self> {
         let mut reader = JsonReader::new(bytes).change_context(JoseError::MalformedToken)?;
 
         let mut kty = None;
@@ -508,22 +509,21 @@ fn read_b64_string(reader: &mut JsonReader<'_>) -> JoseResult<Vec<u8>> {
 
 impl JwkSet {
     #[must_use]
-    pub fn to_json_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(b"{\"keys\":[");
+    pub fn to_json(&self) -> String {
+        let mut buf = String::from("{\"keys\":[");
         for (i, jwk) in self.keys.iter().enumerate() {
             if i > 0 {
-                buf.push(b',');
+                buf.push(',');
             }
-            buf.extend_from_slice(&jwk.to_json_bytes());
+            buf.push_str(&jwk.to_json());
         }
-        buf.extend_from_slice(b"]}");
+        buf.push_str("]}");
         buf
     }
 
     /// # Errors
     /// Returns [`JoseError::MalformedToken`] or [`JoseError::InvalidKey`] on failure.
-    pub fn from_json_bytes(bytes: &[u8]) -> JoseResult<Self> {
+    pub fn from_json(bytes: &[u8]) -> JoseResult<Self> {
         let mut reader = JsonReader::new(bytes).change_context(JoseError::MalformedToken)?;
         let mut keys = None;
         while let Some(field) = reader
@@ -607,7 +607,7 @@ fn read_jwk_array(reader: &mut JsonReader<'_>) -> JoseResult<Vec<Jwk>> {
                 }
             }
         }
-        result.push(Jwk::from_json_bytes(&array_bytes[obj_start..pos])?);
+        result.push(Jwk::from_json(&array_bytes[obj_start..pos])?);
     }
     Ok(result)
 }
@@ -617,12 +617,12 @@ fn read_jwk_array(reader: &mut JsonReader<'_>) -> JoseResult<Vec<Jwk>> {
 // ====================================================================
 
 impl Jwk {
-    /// Returns the canonical JSON bytes for thumbprint computation (RFC 7638 §3).
+    /// Returns the canonical JSON for thumbprint computation (RFC 7638 §3).
     ///
     /// Contains only the required members for the key type, sorted lexicographically.
-    /// Hash this with SHA-256 (or another hash) to produce the thumbprint.
+    /// Hash the `.as_bytes()` with SHA-256 (or another hash) to produce the thumbprint.
     #[must_use]
-    pub fn thumbprint_canonical_json(&self) -> Vec<u8> {
+    pub fn thumbprint_canonical_json(&self) -> String {
         let mut w = JsonWriter::new();
         match &self.key {
             JwkParams::Ec(p) => {
@@ -646,7 +646,8 @@ impl Jwk {
                 w.string("x", &base64url::encode(&p.x));
             }
         }
-        w.finish()
+        // SAFETY: JsonWriter only produces valid UTF-8.
+        unsafe { String::from_utf8_unchecked(w.finish()) }
     }
 }
 
@@ -670,8 +671,8 @@ mod tests {
                 d: None,
             }),
         };
-        let bytes = jwk.to_json_bytes();
-        let parsed = Jwk::from_json_bytes(&bytes).unwrap();
+        let json = jwk.to_json();
+        let parsed = Jwk::from_json(json.as_bytes()).unwrap();
         assert_eq!(parsed.kty(), "EC");
         assert_eq!(parsed.kid.as_deref(), Some("test-ec"));
         assert_eq!(parsed.alg.as_deref(), Some("ES256"));
@@ -696,8 +697,8 @@ mod tests {
             key_ops: None,
             key: JwkParams::Oct(OctParams { k: vec![0xAB; 32] }),
         };
-        let bytes = jwk.to_json_bytes();
-        let parsed = Jwk::from_json_bytes(&bytes).unwrap();
+        let json = jwk.to_json();
+        let parsed = Jwk::from_json(json.as_bytes()).unwrap();
         match &parsed.key {
             JwkParams::Oct(p) => assert_eq!(p.k, vec![0xAB; 32]),
             _ => panic!("wrong params type"),
@@ -724,8 +725,8 @@ mod tests {
                 },
             ],
         };
-        let bytes = set.to_json_bytes();
-        let parsed = JwkSet::from_json_bytes(&bytes).unwrap();
+        let json = set.to_json();
+        let parsed = JwkSet::from_json(json.as_bytes()).unwrap();
         assert_eq!(parsed.keys.len(), 2);
         assert_eq!(parsed.find_by_kid("key1").unwrap().kty(), "oct");
         assert_eq!(parsed.find_by_kid("key2").unwrap().kty(), "oct");
@@ -736,11 +737,10 @@ mod tests {
     #[test]
     fn rfc7638_thumbprint_canonical_json() {
         let jwk_json = br#"{"kty":"RSA","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw","e":"AQAB"}"#;
-        let jwk = Jwk::from_json_bytes(jwk_json).unwrap();
+        let jwk = Jwk::from_json(jwk_json).unwrap();
         let canonical = jwk.thumbprint_canonical_json();
-        let canonical_str = core::str::from_utf8(&canonical).unwrap();
         assert_eq!(
-            canonical_str,
+            canonical,
             r#"{"e":"AQAB","kty":"RSA","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw"}"#
         );
     }

@@ -9,7 +9,7 @@ use no_way_jose_core::jwk::{EcCurve, FromJwk, Jwk, JwkParams, JwkSet, OkpCurve, 
 #[test]
 fn rfc7517_ec_public_key() {
     let json = br#"{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0","use":"sig","kid":"Public key used in JWS spec Appendix A.3 example"}"#;
-    let jwk = Jwk::from_json_bytes(json).unwrap();
+    let jwk = Jwk::from_json(json).unwrap();
     assert_eq!(jwk.kty(), "EC");
     assert_eq!(
         jwk.kid.as_deref(),
@@ -30,7 +30,7 @@ fn rfc7517_ec_public_key() {
 #[test]
 fn rfc7517_ec_private_key() {
     let json = br#"{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0","d":"jpsQnnGQmL-YBIffS1BSyVKhrlRhLv_HA0V1u3oFSVM","use":"sig","kid":"Appendix A.2 example"}"#;
-    let jwk = Jwk::from_json_bytes(json).unwrap();
+    let jwk = Jwk::from_json(json).unwrap();
     match &jwk.key {
         JwkParams::Ec(p) => {
             assert!(p.d.is_some());
@@ -44,7 +44,7 @@ fn rfc7517_ec_private_key() {
 #[test]
 fn rfc7517_rsa_public_key() {
     let json = br#"{"kty":"RSA","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw","e":"AQAB","alg":"RS256","kid":"2011-04-29"}"#;
-    let jwk = Jwk::from_json_bytes(json).unwrap();
+    let jwk = Jwk::from_json(json).unwrap();
     assert_eq!(jwk.kty(), "RSA");
     assert_eq!(jwk.kid.as_deref(), Some("2011-04-29"));
     assert_eq!(jwk.alg.as_deref(), Some("RS256"));
@@ -62,7 +62,7 @@ fn rfc7517_rsa_public_key() {
 #[test]
 fn rfc7517_symmetric_key() {
     let json = br#"{"kty":"oct","alg":"A128KW","k":"GawgguFyGrWKav7AX4VKUg"}"#;
-    let jwk = Jwk::from_json_bytes(json).unwrap();
+    let jwk = Jwk::from_json(json).unwrap();
     assert_eq!(jwk.kty(), "oct");
     assert_eq!(jwk.alg.as_deref(), Some("A128KW"));
     match &jwk.key {
@@ -77,15 +77,15 @@ fn rfc7517_symmetric_key() {
 #[test]
 fn rfc7517_jwk_set() {
     let json = br#"{"keys":[{"kty":"EC","crv":"P-256","x":"MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4","y":"4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM","use":"enc","kid":"1"},{"kty":"RSA","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw","e":"AQAB","alg":"RS256","kid":"2011-04-29"}]}"#;
-    let set = JwkSet::from_json_bytes(json).unwrap();
+    let set = JwkSet::from_json(json).unwrap();
     assert_eq!(set.keys.len(), 2);
     assert_eq!(set.find_by_kid("1").unwrap().kty(), "EC");
     assert_eq!(set.find_by_kid("2011-04-29").unwrap().kty(), "RSA");
     assert!(set.find_by_kid("nonexistent").is_none());
 
     // Roundtrip
-    let bytes = set.to_json_bytes();
-    let parsed = JwkSet::from_json_bytes(&bytes).unwrap();
+    let json = set.to_json();
+    let parsed = JwkSet::from_json(json.as_bytes()).unwrap();
     assert_eq!(parsed.keys.len(), 2);
 }
 
@@ -96,13 +96,13 @@ fn rfc7517_jwk_set() {
 #[test]
 fn rfc7638_thumbprint() {
     let json = br#"{"kty":"RSA","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw","e":"AQAB"}"#;
-    let jwk = Jwk::from_json_bytes(json).unwrap();
+    let jwk = Jwk::from_json(json).unwrap();
     let canonical = jwk.thumbprint_canonical_json();
 
     // The RFC 7638 §3.1 expected thumbprint (base64url of SHA-256):
     // NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs
     use sha2::{Digest, Sha256};
-    let hash = Sha256::digest(&canonical);
+    let hash = Sha256::digest(canonical.as_bytes());
     let b64 = no_way_jose_core::base64url::encode(&hash);
     assert_eq!(b64, "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs");
 }
@@ -335,7 +335,7 @@ fn rejects_wrong_algorithm() {
 #[test]
 fn rejects_wrong_kty() {
     let json = br#"{"kty":"oct","k":"dGVzdA"}"#;
-    let jwk = Jwk::from_json_bytes(json).unwrap();
+    let jwk = Jwk::from_json(json).unwrap();
     let result: Result<no_way_jose_ecdsa::VerifyingKey, _> = FromJwk::from_jwk(&jwk);
     assert!(result.is_err());
 }
@@ -344,7 +344,7 @@ fn rejects_wrong_kty() {
 #[test]
 fn rfc7520_ec_key_parsing() {
     let json = br#"{"kty":"EC","kid":"bilbo.baggins@hobbiton.example","use":"enc","crv":"P-256","x":"WbbaSStufflt7SVQJkePlz--CDAwSA76-4CJJ2r_9veo","y":"vOGjkIiB2dCFfghqwCqPT3qORag74pMUxCl1b9b1gFo"}"#;
-    let jwk = Jwk::from_json_bytes(json).unwrap();
+    let jwk = Jwk::from_json(json).unwrap();
     assert_eq!(jwk.kid.as_deref(), Some("bilbo.baggins@hobbiton.example"));
     match &jwk.key {
         JwkParams::Ec(p) => assert_eq!(p.crv, EcCurve::P256),
