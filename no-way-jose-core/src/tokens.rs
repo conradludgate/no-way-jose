@@ -27,9 +27,14 @@ pub struct CompactToken<P: Purpose, M = RawJson> {
 
 /// A verified/decrypted token ready to be consumed, or a new token ready to be sealed.
 pub struct UnsealedToken<P: Purpose, M> {
-    header_b64: String,
+    header: UnsealedHeader,
     pub claims: M,
     _marker: PhantomData<P>,
+}
+
+enum UnsealedHeader {
+    Builder(crate::header::HeaderBuilder),
+    PreEncoded(String),
 }
 
 // -- Header access --
@@ -80,15 +85,33 @@ impl<P: Purpose, M> CompactToken<P, M> {
 impl<P: Purpose, M> UnsealedToken<P, M> {
     /// Decode and return the JOSE header.
     ///
+    /// Only available on tokens returned from [`verify`](CompactToken::verify)
+    /// or [`decrypt`](CompactToken::decrypt).
+    ///
     /// # Errors
     /// Returns [`JoseError::Base64Decode`] or [`JoseError::MalformedToken`] if the header cannot be parsed.
+    ///
+    /// # Panics
+    /// Panics if called on a token that has not yet been signed or encrypted.
     pub fn header(&self) -> JoseResult<crate::header::OwnedHeader> {
-        crate::header::parse_header_owned(&self.header_b64)
+        crate::header::parse_header_owned(self.header_b64())
     }
 
     /// Return the raw base64url-encoded header.
+    ///
+    /// # Panics
+    /// Panics if called on a token that has not yet been signed or encrypted.
     pub fn raw_header_b64(&self) -> &str {
-        &self.header_b64
+        self.header_b64()
+    }
+
+    fn header_b64(&self) -> &str {
+        match &self.header {
+            UnsealedHeader::PreEncoded(s) => s,
+            UnsealedHeader::Builder(_) => {
+                panic!("header not yet finalized — call sign() or encrypt() first")
+            }
+        }
     }
 }
 
@@ -103,9 +126,8 @@ pub type CompactJwe<KM, CE, M = RawJson> = CompactToken<Encrypted<KM, CE>, M>;
 impl<A: JwsAlgorithm, M> UnsealedToken<Signed<A>, M> {
     /// Create a new unsigned token with the given claims and a minimal `{"alg":"..."}` header.
     pub fn new(claims: M) -> Self {
-        let header_b64 = crate::header::HeaderBuilder::new(A::ALG).build();
         UnsealedToken {
-            header_b64,
+            header: UnsealedHeader::Builder(crate::header::HeaderBuilder::new(A::ALG)),
             claims,
             _marker: PhantomData,
         }
@@ -114,7 +136,7 @@ impl<A: JwsAlgorithm, M> UnsealedToken<Signed<A>, M> {
     /// Create a new unsigned token with a pre-built base64url-encoded header.
     pub fn with_header(header_b64: String, claims: M) -> Self {
         UnsealedToken {
-            header_b64,
+            header: UnsealedHeader::PreEncoded(header_b64),
             claims,
             _marker: PhantomData,
         }
@@ -141,20 +163,26 @@ where
     /// # Errors
     /// Returns a [`JoseError`] if signing fails.
     pub fn sign(self, key: &SigningKey<A>) -> JoseResult<CompactJws<A, M>> {
-        let header_bytes = crate::base64url::decode(&self.header_b64)?;
-        let hdr = parse_header(&header_bytes)?;
-        if hdr.alg != A::ALG {
-            return Err(Report::new(JoseError::AlgorithmMismatch));
-        }
+        let header_b64 = match self.header {
+            UnsealedHeader::Builder(b) => b.build(),
+            UnsealedHeader::PreEncoded(s) => {
+                let header_bytes = crate::base64url::decode(&s)?;
+                let hdr = parse_header(&header_bytes)?;
+                if hdr.alg != A::ALG {
+                    return Err(Report::new(JoseError::AlgorithmMismatch));
+                }
+                s
+            }
+        };
 
         let payload_json = self.claims.to_json();
         let payload_b64 = crate::base64url::encode(payload_json.as_bytes());
 
-        let signing_input = alloc::format!("{}.{}", self.header_b64, payload_b64);
+        let signing_input = alloc::format!("{header_b64}.{payload_b64}");
         let signature = A::sign(key.inner(), signing_input.as_bytes())?;
 
         Ok(CompactToken {
-            header_b64: self.header_b64,
+            header_b64,
             data: SignedData {
                 payload_b64,
                 signature,
@@ -242,7 +270,7 @@ fn decode_claims<P: Purpose, M: FromJson>(
     v.validate(&claims).map_err(Report::new)?;
 
     Ok(UnsealedToken {
-        header_b64,
+        header: UnsealedHeader::PreEncoded(header_b64),
         claims,
         _marker: PhantomData,
     })
@@ -443,11 +471,10 @@ impl<M> core::fmt::Display for UntypedCompactJws<M> {
 
 impl<KM: JweKeyManagement, CE: JweContentEncryption, M> UnsealedToken<Encrypted<KM, CE>, M> {
     pub fn new(claims: M) -> Self {
-        let header_b64 = crate::header::HeaderBuilder::new(KM::ALG)
-            .enc(CE::ENC)
-            .build();
         UnsealedToken {
-            header_b64,
+            header: UnsealedHeader::Builder(
+                crate::header::HeaderBuilder::new(KM::ALG).enc(CE::ENC),
+            ),
             claims,
             _marker: PhantomData,
         }
@@ -455,7 +482,7 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> UnsealedToken<Encrypted<
 
     pub fn with_header(header_b64: String, claims: M) -> Self {
         UnsealedToken {
-            header_b64,
+            header: UnsealedHeader::PreEncoded(header_b64),
             claims,
             _marker: PhantomData,
         }
@@ -483,24 +510,31 @@ where
     /// # Errors
     /// Returns a [`JoseError`] if encryption fails.
     pub fn encrypt(self, key: &EncryptionKey<KM>) -> JoseResult<CompactJwe<KM, CE, M>> {
-        let header_bytes = crate::base64url::decode(&self.header_b64)?;
-        let hdr = parse_header(&header_bytes)?;
-        if hdr.alg != KM::ALG {
-            return Err(Report::new(JoseError::AlgorithmMismatch));
-        }
-        match hdr.enc.as_deref() {
-            Some(e) if e == CE::ENC => {}
-            _ => {
-                return Err(Report::new(JoseError::AlgorithmMismatch));
-            }
-        }
-
         let result = KM::encrypt_cek(key.inner(), CE::KEY_LEN)?;
 
-        let header_b64 = if result.extra_headers.is_empty() {
-            self.header_b64
-        } else {
-            rebuild_header_with_extras(&header_bytes, &result.extra_headers)
+        let header_b64 = match self.header {
+            UnsealedHeader::Builder(mut b) => {
+                if !result.extra_headers.is_empty() {
+                    b.raw_fields(result.extra_headers);
+                }
+                b.build()
+            }
+            UnsealedHeader::PreEncoded(s) => {
+                let header_bytes = crate::base64url::decode(&s)?;
+                let hdr = parse_header(&header_bytes)?;
+                if hdr.alg != KM::ALG {
+                    return Err(Report::new(JoseError::AlgorithmMismatch));
+                }
+                match hdr.enc.as_deref() {
+                    Some(e) if e == CE::ENC => {}
+                    _ => return Err(Report::new(JoseError::AlgorithmMismatch)),
+                }
+                if result.extra_headers.is_empty() {
+                    s
+                } else {
+                    rebuild_header_with_extras(&header_bytes, &result.extra_headers)
+                }
+            }
         };
 
         let plaintext = self.claims.to_json();
@@ -557,7 +591,7 @@ where
         v.validate(&claims).map_err(Report::new)?;
 
         Ok(UnsealedToken {
-            header_b64: self.header_b64,
+            header: UnsealedHeader::PreEncoded(self.header_b64),
             claims,
             _marker: PhantomData,
         })
@@ -824,7 +858,7 @@ impl<P: Purpose, M> TokenBuilder<P, M> {
     #[must_use]
     pub fn build(self) -> UnsealedToken<P, M> {
         UnsealedToken {
-            header_b64: self.header.build(),
+            header: UnsealedHeader::Builder(self.header),
             claims: self.claims,
             _marker: PhantomData,
         }

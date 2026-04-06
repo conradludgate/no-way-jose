@@ -17,6 +17,7 @@ struct BuilderHeader {
     typ: Option<String>,
     cty: Option<String>,
     extra: BTreeMap<String, String>,
+    raw_fields: Vec<(String, String)>,
 }
 
 impl HeaderBuilder {
@@ -30,6 +31,7 @@ impl HeaderBuilder {
                 typ: None,
                 cty: None,
                 extra: BTreeMap::new(),
+                raw_fields: Vec::new(),
             },
         }
     }
@@ -58,6 +60,11 @@ impl HeaderBuilder {
         self
     }
 
+    /// Add pre-serialized JSON fields (e.g. `epk`, `iv`, `tag`, `p2s`, `p2c`).
+    pub fn raw_fields(&mut self, fields: Vec<(String, String)>) {
+        self.header.raw_fields = fields;
+    }
+
     #[must_use]
     pub fn build(self) -> String {
         let json = self.header.to_json();
@@ -83,6 +90,9 @@ impl BuilderHeader {
         }
         for (k, v) in &self.extra {
             w.string(k, v);
+        }
+        for (k, v) in &self.raw_fields {
+            w.raw_value(k, v);
         }
         w.finish()
     }
