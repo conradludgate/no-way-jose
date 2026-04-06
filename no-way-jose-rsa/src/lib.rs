@@ -16,7 +16,7 @@ use error_stack::Report;
 pub use no_way_jose_core;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::error::{JoseError, JoseResult};
-use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, RsaParams};
+use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, RsaParams, RsaPrivateParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 macro_rules! rsa_jws_algorithm {
@@ -144,20 +144,14 @@ pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
 fn rsa_pubkey_to_jwk(key: &rsa::RsaPublicKey, alg: &str) -> Jwk {
     use rsa::traits::PublicKeyParts;
     Jwk {
-        kty: "RSA".into(),
         kid: None,
         alg: Some(alg.into()),
         use_: None,
         key_ops: None,
-        params: JwkParams::Rsa(RsaParams {
+        key: JwkParams::Rsa(RsaParams {
             n: key.n_bytes().to_vec(),
             e: key.e_bytes().to_vec(),
-            d: None,
-            p: None,
-            q: None,
-            dp: None,
-            dq: None,
-            qi: None,
+            prv: None,
         }),
     }
 }
@@ -165,29 +159,24 @@ fn rsa_pubkey_to_jwk(key: &rsa::RsaPublicKey, alg: &str) -> Jwk {
 fn rsa_privkey_to_jwk(key: &rsa::RsaPrivateKey, alg: &str) -> Jwk {
     use rsa::traits::{PrivateKeyParts, PublicKeyParts};
     let primes = key.primes();
-    let mut jwk = Jwk {
-        kty: "RSA".into(),
+    Jwk {
         kid: None,
         alg: Some(alg.into()),
         use_: None,
         key_ops: None,
-        params: JwkParams::Rsa(RsaParams {
+        key: JwkParams::Rsa(RsaParams {
             n: key.n_bytes().to_vec(),
             e: key.e_bytes().to_vec(),
-            d: Some(boxed_uint_to_be_bytes(key.d())),
-            p: primes.first().map(boxed_uint_to_be_bytes),
-            q: primes.get(1).map(boxed_uint_to_be_bytes),
-            dp: key.dp().map(boxed_uint_to_be_bytes),
-            dq: key.dq().map(boxed_uint_to_be_bytes),
-            qi: None,
+            prv: Some(RsaPrivateParams {
+                d: boxed_uint_to_be_bytes(key.d()),
+                p: primes.first().map(boxed_uint_to_be_bytes),
+                q: primes.get(1).map(boxed_uint_to_be_bytes),
+                dp: key.dp().map(boxed_uint_to_be_bytes),
+                dq: key.dq().map(boxed_uint_to_be_bytes),
+                qi: key.crt_coefficient().map(|qi| boxed_uint_to_be_bytes(&qi)),
+            }),
         }),
-    };
-    if let Some(qi) = key.crt_coefficient()
-        && let JwkParams::Rsa(ref mut p) = jwk.params
-    {
-        p.qi = Some(boxed_uint_to_be_bytes(&qi));
     }
-    jwk
 }
 
 fn boxed_uint_to_be_bytes(v: &rsa::BoxedUint) -> Vec<u8> {
@@ -203,19 +192,19 @@ fn boxed_uint_from_be_bytes(bytes: &[u8]) -> rsa::BoxedUint {
 }
 
 fn validate_rsa_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<()> {
-    if jwk.kty != "RSA" {
-        return Err(Report::new(JoseError::InvalidKey));
-    }
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
         return Err(Report::new(JoseError::InvalidKey));
     }
-    Ok(())
+    match &jwk.key {
+        JwkParams::Rsa(_) => Ok(()),
+        _ => Err(Report::new(JoseError::InvalidKey)),
+    }
 }
 
 fn rsa_pubkey_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPublicKey> {
-    match &jwk.params {
+    match &jwk.key {
         JwkParams::Rsa(p) => {
             let n = boxed_uint_from_be_bytes(&p.n);
             let e = boxed_uint_from_be_bytes(&p.e);
@@ -227,19 +216,20 @@ fn rsa_pubkey_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPublicKey> {
 }
 
 fn rsa_privkey_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPrivateKey> {
-    match &jwk.params {
+    match &jwk.key {
         JwkParams::Rsa(p) => {
+            let prv = p
+                .prv
+                .as_ref()
+                .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
             let n = boxed_uint_from_be_bytes(&p.n);
             let e = boxed_uint_from_be_bytes(&p.e);
-            let d = boxed_uint_from_be_bytes(
-                p.d.as_ref()
-                    .ok_or_else(|| Report::new(JoseError::InvalidKey))?,
-            );
+            let d = boxed_uint_from_be_bytes(&prv.d);
             let mut primes = Vec::new();
-            if let Some(p_val) = &p.p {
+            if let Some(p_val) = &prv.p {
                 primes.push(boxed_uint_from_be_bytes(p_val));
             }
-            if let Some(q) = &p.q {
+            if let Some(q) = &prv.q {
                 primes.push(boxed_uint_from_be_bytes(q));
             }
             rsa::RsaPrivateKey::from_components(n, e, d, primes)

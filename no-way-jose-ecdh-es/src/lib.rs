@@ -20,7 +20,9 @@ use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
 };
-use no_way_jose_core::jwk::{EcParams, Jwk, JwkKeyConvert, JwkParams, OkpParams};
+use no_way_jose_core::jwk::{
+    EcCurve, EcParams, Jwk, JwkKeyConvert, JwkParams, OkpCurve, OkpParams,
+};
 use no_way_jose_core::key::{Decrypting, Encrypting, HasKey};
 use p256::elliptic_curve::sec1::ToSec1Point;
 
@@ -264,13 +266,12 @@ impl KeyDecryptor for EcdhEs {
 fn ec_pubkey_to_jwk(key: &EcPublicKey, alg: &str) -> Jwk {
     match key {
         EcPublicKey::X25519(pk) => Jwk {
-            kty: "OKP".into(),
             kid: None,
             alg: Some(alg.into()),
             use_: None,
             key_ops: None,
-            params: JwkParams::Okp(OkpParams {
-                crv: "X25519".into(),
+            key: JwkParams::Okp(OkpParams {
+                crv: OkpCurve::X25519,
                 x: pk.as_bytes().to_vec(),
                 d: None,
             }),
@@ -278,13 +279,12 @@ fn ec_pubkey_to_jwk(key: &EcPublicKey, alg: &str) -> Jwk {
         EcPublicKey::P256(pk) => {
             let point = pk.to_sec1_point(false);
             Jwk {
-                kty: "EC".into(),
                 kid: None,
                 alg: Some(alg.into()),
                 use_: None,
                 key_ops: None,
-                params: JwkParams::Ec(EcParams {
-                    crv: "P-256".into(),
+                key: JwkParams::Ec(EcParams {
+                    crv: EcCurve::P256,
                     x: point.x().unwrap().to_vec(),
                     y: point.y().unwrap().to_vec(),
                     d: None,
@@ -294,13 +294,12 @@ fn ec_pubkey_to_jwk(key: &EcPublicKey, alg: &str) -> Jwk {
         EcPublicKey::P384(pk) => {
             let point = pk.to_sec1_point(false);
             Jwk {
-                kty: "EC".into(),
                 kid: None,
                 alg: Some(alg.into()),
                 use_: None,
                 key_ops: None,
-                params: JwkParams::Ec(EcParams {
-                    crv: "P-384".into(),
+                key: JwkParams::Ec(EcParams {
+                    crv: EcCurve::P384,
                     x: point.x().unwrap().to_vec(),
                     y: point.y().unwrap().to_vec(),
                     d: None,
@@ -315,13 +314,12 @@ fn ec_privkey_to_jwk(key: &EcPrivateKey, alg: &str) -> Jwk {
         EcPrivateKey::X25519(sk) => {
             let pk = x25519_dalek::PublicKey::from(sk);
             Jwk {
-                kty: "OKP".into(),
                 kid: None,
                 alg: Some(alg.into()),
                 use_: None,
                 key_ops: None,
-                params: JwkParams::Okp(OkpParams {
-                    crv: "X25519".into(),
+                key: JwkParams::Okp(OkpParams {
+                    crv: OkpCurve::X25519,
                     x: pk.as_bytes().to_vec(),
                     d: Some(sk.to_bytes().to_vec()),
                 }),
@@ -331,13 +329,12 @@ fn ec_privkey_to_jwk(key: &EcPrivateKey, alg: &str) -> Jwk {
             let pk = sk.public_key();
             let point = pk.to_sec1_point(false);
             Jwk {
-                kty: "EC".into(),
                 kid: None,
                 alg: Some(alg.into()),
                 use_: None,
                 key_ops: None,
-                params: JwkParams::Ec(EcParams {
-                    crv: "P-256".into(),
+                key: JwkParams::Ec(EcParams {
+                    crv: EcCurve::P256,
                     x: point.x().unwrap().to_vec(),
                     y: point.y().unwrap().to_vec(),
                     d: Some(sk.to_bytes().to_vec()),
@@ -348,13 +345,12 @@ fn ec_privkey_to_jwk(key: &EcPrivateKey, alg: &str) -> Jwk {
             let pk = sk.public_key();
             let point = pk.to_sec1_point(false);
             Jwk {
-                kty: "EC".into(),
                 kid: None,
                 alg: Some(alg.into()),
                 use_: None,
                 key_ops: None,
-                params: JwkParams::Ec(EcParams {
-                    crv: "P-384".into(),
+                key: JwkParams::Ec(EcParams {
+                    crv: EcCurve::P384,
                     x: point.x().unwrap().to_vec(),
                     y: point.y().unwrap().to_vec(),
                     d: Some(sk.to_bytes().to_vec()),
@@ -370,41 +366,35 @@ fn ec_pubkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPublicKey> 
     {
         return Err(Report::new(JoseError::InvalidKey));
     }
-    match jwk.kty.as_str() {
-        "EC" => match &jwk.params {
-            JwkParams::Ec(p) => match p.crv.as_str() {
-                "P-256" => {
-                    let mut sec1 = Vec::with_capacity(1 + p.x.len() + p.y.len());
-                    sec1.push(0x04);
-                    sec1.extend_from_slice(&p.x);
-                    sec1.extend_from_slice(&p.y);
-                    let pk = p256::PublicKey::from_sec1_bytes(&sec1)
-                        .map_err(|_| Report::new(JoseError::InvalidKey))?;
-                    Ok(EcPublicKey::P256(pk))
-                }
-                "P-384" => {
-                    let mut sec1 = Vec::with_capacity(1 + p.x.len() + p.y.len());
-                    sec1.push(0x04);
-                    sec1.extend_from_slice(&p.x);
-                    sec1.extend_from_slice(&p.y);
-                    let pk = p384::PublicKey::from_sec1_bytes(&sec1)
-                        .map_err(|_| Report::new(JoseError::InvalidKey))?;
-                    Ok(EcPublicKey::P384(pk))
-                }
-                _ => Err(Report::new(JoseError::InvalidKey)),
-            },
-            _ => Err(Report::new(JoseError::InvalidKey)),
-        },
-        "OKP" => match &jwk.params {
-            JwkParams::Okp(p) if p.crv == "X25519" => {
-                let x: [u8; 32] =
-                    p.x.as_slice()
-                        .try_into()
-                        .map_err(|_| Report::new(JoseError::InvalidKey))?;
-                Ok(EcPublicKey::X25519(x25519_dalek::PublicKey::from(x)))
+    match &jwk.key {
+        JwkParams::Ec(p) => match p.crv {
+            EcCurve::P256 => {
+                let mut sec1 = Vec::with_capacity(1 + p.x.len() + p.y.len());
+                sec1.push(0x04);
+                sec1.extend_from_slice(&p.x);
+                sec1.extend_from_slice(&p.y);
+                let pk = p256::PublicKey::from_sec1_bytes(&sec1)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
+                Ok(EcPublicKey::P256(pk))
+            }
+            EcCurve::P384 => {
+                let mut sec1 = Vec::with_capacity(1 + p.x.len() + p.y.len());
+                sec1.push(0x04);
+                sec1.extend_from_slice(&p.x);
+                sec1.extend_from_slice(&p.y);
+                let pk = p384::PublicKey::from_sec1_bytes(&sec1)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
+                Ok(EcPublicKey::P384(pk))
             }
             _ => Err(Report::new(JoseError::InvalidKey)),
         },
+        JwkParams::Okp(p) if p.crv == OkpCurve::X25519 => {
+            let x: [u8; 32] =
+                p.x.as_slice()
+                    .try_into()
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
+            Ok(EcPublicKey::X25519(x25519_dalek::PublicKey::from(x)))
+        }
         _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
@@ -415,39 +405,33 @@ fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPrivateKey
     {
         return Err(Report::new(JoseError::InvalidKey));
     }
-    match jwk.kty.as_str() {
-        "EC" => match &jwk.params {
-            JwkParams::Ec(p) => {
-                let d = p.d.as_ref().ok_or(Report::new(JoseError::InvalidKey))?;
-                match p.crv.as_str() {
-                    "P-256" => {
-                        let sk = p256::SecretKey::from_slice(d)
-                            .map_err(|_| Report::new(JoseError::InvalidKey))?;
-                        Ok(EcPrivateKey::P256(sk))
-                    }
-                    "P-384" => {
-                        let sk = p384::SecretKey::from_slice(d)
-                            .map_err(|_| Report::new(JoseError::InvalidKey))?;
-                        Ok(EcPrivateKey::P384(sk))
-                    }
-                    _ => Err(Report::new(JoseError::InvalidKey)),
+    match &jwk.key {
+        JwkParams::Ec(p) => {
+            let d = p.d.as_ref().ok_or(Report::new(JoseError::InvalidKey))?;
+            match p.crv {
+                EcCurve::P256 => {
+                    let sk = p256::SecretKey::from_slice(d)
+                        .map_err(|_| Report::new(JoseError::InvalidKey))?;
+                    Ok(EcPrivateKey::P256(sk))
                 }
+                EcCurve::P384 => {
+                    let sk = p384::SecretKey::from_slice(d)
+                        .map_err(|_| Report::new(JoseError::InvalidKey))?;
+                    Ok(EcPrivateKey::P384(sk))
+                }
+                _ => Err(Report::new(JoseError::InvalidKey)),
             }
-            _ => Err(Report::new(JoseError::InvalidKey)),
-        },
-        "OKP" => match &jwk.params {
-            JwkParams::Okp(p) if p.crv == "X25519" => {
-                let d = p.d.as_ref().ok_or(Report::new(JoseError::InvalidKey))?;
-                let d_arr: [u8; 32] = d
-                    .as_slice()
-                    .try_into()
-                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
-                Ok(EcPrivateKey::X25519(x25519_dalek::StaticSecret::from(
-                    d_arr,
-                )))
-            }
-            _ => Err(Report::new(JoseError::InvalidKey)),
-        },
+        }
+        JwkParams::Okp(p) if p.crv == OkpCurve::X25519 => {
+            let d = p.d.as_ref().ok_or(Report::new(JoseError::InvalidKey))?;
+            let d_arr: [u8; 32] = d
+                .as_slice()
+                .try_into()
+                .map_err(|_| Report::new(JoseError::InvalidKey))?;
+            Ok(EcPrivateKey::X25519(x25519_dalek::StaticSecret::from(
+                d_arr,
+            )))
+        }
         _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }

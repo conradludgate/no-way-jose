@@ -6,8 +6,8 @@
 //! of keys and supports lookup by Key ID ([`JwkSet::find_by_kid`]).
 //!
 //! Key-type-specific parameters are stored in [`JwkParams`] variants:
-//! [`EcParams`] (P-256, P-384), [`RsaParams`], [`OctParams`] (symmetric),
-//! and [`OkpParams`] (Ed25519).
+//! [`EcParams`] (P-256, P-384, P-521), [`RsaParams`], [`OctParams`]
+//! (symmetric), and [`OkpParams`] (Ed25519, X25519).
 //!
 //! ## Converting keys
 //!
@@ -37,15 +37,116 @@ use crate::base64url;
 use crate::error::{JoseError, JoseResult, JsonError};
 use crate::json::{JsonReader, JsonWriter};
 
-/// Intended use of a public key.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Intended use of a public key (RFC 7517 §4.2).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum KeyUse {
     Sig,
     Enc,
 }
 
+/// Key operation (RFC 7517 §4.3).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KeyOp {
+    Sign,
+    Verify,
+    Encrypt,
+    Decrypt,
+    WrapKey,
+    UnwrapKey,
+    DeriveKey,
+    DeriveBits,
+}
+
+impl KeyOp {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Sign => "sign",
+            Self::Verify => "verify",
+            Self::Encrypt => "encrypt",
+            Self::Decrypt => "decrypt",
+            Self::WrapKey => "wrapKey",
+            Self::UnwrapKey => "unwrapKey",
+            Self::DeriveKey => "deriveKey",
+            Self::DeriveBits => "deriveBits",
+        }
+    }
+
+    fn from_str(s: &str) -> JoseResult<Self> {
+        match s {
+            "sign" => Ok(Self::Sign),
+            "verify" => Ok(Self::Verify),
+            "encrypt" => Ok(Self::Encrypt),
+            "decrypt" => Ok(Self::Decrypt),
+            "wrapKey" => Ok(Self::WrapKey),
+            "unwrapKey" => Ok(Self::UnwrapKey),
+            "deriveKey" => Ok(Self::DeriveKey),
+            "deriveBits" => Ok(Self::DeriveBits),
+            _ => Err(Report::new(JoseError::InvalidKey)),
+        }
+    }
+}
+
+/// Elliptic curve identifier for `kty: "EC"` keys (RFC 7518 §6.2.1.1).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EcCurve {
+    P256,
+    P384,
+    P521,
+}
+
+impl EcCurve {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::P256 => "P-256",
+            Self::P384 => "P-384",
+            Self::P521 => "P-521",
+        }
+    }
+
+    fn from_str(s: &str) -> JoseResult<Self> {
+        match s {
+            "P-256" => Ok(Self::P256),
+            "P-384" => Ok(Self::P384),
+            "P-521" => Ok(Self::P521),
+            _ => Err(Report::new(JoseError::InvalidKey)),
+        }
+    }
+}
+
+/// Curve identifier for `kty: "OKP"` keys (RFC 8037 §2).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum OkpCurve {
+    Ed25519,
+    X25519,
+}
+
+impl OkpCurve {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ed25519 => "Ed25519",
+            Self::X25519 => "X25519",
+        }
+    }
+
+    fn from_str(s: &str) -> JoseResult<Self> {
+        match s {
+            "Ed25519" => Ok(Self::Ed25519),
+            "X25519" => Ok(Self::X25519),
+            _ => Err(Report::new(JoseError::InvalidKey)),
+        }
+    }
+}
+
 /// Key-type-specific parameters.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum JwkParams {
     Ec(EcParams),
     Rsa(RsaParams),
@@ -56,7 +157,7 @@ pub enum JwkParams {
 /// Parameters for `kty: "EC"` keys (RFC 7518 §6.2).
 #[derive(Clone, Debug)]
 pub struct EcParams {
-    pub crv: String,
+    pub crv: EcCurve,
     pub x: Vec<u8>,
     pub y: Vec<u8>,
     pub d: Option<Vec<u8>>,
@@ -67,7 +168,13 @@ pub struct EcParams {
 pub struct RsaParams {
     pub n: Vec<u8>,
     pub e: Vec<u8>,
-    pub d: Option<Vec<u8>>,
+    pub prv: Option<RsaPrivateParams>,
+}
+
+/// RSA private key parameters (RFC 7518 §6.3.2).
+#[derive(Clone, Debug)]
+pub struct RsaPrivateParams {
+    pub d: Vec<u8>,
     pub p: Option<Vec<u8>>,
     pub q: Option<Vec<u8>>,
     pub dp: Option<Vec<u8>>,
@@ -84,7 +191,7 @@ pub struct OctParams {
 /// Parameters for `kty: "OKP"` keys (RFC 8037 §2).
 #[derive(Clone, Debug)]
 pub struct OkpParams {
-    pub crv: String,
+    pub crv: OkpCurve,
     pub x: Vec<u8>,
     pub d: Option<Vec<u8>>,
 }
@@ -92,12 +199,24 @@ pub struct OkpParams {
 /// A parsed JSON Web Key (RFC 7517 §4).
 #[derive(Clone, Debug)]
 pub struct Jwk {
-    pub kty: String,
     pub kid: Option<String>,
     pub alg: Option<String>,
     pub use_: Option<KeyUse>,
-    pub key_ops: Option<Vec<String>>,
-    pub params: JwkParams,
+    pub key_ops: Option<Vec<KeyOp>>,
+    pub key: JwkParams,
+}
+
+impl Jwk {
+    /// Returns the key type string (`"EC"`, `"RSA"`, `"oct"`, or `"OKP"`).
+    #[must_use]
+    pub fn kty(&self) -> &'static str {
+        match &self.key {
+            JwkParams::Ec(_) => "EC",
+            JwkParams::Rsa(_) => "RSA",
+            JwkParams::Oct(_) => "oct",
+            JwkParams::Okp(_) => "OKP",
+        }
+    }
 }
 
 /// A JSON Web Key Set (RFC 7517 §5).
@@ -163,7 +282,7 @@ impl Jwk {
     #[must_use]
     pub fn to_json_bytes(&self) -> Vec<u8> {
         let mut w = JsonWriter::new();
-        w.string("kty", &self.kty);
+        w.string("kty", self.kty());
         if let Some(kid) = &self.kid {
             w.string("kid", kid);
         }
@@ -180,11 +299,12 @@ impl Jwk {
             );
         }
         if let Some(key_ops) = &self.key_ops {
-            w.string_or_array("key_ops", key_ops);
+            let strs: Vec<String> = key_ops.iter().map(|op| String::from(op.as_str())).collect();
+            w.string_or_array("key_ops", &strs);
         }
-        match &self.params {
+        match &self.key {
             JwkParams::Ec(p) => {
-                w.string("crv", &p.crv);
+                w.string("crv", p.crv.as_str());
                 w.string("x", &base64url::encode(&p.x));
                 w.string("y", &base64url::encode(&p.y));
                 if let Some(d) = &p.d {
@@ -194,30 +314,30 @@ impl Jwk {
             JwkParams::Rsa(p) => {
                 w.string("n", &base64url::encode(&p.n));
                 w.string("e", &base64url::encode(&p.e));
-                if let Some(d) = &p.d {
-                    w.string("d", &base64url::encode(d));
-                }
-                if let Some(p_val) = &p.p {
-                    w.string("p", &base64url::encode(p_val));
-                }
-                if let Some(q) = &p.q {
-                    w.string("q", &base64url::encode(q));
-                }
-                if let Some(dp) = &p.dp {
-                    w.string("dp", &base64url::encode(dp));
-                }
-                if let Some(dq) = &p.dq {
-                    w.string("dq", &base64url::encode(dq));
-                }
-                if let Some(qi) = &p.qi {
-                    w.string("qi", &base64url::encode(qi));
+                if let Some(prv) = &p.prv {
+                    w.string("d", &base64url::encode(&prv.d));
+                    if let Some(p_val) = &prv.p {
+                        w.string("p", &base64url::encode(p_val));
+                    }
+                    if let Some(q) = &prv.q {
+                        w.string("q", &base64url::encode(q));
+                    }
+                    if let Some(dp) = &prv.dp {
+                        w.string("dp", &base64url::encode(dp));
+                    }
+                    if let Some(dq) = &prv.dq {
+                        w.string("dq", &base64url::encode(dq));
+                    }
+                    if let Some(qi) = &prv.qi {
+                        w.string("qi", &base64url::encode(qi));
+                    }
                 }
             }
             JwkParams::Oct(p) => {
                 w.string("k", &base64url::encode(&p.k));
             }
             JwkParams::Okp(p) => {
-                w.string("crv", &p.crv);
+                w.string("crv", p.crv.as_str());
                 w.string("x", &base64url::encode(&p.x));
                 if let Some(d) = &p.d {
                     w.string("d", &base64url::encode(d));
@@ -237,7 +357,7 @@ impl Jwk {
         let mut kid = None;
         let mut alg = None;
         let mut use_ = None;
-        let mut key_ops = None;
+        let mut key_ops_raw: Option<Vec<String>> = None;
         let mut crv = None;
         let mut x = None;
         let mut y = None;
@@ -251,56 +371,29 @@ impl Jwk {
         let mut qi = None;
         let mut k = None;
 
-        while let Some(key) = reader
+        while let Some(field) = reader
             .next_key()
             .change_context(JoseError::MalformedToken)?
         {
-            match key {
-                "kty" => {
-                    kty = Some(
-                        reader
-                            .read_string()
-                            .change_context(JoseError::MalformedToken)?,
-                    );
-                }
-                "kid" => {
-                    kid = Some(
-                        reader
-                            .read_string()
-                            .change_context(JoseError::MalformedToken)?,
-                    );
-                }
-                "alg" => {
-                    alg = Some(
-                        reader
-                            .read_string()
-                            .change_context(JoseError::MalformedToken)?,
-                    );
-                }
+            match field {
+                "kty" => kty = Some(read_str_field(&mut reader)?),
+                "kid" => kid = Some(read_str_field(&mut reader)?),
+                "alg" => alg = Some(read_str_field(&mut reader)?),
                 "use" => {
-                    let val = reader
-                        .read_string()
-                        .change_context(JoseError::MalformedToken)?;
-                    use_ = Some(match val.as_str() {
+                    use_ = Some(match read_str_field(&mut reader)?.as_str() {
                         "sig" => KeyUse::Sig,
                         "enc" => KeyUse::Enc,
                         _ => return Err(Report::new(JoseError::InvalidKey)),
                     });
                 }
                 "key_ops" => {
-                    key_ops = Some(
+                    key_ops_raw = Some(
                         reader
                             .read_string_array()
                             .change_context(JoseError::MalformedToken)?,
                     );
                 }
-                "crv" => {
-                    crv = Some(
-                        reader
-                            .read_string()
-                            .change_context(JoseError::MalformedToken)?,
-                    );
-                }
+                "crv" => crv = Some(read_str_field(&mut reader)?),
                 "x" => x = Some(read_b64_string(&mut reader)?),
                 "y" => y = Some(read_b64_string(&mut reader)?),
                 "d" => d = Some(read_b64_string(&mut reader)?),
@@ -318,18 +411,25 @@ impl Jwk {
             }
         }
 
-        let kty = kty
+        let kty_str = kty
             .ok_or_else(|| Report::new(JsonError::MissingField))
             .change_context(JoseError::InvalidKey)?;
-        let params = build_jwk_params(&kty, crv, x, y, d, n, e, p, q, dp, dq, qi, k)?;
+        let key = build_jwk_params(&kty_str, crv, x, y, d, n, e, p, q, dp, dq, qi, k)?;
+
+        let key_ops = key_ops_raw
+            .map(|ops| {
+                ops.iter()
+                    .map(|s| KeyOp::from_str(s))
+                    .collect::<JoseResult<Vec<_>>>()
+            })
+            .transpose()?;
 
         Ok(Jwk {
-            kty,
             kid,
             alg,
             use_,
             key_ops,
-            params,
+            key,
         })
     }
 }
@@ -356,30 +456,47 @@ fn build_jwk_params(
     }
 
     match kty {
-        "EC" => Ok(JwkParams::Ec(EcParams {
-            crv: required(crv)?,
-            x: required(x)?,
-            y: required(y)?,
-            d,
-        })),
-        "RSA" => Ok(JwkParams::Rsa(RsaParams {
-            n: required(n)?,
-            e: required(e)?,
-            d,
-            p,
-            q,
-            dp,
-            dq,
-            qi,
-        })),
+        "EC" => {
+            let crv_str = required(crv)?;
+            Ok(JwkParams::Ec(EcParams {
+                crv: EcCurve::from_str(&crv_str)?,
+                x: required(x)?,
+                y: required(y)?,
+                d,
+            }))
+        }
+        "RSA" => {
+            let prv = d.map(|d_val| RsaPrivateParams {
+                d: d_val,
+                p,
+                q,
+                dp,
+                dq,
+                qi,
+            });
+            Ok(JwkParams::Rsa(RsaParams {
+                n: required(n)?,
+                e: required(e)?,
+                prv,
+            }))
+        }
         "oct" => Ok(JwkParams::Oct(OctParams { k: required(k)? })),
-        "OKP" => Ok(JwkParams::Okp(OkpParams {
-            crv: required(crv)?,
-            x: required(x)?,
-            d,
-        })),
+        "OKP" => {
+            let crv_str = required(crv)?;
+            Ok(JwkParams::Okp(OkpParams {
+                crv: OkpCurve::from_str(&crv_str)?,
+                x: required(x)?,
+                d,
+            }))
+        }
         _ => Err(Report::new(JoseError::InvalidKey)),
     }
+}
+
+fn read_str_field(reader: &mut JsonReader<'_>) -> JoseResult<String> {
+    reader
+        .read_string()
+        .change_context(JoseError::MalformedToken)
 }
 
 fn read_b64_string(reader: &mut JsonReader<'_>) -> JoseResult<Vec<u8>> {
@@ -409,11 +526,11 @@ impl JwkSet {
     pub fn from_json_bytes(bytes: &[u8]) -> JoseResult<Self> {
         let mut reader = JsonReader::new(bytes).change_context(JoseError::MalformedToken)?;
         let mut keys = None;
-        while let Some(key) = reader
+        while let Some(field) = reader
             .next_key()
             .change_context(JoseError::MalformedToken)?
         {
-            match key {
+            match field {
                 "keys" => {
                     keys = Some(read_jwk_array(&mut reader)?);
                 }
@@ -507,25 +624,25 @@ impl Jwk {
     #[must_use]
     pub fn thumbprint_canonical_json(&self) -> Vec<u8> {
         let mut w = JsonWriter::new();
-        match &self.params {
+        match &self.key {
             JwkParams::Ec(p) => {
-                w.string("crv", &p.crv);
-                w.string("kty", &self.kty);
+                w.string("crv", p.crv.as_str());
+                w.string("kty", self.kty());
                 w.string("x", &base64url::encode(&p.x));
                 w.string("y", &base64url::encode(&p.y));
             }
             JwkParams::Rsa(p) => {
                 w.string("e", &base64url::encode(&p.e));
-                w.string("kty", &self.kty);
+                w.string("kty", self.kty());
                 w.string("n", &base64url::encode(&p.n));
             }
             JwkParams::Oct(p) => {
                 w.string("k", &base64url::encode(&p.k));
-                w.string("kty", &self.kty);
+                w.string("kty", self.kty());
             }
             JwkParams::Okp(p) => {
-                w.string("crv", &p.crv);
-                w.string("kty", &self.kty);
+                w.string("crv", p.crv.as_str());
+                w.string("kty", self.kty());
                 w.string("x", &base64url::encode(&p.x));
             }
         }
@@ -542,13 +659,12 @@ mod tests {
     #[test]
     fn ec_jwk_roundtrip() {
         let jwk = Jwk {
-            kty: "EC".into(),
             kid: Some("test-ec".into()),
             alg: Some("ES256".into()),
             use_: Some(KeyUse::Sig),
             key_ops: None,
-            params: JwkParams::Ec(EcParams {
-                crv: "P-256".into(),
+            key: JwkParams::Ec(EcParams {
+                crv: EcCurve::P256,
                 x: vec![1, 2, 3],
                 y: vec![4, 5, 6],
                 d: None,
@@ -556,13 +672,13 @@ mod tests {
         };
         let bytes = jwk.to_json_bytes();
         let parsed = Jwk::from_json_bytes(&bytes).unwrap();
-        assert_eq!(parsed.kty, "EC");
+        assert_eq!(parsed.kty(), "EC");
         assert_eq!(parsed.kid.as_deref(), Some("test-ec"));
         assert_eq!(parsed.alg.as_deref(), Some("ES256"));
         assert_eq!(parsed.use_, Some(KeyUse::Sig));
-        match &parsed.params {
+        match &parsed.key {
             JwkParams::Ec(p) => {
-                assert_eq!(p.crv, "P-256");
+                assert_eq!(p.crv, EcCurve::P256);
                 assert_eq!(p.x, vec![1, 2, 3]);
                 assert_eq!(p.y, vec![4, 5, 6]);
                 assert!(p.d.is_none());
@@ -574,16 +690,15 @@ mod tests {
     #[test]
     fn oct_jwk_roundtrip() {
         let jwk = Jwk {
-            kty: "oct".into(),
             kid: None,
             alg: None,
             use_: None,
             key_ops: None,
-            params: JwkParams::Oct(OctParams { k: vec![0xAB; 32] }),
+            key: JwkParams::Oct(OctParams { k: vec![0xAB; 32] }),
         };
         let bytes = jwk.to_json_bytes();
         let parsed = Jwk::from_json_bytes(&bytes).unwrap();
-        match &parsed.params {
+        match &parsed.key {
             JwkParams::Oct(p) => assert_eq!(p.k, vec![0xAB; 32]),
             _ => panic!("wrong params type"),
         }
@@ -594,28 +709,26 @@ mod tests {
         let set = JwkSet {
             keys: vec![
                 Jwk {
-                    kty: "oct".into(),
                     kid: Some("key1".into()),
                     alg: None,
                     use_: None,
                     key_ops: None,
-                    params: JwkParams::Oct(OctParams { k: vec![1, 2, 3] }),
+                    key: JwkParams::Oct(OctParams { k: vec![1, 2, 3] }),
                 },
                 Jwk {
-                    kty: "oct".into(),
                     kid: Some("key2".into()),
                     alg: None,
                     use_: None,
                     key_ops: None,
-                    params: JwkParams::Oct(OctParams { k: vec![4, 5, 6] }),
+                    key: JwkParams::Oct(OctParams { k: vec![4, 5, 6] }),
                 },
             ],
         };
         let bytes = set.to_json_bytes();
         let parsed = JwkSet::from_json_bytes(&bytes).unwrap();
         assert_eq!(parsed.keys.len(), 2);
-        assert_eq!(parsed.find_by_kid("key1").unwrap().kty, "oct");
-        assert_eq!(parsed.find_by_kid("key2").unwrap().kty, "oct");
+        assert_eq!(parsed.find_by_kid("key1").unwrap().kty(), "oct");
+        assert_eq!(parsed.find_by_kid("key2").unwrap().kty(), "oct");
         assert!(parsed.find_by_kid("key3").is_none());
     }
 

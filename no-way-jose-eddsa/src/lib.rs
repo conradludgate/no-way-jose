@@ -15,7 +15,7 @@ use error_stack::Report;
 pub use no_way_jose_core;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::error::{JoseError, JoseResult};
-use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OkpParams};
+use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OkpCurve, OkpParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 /// `EdDSA`: Edwards-curve Digital Signature Algorithm using Ed25519 (RFC 8037).
@@ -62,13 +62,12 @@ impl Verifier for EdDsa {
 impl JwkKeyConvert<Signing> for EdDsa {
     fn key_to_jwk(key: &ed25519_dalek::SigningKey) -> Jwk {
         Jwk {
-            kty: "OKP".into(),
             kid: None,
             alg: Some("EdDSA".into()),
             use_: None,
             key_ops: None,
-            params: JwkParams::Okp(OkpParams {
-                crv: "Ed25519".into(),
+            key: JwkParams::Okp(OkpParams {
+                crv: OkpCurve::Ed25519,
                 x: key.verifying_key().to_bytes().to_vec(),
                 d: Some(key.to_bytes().to_vec()),
             }),
@@ -77,7 +76,7 @@ impl JwkKeyConvert<Signing> for EdDsa {
 
     fn key_from_jwk(jwk: &Jwk) -> JoseResult<ed25519_dalek::SigningKey> {
         validate_okp_jwk(jwk)?;
-        match &jwk.params {
+        match &jwk.key {
             JwkParams::Okp(p) => {
                 let d =
                     p.d.as_ref()
@@ -96,13 +95,12 @@ impl JwkKeyConvert<Signing> for EdDsa {
 impl JwkKeyConvert<Verifying> for EdDsa {
     fn key_to_jwk(key: &ed25519_dalek::VerifyingKey) -> Jwk {
         Jwk {
-            kty: "OKP".into(),
             kid: None,
             alg: Some("EdDSA".into()),
             use_: None,
             key_ops: None,
-            params: JwkParams::Okp(OkpParams {
-                crv: "Ed25519".into(),
+            key: JwkParams::Okp(OkpParams {
+                crv: OkpCurve::Ed25519,
                 x: key.to_bytes().to_vec(),
                 d: None,
             }),
@@ -111,7 +109,7 @@ impl JwkKeyConvert<Verifying> for EdDsa {
 
     fn key_from_jwk(jwk: &Jwk) -> JoseResult<ed25519_dalek::VerifyingKey> {
         validate_okp_jwk(jwk)?;
-        match &jwk.params {
+        match &jwk.key {
             JwkParams::Okp(p) => {
                 let bytes: [u8; 32] =
                     p.x.as_slice()
@@ -126,16 +124,13 @@ impl JwkKeyConvert<Verifying> for EdDsa {
 }
 
 fn validate_okp_jwk(jwk: &Jwk) -> JoseResult<()> {
-    if jwk.kty != "OKP" {
-        return Err(Report::new(JoseError::InvalidKey));
-    }
     if let Some(alg) = &jwk.alg
         && alg != "EdDSA"
     {
         return Err(Report::new(JoseError::InvalidKey));
     }
-    match &jwk.params {
-        JwkParams::Okp(p) if p.crv == "Ed25519" => Ok(()),
+    match &jwk.key {
+        JwkParams::Okp(p) if p.crv == OkpCurve::Ed25519 => Ok(()),
         _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }

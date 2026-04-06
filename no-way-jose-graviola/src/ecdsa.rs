@@ -3,7 +3,7 @@ use graviola::hashing::{Sha256, Sha384};
 use graviola::signing::ecdsa;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::error::{JoseError, JoseResult};
-use no_way_jose_core::jwk::{EcParams, Jwk, JwkKeyConvert, JwkParams};
+use no_way_jose_core::jwk::{EcCurve, EcParams, Jwk, JwkKeyConvert, JwkParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 macro_rules! ecdsa_algorithm {
@@ -69,19 +69,18 @@ ecdsa_algorithm!(
 // -- JWK support --
 
 macro_rules! ecdsa_jwk_impls {
-    ($name:ident, $alg:literal, $crv:literal, $curve:ty, $privkey:ty, $pubkey:ty, $scalar_len:literal) => {
+    ($name:ident, $alg:literal, $crv:expr, $curve:ty, $privkey:ty, $pubkey:ty, $scalar_len:literal) => {
         impl JwkKeyConvert<Signing> for $name {
             fn key_to_jwk(key: &ecdsa::SigningKey<$curve>) -> Jwk {
                 let d = key.private_key.as_bytes();
                 let point = key.private_key.public_key_uncompressed();
                 Jwk {
-                    kty: "EC".into(),
                     kid: None,
                     alg: Some($alg.into()),
                     use_: None,
                     key_ops: None,
-                    params: JwkParams::Ec(EcParams {
-                        crv: $crv.into(),
+                    key: JwkParams::Ec(EcParams {
+                        crv: $crv,
                         x: point[1..1 + $scalar_len].to_vec(),
                         y: point[1 + $scalar_len..].to_vec(),
                         d: Some(d.to_vec()),
@@ -91,7 +90,7 @@ macro_rules! ecdsa_jwk_impls {
 
             fn key_from_jwk(jwk: &Jwk) -> JoseResult<ecdsa::SigningKey<$curve>> {
                 validate_ec_jwk(jwk, $alg, $crv)?;
-                match &jwk.params {
+                match &jwk.key {
                     JwkParams::Ec(p) => {
                         let d =
                             p.d.as_ref()
@@ -109,13 +108,12 @@ macro_rules! ecdsa_jwk_impls {
             fn key_to_jwk(key: &ecdsa::VerifyingKey<$curve>) -> Jwk {
                 let point = key.public_key.as_bytes_uncompressed();
                 Jwk {
-                    kty: "EC".into(),
                     kid: None,
                     alg: Some($alg.into()),
                     use_: None,
                     key_ops: None,
-                    params: JwkParams::Ec(EcParams {
-                        crv: $crv.into(),
+                    key: JwkParams::Ec(EcParams {
+                        crv: $crv,
                         x: point[1..1 + $scalar_len].to_vec(),
                         y: point[1 + $scalar_len..].to_vec(),
                         d: None,
@@ -125,7 +123,7 @@ macro_rules! ecdsa_jwk_impls {
 
             fn key_from_jwk(jwk: &Jwk) -> JoseResult<ecdsa::VerifyingKey<$curve>> {
                 validate_ec_jwk(jwk, $alg, $crv)?;
-                match &jwk.params {
+                match &jwk.key {
                     JwkParams::Ec(p) => {
                         let mut uncompressed = Vec::with_capacity(1 + p.x.len() + p.y.len());
                         uncompressed.push(0x04);
@@ -142,16 +140,13 @@ macro_rules! ecdsa_jwk_impls {
     };
 }
 
-fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> JoseResult<()> {
-    if jwk.kty != "EC" {
-        return Err(Report::new(JoseError::InvalidKey));
-    }
+fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: EcCurve) -> JoseResult<()> {
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
         return Err(Report::new(JoseError::InvalidKey));
     }
-    match &jwk.params {
+    match &jwk.key {
         JwkParams::Ec(p) if p.crv == expected_crv => Ok(()),
         _ => Err(Report::new(JoseError::InvalidKey)),
     }
@@ -160,7 +155,7 @@ fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: &str) -> JoseRes
 ecdsa_jwk_impls!(
     Es256,
     "ES256",
-    "P-256",
+    EcCurve::P256,
     ecdsa::P256,
     graviola::key_agreement::p256::StaticPrivateKey,
     graviola::key_agreement::p256::PublicKey,
@@ -169,7 +164,7 @@ ecdsa_jwk_impls!(
 ecdsa_jwk_impls!(
     Es384,
     "ES384",
-    "P-384",
+    EcCurve::P384,
     ecdsa::P384,
     graviola::key_agreement::p384::StaticPrivateKey,
     graviola::key_agreement::p384::PublicKey,

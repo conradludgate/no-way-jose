@@ -121,27 +121,23 @@ aes_kw_algorithm!(
 
 fn oct_to_jwk(key_bytes: &[u8], alg: &str) -> Jwk {
     Jwk {
-        kty: "oct".into(),
         kid: None,
         alg: Some(alg.into()),
         use_: None,
         key_ops: None,
-        params: JwkParams::Oct(OctParams {
+        key: JwkParams::Oct(OctParams {
             k: key_bytes.to_vec(),
         }),
     }
 }
 
 fn oct_from_jwk(jwk: &Jwk, expected_alg: &str, expected_len: usize) -> JoseResult<Vec<u8>> {
-    if jwk.kty != "oct" {
-        return Err(Report::new(JoseError::InvalidKey));
-    }
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
     {
         return Err(Report::new(JoseError::InvalidKey));
     }
-    match &jwk.params {
+    match &jwk.key {
         JwkParams::Oct(p) => make_kek(p.k.clone(), expected_len),
         _ => Err(Report::new(JoseError::InvalidKey)),
     }
