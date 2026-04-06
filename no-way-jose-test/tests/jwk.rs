@@ -1,5 +1,5 @@
 /// JWK tests: RFC 7517/7638 test vectors and round-trip tests.
-use no_way_jose_core::jwk::{FromJwk, Jwk, JwkParams, JwkSet, ToJwk};
+use no_way_jose_core::jwk::{EcCurve, FromJwk, Jwk, JwkParams, JwkSet, OkpCurve, ToJwk};
 
 // ====================================================================
 // RFC 7517 Appendix A test vectors
@@ -10,14 +10,14 @@ use no_way_jose_core::jwk::{FromJwk, Jwk, JwkParams, JwkSet, ToJwk};
 fn rfc7517_ec_public_key() {
     let json = br#"{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0","use":"sig","kid":"Public key used in JWS spec Appendix A.3 example"}"#;
     let jwk = Jwk::from_json_bytes(json).unwrap();
-    assert_eq!(jwk.kty, "EC");
+    assert_eq!(jwk.kty(), "EC");
     assert_eq!(
         jwk.kid.as_deref(),
         Some("Public key used in JWS spec Appendix A.3 example")
     );
-    match &jwk.params {
+    match &jwk.key {
         JwkParams::Ec(p) => {
-            assert_eq!(p.crv, "P-256");
+            assert_eq!(p.crv, EcCurve::P256);
             assert_eq!(p.x.len(), 32);
             assert_eq!(p.y.len(), 32);
             assert!(p.d.is_none());
@@ -31,7 +31,7 @@ fn rfc7517_ec_public_key() {
 fn rfc7517_ec_private_key() {
     let json = br#"{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0","d":"jpsQnnGQmL-YBIffS1BSyVKhrlRhLv_HA0V1u3oFSVM","use":"sig","kid":"Appendix A.2 example"}"#;
     let jwk = Jwk::from_json_bytes(json).unwrap();
-    match &jwk.params {
+    match &jwk.key {
         JwkParams::Ec(p) => {
             assert!(p.d.is_some());
             assert_eq!(p.d.as_ref().unwrap().len(), 32);
@@ -45,14 +45,14 @@ fn rfc7517_ec_private_key() {
 fn rfc7517_rsa_public_key() {
     let json = br#"{"kty":"RSA","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw","e":"AQAB","alg":"RS256","kid":"2011-04-29"}"#;
     let jwk = Jwk::from_json_bytes(json).unwrap();
-    assert_eq!(jwk.kty, "RSA");
+    assert_eq!(jwk.kty(), "RSA");
     assert_eq!(jwk.kid.as_deref(), Some("2011-04-29"));
     assert_eq!(jwk.alg.as_deref(), Some("RS256"));
-    match &jwk.params {
+    match &jwk.key {
         JwkParams::Rsa(p) => {
             assert!(!p.n.is_empty());
             assert_eq!(p.e, &[1, 0, 1]);
-            assert!(p.d.is_none());
+            assert!(p.prv.is_none());
         }
         _ => panic!("expected RSA params"),
     }
@@ -63,9 +63,9 @@ fn rfc7517_rsa_public_key() {
 fn rfc7517_symmetric_key() {
     let json = br#"{"kty":"oct","alg":"A128KW","k":"GawgguFyGrWKav7AX4VKUg"}"#;
     let jwk = Jwk::from_json_bytes(json).unwrap();
-    assert_eq!(jwk.kty, "oct");
+    assert_eq!(jwk.kty(), "oct");
     assert_eq!(jwk.alg.as_deref(), Some("A128KW"));
-    match &jwk.params {
+    match &jwk.key {
         JwkParams::Oct(p) => {
             assert_eq!(p.k.len(), 16);
         }
@@ -79,8 +79,8 @@ fn rfc7517_jwk_set() {
     let json = br#"{"keys":[{"kty":"EC","crv":"P-256","x":"MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4","y":"4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM","use":"enc","kid":"1"},{"kty":"RSA","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw","e":"AQAB","alg":"RS256","kid":"2011-04-29"}]}"#;
     let set = JwkSet::from_json_bytes(json).unwrap();
     assert_eq!(set.keys.len(), 2);
-    assert_eq!(set.find_by_kid("1").unwrap().kty, "EC");
-    assert_eq!(set.find_by_kid("2011-04-29").unwrap().kty, "RSA");
+    assert_eq!(set.find_by_kid("1").unwrap().kty(), "EC");
+    assert_eq!(set.find_by_kid("2011-04-29").unwrap().kty(), "RSA");
     assert!(set.find_by_kid("nonexistent").is_none());
 
     // Roundtrip
@@ -116,13 +116,12 @@ fn hmac_jwk_roundtrip() {
     let key_bytes = vec![0xABu8; 32];
     let sk = no_way_jose_hmac::symmetric_key(key_bytes.clone()).unwrap();
     let jwk = sk.to_jwk();
-    assert_eq!(jwk.kty, "oct");
+    assert_eq!(jwk.kty(), "oct");
     assert_eq!(jwk.alg.as_deref(), Some("HS256"));
 
     let sk2: no_way_jose_hmac::SigningKey = FromJwk::from_jwk(&jwk).unwrap();
     let vk: no_way_jose_hmac::VerifyingKey = FromJwk::from_jwk(&jwk).unwrap();
 
-    // Sign with original, verify with roundtripped
     let token = no_way_jose_core::UnsignedToken::<no_way_jose_hmac::Hs256, _>::new(
         no_way_jose_core::json::RawJson(br#"{"sub":"test"}"#.to_vec()),
     )
@@ -139,7 +138,6 @@ fn hmac_jwk_roundtrip() {
         )
         .unwrap();
 
-    // Sign with roundtripped key, verify too
     let token2 = no_way_jose_core::UnsignedToken::<no_way_jose_hmac::Hs256, _>::new(
         no_way_jose_core::json::RawJson(br#"{"sub":"test2"}"#.to_vec()),
     )
@@ -161,27 +159,25 @@ fn ecdsa_es256_jwk_roundtrip() {
     let vk = no_way_jose_ecdsa::verifying_key_from_signing(&sk);
 
     let sk_jwk = sk.to_jwk();
-    assert_eq!(sk_jwk.kty, "EC");
+    assert_eq!(sk_jwk.kty(), "EC");
     assert_eq!(sk_jwk.alg.as_deref(), Some("ES256"));
-    match &sk_jwk.params {
+    match &sk_jwk.key {
         JwkParams::Ec(p) => {
-            assert_eq!(p.crv, "P-256");
+            assert_eq!(p.crv, EcCurve::P256);
             assert!(p.d.is_some());
         }
         _ => panic!("expected EC params"),
     }
 
     let vk_jwk = vk.to_jwk();
-    match &vk_jwk.params {
+    match &vk_jwk.key {
         JwkParams::Ec(p) => assert!(p.d.is_none()),
         _ => panic!("expected EC params"),
     }
 
-    // Reconstruct from JWK
     let sk2: no_way_jose_ecdsa::SigningKey = FromJwk::from_jwk(&sk_jwk).unwrap();
     let vk2: no_way_jose_ecdsa::VerifyingKey = FromJwk::from_jwk(&vk_jwk).unwrap();
 
-    // Sign with roundtripped key, verify
     let token = no_way_jose_core::UnsignedToken::<no_way_jose_ecdsa::Es256, _>::new(
         no_way_jose_core::json::RawJson(br#"{"sub":"ec"}"#.to_vec()),
     )
@@ -203,18 +199,18 @@ fn eddsa_jwk_roundtrip() {
     let vk = no_way_jose_eddsa::verifying_key_from_signing(&sk);
 
     let sk_jwk = sk.to_jwk();
-    assert_eq!(sk_jwk.kty, "OKP");
+    assert_eq!(sk_jwk.kty(), "OKP");
     assert_eq!(sk_jwk.alg.as_deref(), Some("EdDSA"));
-    match &sk_jwk.params {
+    match &sk_jwk.key {
         JwkParams::Okp(p) => {
-            assert_eq!(p.crv, "Ed25519");
+            assert_eq!(p.crv, OkpCurve::Ed25519);
             assert!(p.d.is_some());
         }
         _ => panic!("expected OKP params"),
     }
 
     let vk_jwk = vk.to_jwk();
-    match &vk_jwk.params {
+    match &vk_jwk.key {
         JwkParams::Okp(p) => assert!(p.d.is_none()),
         _ => panic!("expected OKP params"),
     }
@@ -247,19 +243,19 @@ fn rsa_rs256_jwk_roundtrip() {
     let vk = no_way_jose_rsa::verifying_key(pub_key);
 
     let sk_jwk = sk.to_jwk();
-    assert_eq!(sk_jwk.kty, "RSA");
+    assert_eq!(sk_jwk.kty(), "RSA");
     assert_eq!(sk_jwk.alg.as_deref(), Some("RS256"));
-    match &sk_jwk.params {
+    match &sk_jwk.key {
         JwkParams::Rsa(p) => {
             assert!(!p.n.is_empty());
-            assert!(p.d.is_some());
+            assert!(p.prv.is_some());
         }
         _ => panic!("expected RSA params"),
     }
 
     let vk_jwk = vk.to_jwk();
-    match &vk_jwk.params {
-        JwkParams::Rsa(p) => assert!(p.d.is_none()),
+    match &vk_jwk.key {
+        JwkParams::Rsa(p) => assert!(p.prv.is_none()),
         _ => panic!("expected RSA params"),
     }
 
@@ -286,9 +282,9 @@ fn aes_kw_jwk_roundtrip() {
     let key_bytes = vec![0x42u8; 16];
     let ek = no_way_jose_aes_kw::a128kw::encryption_key(key_bytes.clone()).unwrap();
     let jwk = ek.to_jwk();
-    assert_eq!(jwk.kty, "oct");
+    assert_eq!(jwk.kty(), "oct");
     assert_eq!(jwk.alg.as_deref(), Some("A128KW"));
-    match &jwk.params {
+    match &jwk.key {
         JwkParams::Oct(p) => assert_eq!(p.k, key_bytes),
         _ => panic!("expected oct params"),
     }
@@ -307,13 +303,13 @@ fn ecdh_es_jwk_roundtrip() {
         public_key,
     ));
     let jwk = ek.to_jwk();
-    assert_eq!(jwk.kty, "EC");
+    assert_eq!(jwk.kty(), "EC");
     assert_eq!(jwk.alg.as_deref(), Some("ECDH-ES"));
 
     let ek2: no_way_jose_core::EncryptionKey<no_way_jose_ecdh_es::EcdhEs> =
         FromJwk::from_jwk(&jwk).unwrap();
     let jwk2 = ek2.to_jwk();
-    match (&jwk.params, &jwk2.params) {
+    match (&jwk.key, &jwk2.key) {
         (JwkParams::Ec(a), JwkParams::Ec(b)) => {
             assert_eq!(a.crv, b.crv);
             assert_eq!(a.x, b.x);
@@ -344,14 +340,14 @@ fn rejects_wrong_kty() {
     assert!(result.is_err());
 }
 
-/// RFC 7520 §3.1 — EC key (P-521 not supported, but test parsing the format)
+/// RFC 7520 §3.1 — EC key
 #[test]
 fn rfc7520_ec_key_parsing() {
     let json = br#"{"kty":"EC","kid":"bilbo.baggins@hobbiton.example","use":"enc","crv":"P-256","x":"WbbaSStufflt7SVQJkePlz--CDAwSA76-4CJJ2r_9veo","y":"vOGjkIiB2dCFfghqwCqPT3qORag74pMUxCl1b9b1gFo"}"#;
     let jwk = Jwk::from_json_bytes(json).unwrap();
     assert_eq!(jwk.kid.as_deref(), Some("bilbo.baggins@hobbiton.example"));
-    match &jwk.params {
-        JwkParams::Ec(p) => assert_eq!(p.crv, "P-256"),
+    match &jwk.key {
+        JwkParams::Ec(p) => assert_eq!(p.crv, EcCurve::P256),
         _ => panic!("expected EC params"),
     }
 }

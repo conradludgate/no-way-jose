@@ -133,6 +133,21 @@ This is handled through `KeyEncryptionResult::extra_headers` — a vec of
 base64url encoding and use as AAD. On decryption, `KeyDecryptor::decrypt_cek`
 receives the raw header JSON bytes so algorithms can extract their parameters.
 
+### JWK types
+
+`Jwk` separates key material (`JwkParams` enum) from metadata (`kid`, `alg`,
+`use_`, `key_ops`). The `kty` string is not stored — it is derived from the
+`JwkParams` variant via `Jwk::kty()`.
+
+Curve identifiers use typed enums (`EcCurve`, `OkpCurve`) instead of raw
+strings, preventing typo-based mismatches at compile time. Key operations use a
+typed `KeyOp` enum. RSA private key parameters are nested in
+`RsaPrivateParams` under `RsaParams::prv`, separating public from private
+material structurally.
+
+All JWK enums (`JwkParams`, `EcCurve`, `OkpCurve`, `KeyUse`, `KeyOp`) are
+`#[non_exhaustive]` so new variants can be added without breaking downstream.
+
 ## Implementation Status
 
 ### Traits (no-way-jose-core)
@@ -151,6 +166,9 @@ receives the raw header JSON bytes so algorithms can extract their parameters.
 - [x] `Validate` / `NoValidation`
 - [x] `JoseError` / `HeaderError` / `ClaimsError` / `JsonError` / `TokenFormatError` (structured errors via `error-stack`)
 - [x] `Jwk` / `JwkSet` / `JwkParams` (RFC 7517)
+- [x] `EcCurve` / `OkpCurve` / `KeyOp` / `KeyUse` enums (typed, `#[non_exhaustive]`)
+- [x] `RsaPrivateParams` (structured RSA private key, nested under `RsaParams::prv`)
+- [x] `Jwk::kty()` method (derived from `JwkParams` variant, no redundant `kty` field)
 - [x] `ToJwk` / `FromJwk` / `JwkKeyConvert<K>` (blanket impl on `Key<A, K>`)
 - [x] `Jwk::thumbprint_canonical_json()` (RFC 7638)
 

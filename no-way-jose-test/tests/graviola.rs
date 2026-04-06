@@ -1,7 +1,7 @@
 use no_way_jose_core::UnsignedToken;
 use no_way_jose_core::error::JsonError;
 use no_way_jose_core::json::{FromJson, JsonReader, JsonWriter, ToJson};
-use no_way_jose_core::jwk::{FromJwk, JwkParams, ToJwk};
+use no_way_jose_core::jwk::{EcCurve, FromJwk, JwkParams, OkpCurve, ToJwk};
 use no_way_jose_core::validation::NoValidation;
 
 #[derive(Debug)]
@@ -289,18 +289,18 @@ fn graviola_ecdsa_es256_jwk_roundtrip() {
     let vk = no_way_jose_graviola::ecdsa::verifying_key_from_x962(&pub_bytes).unwrap();
 
     let sk_jwk = sk.to_jwk();
-    assert_eq!(sk_jwk.kty, "EC");
+    assert_eq!(sk_jwk.kty(), "EC");
     assert_eq!(sk_jwk.alg.as_deref(), Some("ES256"));
-    match &sk_jwk.params {
+    match &sk_jwk.key {
         JwkParams::Ec(p) => {
-            assert_eq!(p.crv, "P-256");
+            assert_eq!(p.crv, EcCurve::P256);
             assert!(p.d.is_some());
         }
         _ => panic!("expected EC params"),
     }
 
     let vk_jwk = vk.to_jwk();
-    match &vk_jwk.params {
+    match &vk_jwk.key {
         JwkParams::Ec(p) => assert!(p.d.is_none()),
         _ => panic!("expected EC params"),
     }
@@ -328,8 +328,8 @@ fn graviola_ecdsa_es384_jwk_roundtrip() {
 
     let sk_jwk = sk.to_jwk();
     assert_eq!(sk_jwk.alg.as_deref(), Some("ES384"));
-    match &sk_jwk.params {
-        JwkParams::Ec(p) => assert_eq!(p.crv, "P-384"),
+    match &sk_jwk.key {
+        JwkParams::Ec(p) => assert_eq!(p.crv, EcCurve::P384),
         _ => panic!("expected EC params"),
     }
 
@@ -352,18 +352,18 @@ fn graviola_eddsa_jwk_roundtrip() {
     let vk = no_way_jose_graviola::eddsa::verifying_key_from_signing(&sk);
 
     let sk_jwk = sk.to_jwk();
-    assert_eq!(sk_jwk.kty, "OKP");
+    assert_eq!(sk_jwk.kty(), "OKP");
     assert_eq!(sk_jwk.alg.as_deref(), Some("EdDSA"));
-    match &sk_jwk.params {
+    match &sk_jwk.key {
         JwkParams::Okp(p) => {
-            assert_eq!(p.crv, "Ed25519");
+            assert_eq!(p.crv, OkpCurve::Ed25519);
             assert!(p.d.is_some());
         }
         _ => panic!("expected OKP params"),
     }
 
     let vk_jwk = vk.to_jwk();
-    match &vk_jwk.params {
+    match &vk_jwk.key {
         JwkParams::Okp(p) => assert!(p.d.is_none()),
         _ => panic!("expected OKP params"),
     }
@@ -385,7 +385,7 @@ fn graviola_hmac_jwk_roundtrip() {
     let sk = no_way_jose_graviola::hmac::symmetric_key(key_bytes).unwrap();
 
     let jwk = sk.to_jwk();
-    assert_eq!(jwk.kty, "oct");
+    assert_eq!(jwk.kty(), "oct");
     assert_eq!(jwk.alg.as_deref(), Some("HS256"));
 
     let sk2: no_way_jose_graviola::hmac::SigningKey = FromJwk::from_jwk(&jwk).unwrap();
