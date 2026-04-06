@@ -332,6 +332,19 @@ fn parse_jws_compact(s: &str) -> JoseResult<JwsParts> {
     })
 }
 
+impl<A: JwsAlgorithm, M> CompactJws<A, M> {
+    /// Parse from raw bytes (e.g. directly from a network buffer).
+    ///
+    /// # Errors
+    /// Returns [`JoseError::MalformedToken`] if the bytes are not valid UTF-8
+    /// or the token structure is invalid.
+    pub fn from_bytes(bytes: &[u8]) -> JoseResult<Self> {
+        let s = core::str::from_utf8(bytes)
+            .map_err(|_| Report::new(JoseError::MalformedToken))?;
+        s.parse()
+    }
+}
+
 impl<A: JwsAlgorithm, M> core::str::FromStr for CompactToken<Signed<A>, M> {
     type Err = Report<JoseError>;
 
@@ -433,6 +446,19 @@ impl<M> UntypedCompactJws<M> {
             data: self.data,
             _marker: PhantomData,
         })
+    }
+}
+
+impl<M> UntypedCompactJws<M> {
+    /// Parse from raw bytes (e.g. directly from a network buffer).
+    ///
+    /// # Errors
+    /// Returns [`JoseError::MalformedToken`] if the bytes are not valid UTF-8
+    /// or the token structure is invalid.
+    pub fn from_bytes(bytes: &[u8]) -> JoseResult<Self> {
+        let s = core::str::from_utf8(bytes)
+            .map_err(|_| Report::new(JoseError::MalformedToken))?;
+        s.parse()
     }
 }
 
@@ -674,6 +700,19 @@ fn parse_jwe_compact(s: &str) -> JoseResult<JweParts> {
     })
 }
 
+impl<KM: JweKeyManagement, CE: JweContentEncryption, M> CompactJwe<KM, CE, M> {
+    /// Parse from raw bytes (e.g. directly from a network buffer).
+    ///
+    /// # Errors
+    /// Returns [`JoseError::MalformedToken`] if the bytes are not valid UTF-8
+    /// or the token structure is invalid.
+    pub fn from_bytes(bytes: &[u8]) -> JoseResult<Self> {
+        let s = core::str::from_utf8(bytes)
+            .map_err(|_| Report::new(JoseError::MalformedToken))?;
+        s.parse()
+    }
+}
+
 impl<KM: JweKeyManagement, CE: JweContentEncryption, M> core::str::FromStr
     for CompactToken<Encrypted<KM, CE>, M>
 {
@@ -781,6 +820,19 @@ impl<M> UntypedCompactJwe<M> {
             data: self.data,
             _marker: PhantomData,
         })
+    }
+}
+
+impl<M> UntypedCompactJwe<M> {
+    /// Parse from raw bytes (e.g. directly from a network buffer).
+    ///
+    /// # Errors
+    /// Returns [`JoseError::MalformedToken`] if the bytes are not valid UTF-8
+    /// or the token structure is invalid.
+    pub fn from_bytes(bytes: &[u8]) -> JoseResult<Self> {
+        let s = core::str::from_utf8(bytes)
+            .map_err(|_| Report::new(JoseError::MalformedToken))?;
+        s.parse()
     }
 }
 
