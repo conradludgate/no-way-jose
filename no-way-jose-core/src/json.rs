@@ -186,6 +186,7 @@ fn write_escaped_string(buf: &mut String, s: &str) {
         }
 
         if escape == UU {
+            cold();
             let esc = [
                 b'\\',
                 b'u',
@@ -304,9 +305,12 @@ impl<'a> JsonReader<'a> {
         let mut result = String::new();
         let mut run_start = self.pos;
         loop {
-            match self.input.get(self.pos) {
-                None => return Err(JsonError::InvalidString),
-                Some(b'"') => {
+            let Some(&b) = self.input.get(self.pos) else {
+                cold();
+                return Err(JsonError::InvalidString);
+            };
+            match b {
+                b'"' => {
                     if run_start < self.pos {
                         let s = core::str::from_utf8(&self.input[run_start..self.pos])
                             .map_err(|_| JsonError::InvalidString)?;
@@ -315,59 +319,44 @@ impl<'a> JsonReader<'a> {
                     self.pos += 1;
                     return Ok(result);
                 }
-                Some(b'\\') => {
+                b'\\' => {
                     if run_start < self.pos {
                         let s = core::str::from_utf8(&self.input[run_start..self.pos])
                             .map_err(|_| JsonError::InvalidString)?;
                         result.push_str(s);
                     }
                     self.pos += 1;
-                    match self.input.get(self.pos) {
-                        Some(b'"') => {
-                            result.push('"');
-                            self.pos += 1;
-                        }
-                        Some(b'\\') => {
-                            result.push('\\');
-                            self.pos += 1;
-                        }
-                        Some(b'/') => {
-                            result.push('/');
-                            self.pos += 1;
-                        }
-                        Some(b'n') => {
-                            result.push('\n');
-                            self.pos += 1;
-                        }
-                        Some(b'r') => {
-                            result.push('\r');
-                            self.pos += 1;
-                        }
-                        Some(b't') => {
-                            result.push('\t');
-                            self.pos += 1;
-                        }
-                        Some(b'b') => {
-                            result.push('\u{08}');
-                            self.pos += 1;
-                        }
-                        Some(b'f') => {
-                            result.push('\u{0C}');
-                            self.pos += 1;
-                        }
+                    let ch = match self.input.get(self.pos) {
+                        Some(b'"') => '"',
+                        Some(b'\\') => '\\',
+                        Some(b'/') => '/',
+                        Some(b'n') => '\n',
+                        Some(b'r') => '\r',
+                        Some(b't') => '\t',
+                        Some(b'b') => '\u{08}',
+                        Some(b'f') => '\u{0C}',
                         Some(b'u') => {
+                            cold();
                             self.pos += 1;
                             let ch = self.read_unicode_escape()?;
                             result.push(ch);
+                            run_start = self.pos;
+                            continue;
                         }
-                        _ => return Err(JsonError::InvalidEscape),
-                    }
+                        _ => {
+                            cold();
+                            return Err(JsonError::InvalidEscape);
+                        }
+                    };
+                    self.pos += 1;
+                    result.push(ch);
                     run_start = self.pos;
                 }
-                Some(&b) if b < 0x20 => {
+                b if b < 0x20 => {
+                    cold();
                     return Err(JsonError::InvalidString);
                 }
-                Some(_) => self.pos += 1,
+                _ => self.pos += 1,
             }
         }
     }
@@ -641,6 +630,10 @@ pub fn read_header_b64(header: &[u8], field: &str) -> JoseResult<Vec<u8>> {
     crate::base64url::decode(&val)
 }
 
+#[cold]
+#[inline(always)]
+fn cold() {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -701,11 +694,19 @@ mod tests {
             let mut w = JsonWriter::new();
             w.string("v", input);
             let json = w.finish();
-            assert_eq!(json, alloc::format!(r#"{{"v":{expected_value}}}"#), "failed for input: {input:?}");
+            assert_eq!(
+                json,
+                alloc::format!(r#"{{"v":{expected_value}}}"#),
+                "failed for input: {input:?}"
+            );
 
             let mut r = JsonReader::new(json.as_bytes()).unwrap();
             r.next_key().unwrap();
-            assert_eq!(r.read_string().unwrap(), input, "roundtrip failed for input: {input:?}");
+            assert_eq!(
+                r.read_string().unwrap(),
+                input,
+                "roundtrip failed for input: {input:?}"
+            );
         }
     }
 
