@@ -921,17 +921,22 @@ impl<P: Purpose, M> TokenBuilder<P, M> {
 
 /// Splice extra key-value pairs into an existing compact JSON header and re-encode as base64url.
 fn rebuild_header_with_extras(header_bytes: &[u8], extras: &[(String, String)]) -> String {
-    let header_str = core::str::from_utf8(header_bytes).expect("header must be valid UTF-8");
-    let closing = header_str.rfind('}').expect("header must contain '}'");
-    let mut buf = String::with_capacity(header_str.len() + extras.len() * 32);
-    buf.push_str(&header_str[..closing]);
-    for (key, value) in extras {
-        buf.push(',');
-        crate::json::write_json_key(&mut buf, key);
-        buf.push_str(value);
+    let mut reader = crate::json::JsonReader::new(header_bytes).expect("header must be valid JSON");
+    let mut writer = crate::json::JsonWriter::new();
+
+    while let Ok(Some(key)) = reader.next_key() {
+        let before = reader.remaining();
+        reader.skip_value().expect("header value must be valid");
+        let consumed = before.len() - reader.remaining().len();
+        let raw = core::str::from_utf8(&before[..consumed]).expect("header must be valid UTF-8");
+        writer.raw_value(key, raw);
     }
-    buf.push('}');
-    crate::base64url::encode(buf.as_bytes())
+
+    for (key, value) in extras {
+        writer.raw_value(key, value);
+    }
+
+    crate::base64url::encode(writer.finish().as_bytes())
 }
 
 struct ParsedHeader {

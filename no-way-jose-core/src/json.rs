@@ -123,12 +123,6 @@ impl JsonWriter {
     }
 }
 
-/// Write a JSON object key followed by `:` into `buf`. Used by header rebuild logic.
-pub(crate) fn write_json_key(buf: &mut String, key: &str) {
-    write_escaped_string(buf, key);
-    buf.push(':');
-}
-
 const QU: u8 = b'"';
 const BS: u8 = b'\\';
 const BB: u8 = b'b';
