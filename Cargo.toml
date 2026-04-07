@@ -18,6 +18,13 @@ members = [
     "no-way-jose-test",
 ]
 
+[workspace.package]
+license = "Apache-2.0"
+repository = "https://github.com/conradludgate/no-way-jose"
+keywords = ["jose", "jwt", "jws", "jwe", "jwk"]
+categories = ["authentication", "cryptography"]
+rust-version = "1.85"
+
 [workspace.dependencies]
 no-way-jose-aes-cbc-hs = { path = "no-way-jose-aes-cbc-hs", version = "0.1.0-rc.1" }
 no-way-jose-aes-gcm = { path = "no-way-jose-aes-gcm", version = "0.1.0-rc.1" }

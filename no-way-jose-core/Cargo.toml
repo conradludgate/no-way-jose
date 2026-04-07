@@ -4,6 +4,11 @@ version = "0.1.0-rc.1"
 edition = "2024"
 description = "Core traits, token types, and JWK support for the no-way-jose JOSE library"
 readme = "README.md"
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 base64ct = { workspace = true }
