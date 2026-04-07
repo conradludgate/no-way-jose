@@ -1,7 +1,9 @@
 [package]
 name = "no-way-jose-aes-gcm-kw"
-version = "0.1.0"
+version = "0.1.0-rc.1"
 edition = "2024"
+description = "AES-GCM Key Wrap (A128GCMKW, A192GCMKW, A256GCMKW) JWE key management for no-way-jose"
+readme = "README.md"
 
 [dependencies]
 no-way-jose-core = { workspace = true }

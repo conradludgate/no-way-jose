@@ -1,7 +1,9 @@
 [package]
 name = "no-way-jose-rsa"
-version = "0.1.0"
+version = "0.1.0-rc.1"
 edition = "2024"
+description = "RSA JWS/JWE algorithms (RS256, PS256, RSA-OAEP, etc.) for no-way-jose"
+readme = "README.md"
 
 [dependencies]
 no-way-jose-core = { workspace = true }

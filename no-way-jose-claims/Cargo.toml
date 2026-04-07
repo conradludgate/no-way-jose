@@ -1,7 +1,9 @@
 [package]
 name = "no-way-jose-claims"
-version = "0.1.0"
+version = "0.1.0-rc.1"
 edition = "2024"
+description = "JWT registered claims and composable validators for no-way-jose"
+readme = "README.md"
 
 [dependencies]
 no-way-jose-core = { workspace = true }
