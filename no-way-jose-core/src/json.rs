@@ -95,6 +95,7 @@ impl JsonWriter {
 
     /// Write a single string when `values.len() == 1`, otherwise an array.
     pub fn string_or_array(&mut self, key: &str, values: &[String]) {
+        debug_assert!(!values.is_empty());
         self.write_key(key);
         if values.len() == 1 {
             write_escaped_string(&mut self.buf, &values[0]);
