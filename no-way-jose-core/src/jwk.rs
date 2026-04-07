@@ -547,66 +547,13 @@ impl JwkSet {
 }
 
 fn read_jwk_array(reader: &mut JsonReader<'_>) -> JoseResult<Vec<Jwk>> {
-    let before = reader.remaining();
-    if before.first() != Some(&b'[') {
-        return Err(
-            Report::new(JsonError::ExpectedStringOrArray).change_context(JoseError::MalformedToken)
-        );
-    }
-
-    reader
-        .skip_value()
-        .change_context(JoseError::MalformedToken)?;
-    let consumed = before.len() - reader.remaining().len();
-    let array_bytes = &before[..consumed];
-
     let mut result = Vec::new();
-    let mut pos = 1; // skip '['
-    while pos < array_bytes.len() {
-        if array_bytes[pos] == b']' {
-            break;
-        }
-        if array_bytes[pos] == b',' {
-            pos += 1;
-            continue;
-        }
-        let obj_start = pos;
-        let mut depth = 0u32;
-        loop {
-            match array_bytes.get(pos) {
-                Some(b'{' | b'[') => {
-                    depth += 1;
-                    pos += 1;
-                }
-                Some(b'}' | b']') => {
-                    depth -= 1;
-                    pos += 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-                Some(b'"') => {
-                    pos += 1;
-                    while pos < array_bytes.len() {
-                        match array_bytes[pos] {
-                            b'"' => {
-                                pos += 1;
-                                break;
-                            }
-                            b'\\' => pos += 2,
-                            _ => pos += 1,
-                        }
-                    }
-                }
-                Some(_) => pos += 1,
-                None => {
-                    return Err(Report::new(JsonError::UnterminatedJson)
-                        .change_context(JoseError::MalformedToken));
-                }
-            }
-        }
-        result.push(Jwk::from_json(&array_bytes[obj_start..pos])?);
-    }
+    reader
+        .read_raw_array(|element| {
+            result.push(Jwk::from_json(element).map_err(|_| JsonError::InvalidValue)?);
+            Ok(())
+        })
+        .change_context(JoseError::MalformedToken)?;
     Ok(result)
 }
 

@@ -436,6 +436,38 @@ impl<'a> JsonReader<'a> {
         }
     }
 
+    /// Iterate over the raw bytes of each element in a JSON array.
+    ///
+    /// Calls `f` with the raw `&[u8]` bytes of each element (without parsing them).
+    ///
+    /// # Errors
+    /// Returns [`JsonError`] on malformed array syntax.
+    pub fn read_raw_array(
+        &mut self,
+        mut f: impl FnMut(&'a [u8]) -> Result<(), JsonError>,
+    ) -> Result<(), JsonError> {
+        self.expect(b'[')?;
+        if self.peek() == Some(b']') {
+            self.input = &self.input[1..];
+            return Ok(());
+        }
+        loop {
+            let before = self.input;
+            self.skip_value()?;
+            let consumed = before.len() - self.input.len();
+            f(&before[..consumed])?;
+            let Some((&b, rest)) = self.input.split_first() else {
+                return Err(JsonError::InvalidArraySyntax);
+            };
+            self.input = rest;
+            match b {
+                b',' => {}
+                b']' => return Ok(()),
+                _ => return Err(JsonError::InvalidArraySyntax),
+            }
+        }
+    }
+
     /// Skip one JSON value of any type (string, number, bool, null, object, array).
     ///
     /// # Errors
