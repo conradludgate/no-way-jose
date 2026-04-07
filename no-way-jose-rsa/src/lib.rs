@@ -24,8 +24,6 @@ macro_rules! rsa_jws_algorithm {
         #[doc = $doc]
         pub struct $name;
 
-        impl no_way_jose_core::__private::Sealed for $name {}
-
         impl JwsAlgorithm for $name {
             const ALG: &'static str = $alg;
         }
@@ -393,7 +391,6 @@ pub mod ps512 {
 // JWE key management algorithms
 // ====================================================================
 
-use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
 };
@@ -404,8 +401,6 @@ macro_rules! rsa_kw_algorithm {
         #[doc = $doc]
         #[derive(Clone, Copy, Debug, Default)]
         pub struct $name;
-
-        impl Sealed for $name {}
 
         impl JweKeyManagement for $name {
             const ALG: &'static str = $alg;

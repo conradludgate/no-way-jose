@@ -21,7 +21,6 @@ use no_way_jose_core::key::{HasKey, Signing, Verifying};
 /// `EdDSA`: Edwards-curve Digital Signature Algorithm using Ed25519 (RFC 8037).
 pub struct EdDsa;
 
-impl no_way_jose_core::__private::Sealed for EdDsa {}
 
 impl JwsAlgorithm for EdDsa {
     const ALG: &'static str = "EdDSA";

@@ -18,7 +18,6 @@ use alloc::vec::Vec;
 use aes_kw::KeyInit;
 use error_stack::Report;
 pub use no_way_jose_core;
-use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
@@ -39,8 +38,6 @@ macro_rules! aes_kw_algorithm {
         #[doc = $doc]
         #[derive(Clone, Copy, Debug, Default)]
         pub struct $name;
-
-        impl Sealed for $name {}
 
         impl JweKeyManagement for $name {
             const ALG: &'static str = $alg;

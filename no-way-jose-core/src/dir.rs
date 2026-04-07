@@ -2,7 +2,6 @@ use alloc::vec::Vec;
 
 use error_stack::Report;
 
-use crate::__private::Sealed;
 use crate::JoseResult;
 use crate::error::JoseError;
 use crate::jwe_algorithm::{JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor};
@@ -11,8 +10,6 @@ use crate::key::{Decrypting, Encrypting, HasKey, Key};
 /// Direct key agreement — the shared symmetric key IS the CEK.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Dir;
-
-impl Sealed for Dir {}
 
 impl JweKeyManagement for Dir {
     const ALG: &'static str = "dir";

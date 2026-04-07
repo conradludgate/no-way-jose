@@ -23,7 +23,6 @@ pub use no_way_jose_core;
 type Aes192Gcm = AesGcm<aes::Aes192, U12>;
 
 use error_stack::Report;
-use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
@@ -49,8 +48,6 @@ macro_rules! aes_gcm_kw_algorithm {
         #[doc = $doc]
         #[derive(Clone, Copy, Debug, Default)]
         pub struct $name;
-
-        impl Sealed for $name {}
 
         impl JweKeyManagement for $name {
             const ALG: &'static str = $alg;

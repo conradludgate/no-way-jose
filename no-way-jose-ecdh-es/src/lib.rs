@@ -15,7 +15,6 @@ use alloc::vec::Vec;
 
 use error_stack::Report;
 pub use no_way_jose_core;
-use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
@@ -48,11 +47,6 @@ pub struct EcdhEsA192Kw;
 /// ECDH-ES + AES-256 key wrapping.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EcdhEsA256Kw;
-
-impl Sealed for EcdhEs {}
-impl Sealed for EcdhEsA128Kw {}
-impl Sealed for EcdhEsA192Kw {}
-impl Sealed for EcdhEsA256Kw {}
 
 impl JweKeyManagement for EcdhEs {
     const ALG: &'static str = "ECDH-ES";

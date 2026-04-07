@@ -27,7 +27,6 @@ macro_rules! hmac_algorithm {
         #[doc = $doc]
         pub struct $name;
 
-        impl no_way_jose_core::__private::Sealed for $name {}
 
         impl JwsAlgorithm for $name {
             const ALG: &'static str = $alg;

@@ -27,7 +27,6 @@ use no_way_jose_core::key::{HasKey, Signing, Verifying};
 /// ES256: ECDSA using P-256 and SHA-256 (RFC 7518 Section 3.4).
 pub struct Es256;
 
-impl no_way_jose_core::__private::Sealed for Es256 {}
 
 impl JwsAlgorithm for Es256 {
     const ALG: &'static str = "ES256";
@@ -158,7 +157,6 @@ pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
 /// ES384: ECDSA using P-384 and SHA-384 (RFC 7518 Section 3.4).
 pub struct Es384;
 
-impl no_way_jose_core::__private::Sealed for Es384 {}
 
 impl JwsAlgorithm for Es384 {
     const ALG: &'static str = "ES384";
@@ -258,7 +256,6 @@ impl JwkKeyConvert<Verifying> for Es384 {
 /// ES512: ECDSA using P-521 and SHA-512 (RFC 7518 Section 3.4).
 pub struct Es512;
 
-impl no_way_jose_core::__private::Sealed for Es512 {}
 
 impl JwsAlgorithm for Es512 {
     const ALG: &'static str = "ES512";

@@ -1,17 +1,16 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::__private::Sealed;
 use crate::JoseResult;
 use crate::key::{Decrypting, Encrypting, HasKey, KeyInner};
 
 /// Marker trait for JWE key management algorithm identifiers (RFC 7518 §4).
-pub trait JweKeyManagement: Sealed + Send + Sync + Sized + 'static {
+pub trait JweKeyManagement: Send + Sync + Sized + 'static {
     const ALG: &'static str;
 }
 
 /// Marker trait for JWE content encryption algorithm identifiers (RFC 7518 §5).
-pub trait JweContentEncryption: Sealed + Send + Sync + Sized + 'static {
+pub trait JweContentEncryption: Send + Sync + Sized + 'static {
     const ENC: &'static str;
     const KEY_LEN: usize;
     const IV_LEN: usize;

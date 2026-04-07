@@ -1,6 +1,5 @@
 use error_stack::Report;
 use graviola::aead::AesGcm;
-use no_way_jose_core::__private::Sealed;
 use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
     ContentDecryptor, ContentEncryptor, EncryptionOutput, JweContentEncryption,
@@ -11,8 +10,6 @@ macro_rules! aes_gcm_algorithm {
         #[doc = $doc]
         #[derive(Clone, Copy, Debug, Default)]
         pub struct $name;
-
-        impl Sealed for $name {}
 
         impl JweContentEncryption for $name {
             const ENC: &'static str = $enc;
