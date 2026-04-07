@@ -129,19 +129,55 @@ pub(crate) fn write_json_key(buf: &mut String, key: &str) {
     buf.push(':');
 }
 
+const QU: u8 = b'"';
+const BS: u8 = b'\\';
+const BB: u8 = b'b';
+const TT: u8 = b't';
+const NN: u8 = b'n';
+const FF: u8 = b'f';
+const RR: u8 = b'r';
+const UU: u8 = b'u';
+const __: u8 = 0;
+
+#[rustfmt::skip]
+static ESCAPE: [u8; 256] = [
+    //   0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+    UU, UU, UU, UU, UU, UU, UU, UU, BB, TT, NN, UU, FF, RR, UU, UU, // 0
+    UU, UU, UU, UU, UU, UU, UU, UU, UU, UU, UU, UU, UU, UU, UU, UU, // 1
+    __, __, QU, __, __, __, __, __, __, __, __, __, __, __, __, __, // 2
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 3
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 4
+    __, __, __, __, __, __, __, __, __, __, __, __, BS, __, __, __, // 5
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 6
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 7
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 8
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 9
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // A
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // B
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // C
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // D
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // E
+    __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // F
+];
+
+static HEX: [u8; 16] = *b"0123456789abcdef";
+
 fn write_escaped_string(buf: &mut String, s: &str) {
     buf.push('"');
     let mut bytes = s.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        let b = bytes[i];
-        if b >= 0x20 && b != b'"' && b != b'\\' {
-            i += 1;
+        let (run, rest) = bytes.split_at(i);
+        let (&b, rest) = rest.split_first().unwrap();
+
+        let escape = ESCAPE[b as usize];
+        i += 1;
+        if escape == 0 {
             continue;
         }
 
-        let (run, rest) = bytes.split_at(i);
-        let (_, rest) = rest.split_first().unwrap();
+        bytes = rest;
+        i = 0;
 
         // SAFETY: we only split at ASCII bytes, which are valid UTF-8 char boundaries
         let run = unsafe { core::str::from_utf8_unchecked(run) };
@@ -149,21 +185,22 @@ fn write_escaped_string(buf: &mut String, s: &str) {
             buf.push_str(run);
         }
 
-        match b {
-            b'"' => buf.push_str("\\\""),
-            b'\\' => buf.push_str("\\\\"),
-            b'\n' => buf.push_str("\\n"),
-            b'\r' => buf.push_str("\\r"),
-            b'\t' => buf.push_str("\\t"),
-            _ => {
-                buf.push_str("\\u00");
-                buf.push(char::from(hex_nibble(b >> 4)));
-                buf.push(char::from(hex_nibble(b & 0xf)));
-            }
+        if escape == UU {
+            let esc = [
+                b'\\',
+                b'u',
+                b'0',
+                b'0',
+                HEX[(b >> 4) as usize],
+                HEX[(b & 0xf) as usize],
+            ];
+            // SAFETY: all bytes are ASCII
+            buf.push_str(unsafe { core::str::from_utf8_unchecked(&esc) });
+        } else {
+            let esc = [b'\\', escape];
+            // SAFETY: all bytes are ASCII
+            buf.push_str(unsafe { core::str::from_utf8_unchecked(&esc) });
         }
-
-        bytes = rest;
-        i = 0;
     }
 
     // SAFETY: remaining bytes are valid UTF-8 — same invariant as above
@@ -172,13 +209,6 @@ fn write_escaped_string(buf: &mut String, s: &str) {
         buf.push_str(run);
     }
     buf.push('"');
-}
-
-fn hex_nibble(n: u8) -> u8 {
-    match n {
-        0..=9 => b'0' + n,
-        _ => b'a' + (n - 10),
-    }
 }
 
 // -- Reader --
