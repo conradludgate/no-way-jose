@@ -35,8 +35,7 @@ pub mod validation;
 
 pub use error::*;
 
-#[doc(hidden)]
-pub mod __private {
+mod __private {
     pub trait Sealed {}
 }
 
