@@ -131,20 +131,45 @@ pub(crate) fn write_json_key(buf: &mut String, key: &str) {
 
 fn write_escaped_string(buf: &mut String, s: &str) {
     buf.push('"');
-    for &b in s.as_bytes() {
+    let mut bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b >= 0x20 && b != b'"' && b != b'\\' {
+            i += 1;
+            continue;
+        }
+
+        let (run, rest) = bytes.split_at(i);
+        let (_, rest) = rest.split_first().unwrap();
+
+        // SAFETY: we only split at ASCII bytes, which are valid UTF-8 char boundaries
+        let run = unsafe { core::str::from_utf8_unchecked(run) };
+        if !run.is_empty() {
+            buf.push_str(run);
+        }
+
         match b {
             b'"' => buf.push_str("\\\""),
             b'\\' => buf.push_str("\\\\"),
             b'\n' => buf.push_str("\\n"),
             b'\r' => buf.push_str("\\r"),
             b'\t' => buf.push_str("\\t"),
-            b if b < 0x20 => {
+            _ => {
                 buf.push_str("\\u00");
                 buf.push(char::from(hex_nibble(b >> 4)));
                 buf.push(char::from(hex_nibble(b & 0xf)));
             }
-            _ => buf.push(char::from(b)),
         }
+
+        bytes = rest;
+        i = 0;
+    }
+
+    // SAFETY: remaining bytes are valid UTF-8 — same invariant as above
+    let run = unsafe { core::str::from_utf8_unchecked(bytes) };
+    if !run.is_empty() {
+        buf.push_str(run);
     }
     buf.push('"');
 }
@@ -624,6 +649,34 @@ mod tests {
         let mut r = JsonReader::new(json.as_bytes()).unwrap();
         r.next_key().unwrap();
         assert_eq!(r.read_string().unwrap(), "line1\nline2\ttab\\slash\"quote");
+    }
+
+    #[test]
+    fn multibyte_utf8_preserved() {
+        let cases: &[(&str, &str)] = &[
+            // 2-byte, 3-byte, 4-byte sequences
+            ("café ☕ 𝕳ello", r#""café ☕ 𝕳ello""#),
+            // multi-byte adjacent to escape sequences
+            ("é\nü", r#""é\nü""#),
+            ("\tà", r#""\tà""#),
+            ("ñ\"ñ", r#""ñ\"ñ""#),
+            // entirely non-ASCII
+            ("日本語", r#""日本語""#),
+            // multi-byte at boundaries
+            ("ö", r#""ö""#),
+            // control char between multi-byte
+            ("á\x01ß", r#""á\u0001ß""#),
+        ];
+        for &(input, expected_value) in cases {
+            let mut w = JsonWriter::new();
+            w.string("v", input);
+            let json = w.finish();
+            assert_eq!(json, alloc::format!(r#"{{"v":{expected_value}}}"#), "failed for input: {input:?}");
+
+            let mut r = JsonReader::new(json.as_bytes()).unwrap();
+            r.next_key().unwrap();
+            assert_eq!(r.read_string().unwrap(), input, "roundtrip failed for input: {input:?}");
+        }
     }
 
     #[test]
