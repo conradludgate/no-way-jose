@@ -253,8 +253,10 @@ impl<'a> JsonReader<'a> {
         self.input.get(self.pos).copied()
     }
 
+    #[inline]
     fn expect(&mut self, byte: u8) -> Result<(), JsonError> {
         if self.peek() != Some(byte) {
+            cold();
             return Err(JsonError::UnexpectedByte);
         }
         self.pos += 1;
@@ -303,44 +305,47 @@ impl<'a> JsonReader<'a> {
     pub fn read_string(&mut self) -> Result<String, JsonError> {
         self.expect(b'"')?;
         let mut result = String::new();
-        let mut run_start = self.pos;
+        let mut bytes = &self.input[self.pos..];
+        let mut run = bytes;
         loop {
-            let Some(&b) = self.input.get(self.pos) else {
+            let Some((&b, rest)) = bytes.split_first() else {
                 cold();
                 return Err(JsonError::InvalidString);
             };
+
             match b {
-                b'"' => {
-                    if run_start < self.pos {
-                        let s = core::str::from_utf8(&self.input[run_start..self.pos])
-                            .map_err(|_| JsonError::InvalidString)?;
-                        result.push_str(s);
+                b'"' | b'\\' => {
+                    let run_len = bytes.as_ptr() as usize - run.as_ptr() as usize;
+                    let s = core::str::from_utf8(&run[..run_len])
+                        .map_err(|_| JsonError::InvalidString)?;
+                    result.push_str(s);
+
+                    if b == b'"' {
+                        self.pos = self.input.len() - rest.len();
+                        return Ok(result);
                     }
-                    self.pos += 1;
-                    return Ok(result);
-                }
-                b'\\' => {
-                    if run_start < self.pos {
-                        let s = core::str::from_utf8(&self.input[run_start..self.pos])
-                            .map_err(|_| JsonError::InvalidString)?;
-                        result.push_str(s);
-                    }
-                    self.pos += 1;
-                    let ch = match self.input.get(self.pos) {
-                        Some(b'"') => '"',
-                        Some(b'\\') => '\\',
-                        Some(b'/') => '/',
-                        Some(b'n') => '\n',
-                        Some(b'r') => '\r',
-                        Some(b't') => '\t',
-                        Some(b'b') => '\u{08}',
-                        Some(b'f') => '\u{0C}',
-                        Some(b'u') => {
+
+                    let Some((&esc, rest)) = rest.split_first() else {
+                        cold();
+                        return Err(JsonError::InvalidEscape);
+                    };
+
+                    let ch = match esc {
+                        b'"' => '"',
+                        b'\\' => '\\',
+                        b'/' => '/',
+                        b'n' => '\n',
+                        b'r' => '\r',
+                        b't' => '\t',
+                        b'b' => '\u{08}',
+                        b'f' => '\u{0C}',
+                        b'u' => {
                             cold();
-                            self.pos += 1;
+                            self.pos = self.input.len() - rest.len();
                             let ch = self.read_unicode_escape()?;
+                            bytes = &self.input[self.pos..];
+                            run = bytes;
                             result.push(ch);
-                            run_start = self.pos;
                             continue;
                         }
                         _ => {
@@ -348,15 +353,16 @@ impl<'a> JsonReader<'a> {
                             return Err(JsonError::InvalidEscape);
                         }
                     };
-                    self.pos += 1;
+
                     result.push(ch);
-                    run_start = self.pos;
+                    bytes = rest;
+                    run = bytes;
                 }
                 b if b < 0x20 => {
                     cold();
                     return Err(JsonError::InvalidString);
                 }
-                _ => self.pos += 1,
+                _ => bytes = rest,
             }
         }
     }
