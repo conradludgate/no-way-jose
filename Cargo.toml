@@ -14,6 +14,7 @@ members = [
     "no-way-jose-claims",
     "no-way-jose-pbes2",
     "no-way-jose-rsa",
+    "no-way-jose-aws-lc",
     "no-way-jose-test",
 ]
 
@@ -31,6 +32,8 @@ no-way-jose-pbes2 = { path = "no-way-jose-pbes2", version = "0.1.0" }
 no-way-jose-rsa = { path = "no-way-jose-rsa", version = "0.1.0" }
 no-way-jose-claims = { path = "no-way-jose-claims", version = "0.1.0" }
 no-way-jose-graviola = { path = "no-way-jose-graviola", version = "0.1.0" }
+no-way-jose-aws-lc = { path = "no-way-jose-aws-lc", version = "0.1.0" }
+aws-lc-rs = "1"
 graviola = "0.3"
 base64ct = { version = "1", default-features = false, features = ["alloc"] }
 ed25519-dalek = { version = "3.0.0-pre.6", default-features = false }

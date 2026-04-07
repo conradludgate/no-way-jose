@@ -1,0 +1,9 @@
+[package]
+name = "no-way-jose-aws-lc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+no-way-jose-core = { workspace = true }
+error-stack = { workspace = true }
+aws-lc-rs = { workspace = true }
