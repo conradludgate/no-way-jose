@@ -547,9 +547,8 @@ impl JwkSet {
 }
 
 fn read_jwk_array(reader: &mut JsonReader<'_>) -> JoseResult<Vec<Jwk>> {
-    let input = reader.input_bytes();
-    let start = reader.current_pos();
-    if input.get(start) != Some(&b'[') {
+    let before = reader.remaining();
+    if before.first() != Some(&b'[') {
         return Err(
             Report::new(JsonError::ExpectedStringOrArray).change_context(JoseError::MalformedToken)
         );
@@ -558,8 +557,8 @@ fn read_jwk_array(reader: &mut JsonReader<'_>) -> JoseResult<Vec<Jwk>> {
     reader
         .skip_value()
         .change_context(JoseError::MalformedToken)?;
-    let end = reader.current_pos();
-    let array_bytes = &input[start..end];
+    let consumed = before.len() - reader.remaining().len();
+    let array_bytes = &before[..consumed];
 
     let mut result = Vec::new();
     let mut pos = 1; // skip '['

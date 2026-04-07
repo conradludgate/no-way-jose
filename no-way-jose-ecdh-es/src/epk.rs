@@ -37,12 +37,12 @@ impl EpkFields {
             .map_err(|_| Report::new(JoseError::MalformedToken))?
         {
             if key == "epk" {
-                let start = reader.current_pos();
+                let before = reader.remaining();
                 reader
                     .skip_value()
                     .map_err(|_| Report::new(JoseError::MalformedToken))?;
-                let end = reader.current_pos();
-                let epk_bytes = &reader.input_bytes()[start..end];
+                let consumed = before.len() - reader.remaining().len();
+                let epk_bytes = &before[..consumed];
                 return Self::parse_epk_object(epk_bytes);
             }
             reader

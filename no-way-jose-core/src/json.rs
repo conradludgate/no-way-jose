@@ -219,7 +219,6 @@ fn write_escaped_string(buf: &mut String, s: &str) {
 /// Expects strictly compact JSON — no whitespace between tokens.
 pub struct JsonReader<'a> {
     input: &'a [u8],
-    pos: usize,
     first: bool,
 }
 
@@ -227,30 +226,23 @@ impl<'a> JsonReader<'a> {
     /// # Errors
     /// Returns [`JsonError::ExpectedObject`] if the input does not start with `{`.
     pub fn new(input: &'a [u8]) -> Result<Self, JsonError> {
-        if input.first() != Some(&b'{') {
+        let Some((b'{', rest)) = input.split_first() else {
             return Err(JsonError::ExpectedObject);
-        }
+        };
         Ok(Self {
-            input,
-            pos: 1,
+            input: rest,
             first: true,
         })
     }
 
-    /// Current byte offset into the input buffer.
+    /// The remaining unparsed input.
     #[must_use]
-    pub fn current_pos(&self) -> usize {
-        self.pos
-    }
-
-    /// The raw input slice.
-    #[must_use]
-    pub fn input_bytes(&self) -> &'a [u8] {
+    pub fn remaining(&self) -> &'a [u8] {
         self.input
     }
 
     fn peek(&self) -> Option<u8> {
-        self.input.get(self.pos).copied()
+        self.input.first().copied()
     }
 
     #[inline]
@@ -259,7 +251,7 @@ impl<'a> JsonReader<'a> {
             cold();
             return Err(JsonError::UnexpectedByte);
         }
-        self.pos += 1;
+        self.input = &self.input[1..];
         Ok(())
     }
 
@@ -270,8 +262,8 @@ impl<'a> JsonReader<'a> {
     /// Returns [`JsonError`] on malformed JSON, trailing data, or invalid UTF-8.
     pub fn next_key(&mut self) -> Result<Option<&'a str>, JsonError> {
         if self.peek() == Some(b'}') {
-            self.pos += 1;
-            if self.pos != self.input.len() {
+            self.input = &self.input[1..];
+            if !self.input.is_empty() {
                 return Err(JsonError::TrailingData);
             }
             return Ok(None);
@@ -281,21 +273,22 @@ impl<'a> JsonReader<'a> {
         }
         self.first = false;
         self.expect(b'"')?;
-        let start = self.pos;
+        let key_start = self.input;
         loop {
-            match self.input.get(self.pos) {
-                None => return Err(JsonError::UnterminatedJson),
-                Some(b'"') => {
-                    let key = core::str::from_utf8(&self.input[start..self.pos])
+            let Some((&b, rest)) = self.input.split_first() else {
+                return Err(JsonError::UnterminatedJson);
+            };
+            match b {
+                b'"' => {
+                    let key_len = key_start.len() - self.input.len();
+                    let key = core::str::from_utf8(&key_start[..key_len])
                         .map_err(|_| JsonError::InvalidKey)?;
-                    self.pos += 1;
+                    self.input = rest;
                     self.expect(b':')?;
                     return Ok(Some(key));
                 }
-                Some(b'\\') => {
-                    return Err(JsonError::InvalidKey);
-                }
-                Some(_) => self.pos += 1,
+                b'\\' => return Err(JsonError::InvalidKey),
+                _ => self.input = rest,
             }
         }
     }
@@ -305,7 +298,7 @@ impl<'a> JsonReader<'a> {
     pub fn read_string(&mut self) -> Result<String, JsonError> {
         self.expect(b'"')?;
         let mut result = String::new();
-        let mut bytes = &self.input[self.pos..];
+        let mut bytes = self.input;
         let mut run = bytes;
         loop {
             let Some((&b, rest)) = bytes.split_first() else {
@@ -321,7 +314,7 @@ impl<'a> JsonReader<'a> {
                     result.push_str(s);
 
                     if b == b'"' {
-                        self.pos = self.input.len() - rest.len();
+                        self.input = rest;
                         return Ok(result);
                     }
 
@@ -341,9 +334,9 @@ impl<'a> JsonReader<'a> {
                         b'f' => '\u{0C}',
                         b'u' => {
                             cold();
-                            self.pos = self.input.len() - rest.len();
+                            self.input = rest;
                             let ch = self.read_unicode_escape()?;
-                            bytes = &self.input[self.pos..];
+                            bytes = self.input;
                             run = bytes;
                             result.push(ch);
                             continue;
@@ -370,35 +363,35 @@ impl<'a> JsonReader<'a> {
     /// # Errors
     /// Returns [`JsonError`] if the value is not a valid JSON integer in range.
     pub fn read_i64(&mut self) -> Result<i64, JsonError> {
-        let start = self.pos;
-        if self.input.get(self.pos) == Some(&b'-') {
-            self.pos += 1;
+        let start = self.input;
+        if self.input.first() == Some(&b'-') {
+            self.input = &self.input[1..];
         }
-        match self.input.get(self.pos) {
+        match self.input.first() {
             Some(b'0') => {
-                self.pos += 1;
+                self.input = &self.input[1..];
             }
             Some(b'1'..=b'9') => {
-                self.pos += 1;
-                while matches!(self.input.get(self.pos), Some(b'0'..=b'9')) {
-                    self.pos += 1;
+                self.input = &self.input[1..];
+                while matches!(self.input.first(), Some(b'0'..=b'9')) {
+                    self.input = &self.input[1..];
                 }
             }
             _ => return Err(JsonError::InvalidNumber),
         }
-        let s = core::str::from_utf8(&self.input[start..self.pos])
-            .map_err(|_| JsonError::InvalidNumber)?;
+        let num_len = start.len() - self.input.len();
+        let s = core::str::from_utf8(&start[..num_len]).map_err(|_| JsonError::InvalidNumber)?;
         s.parse::<i64>().map_err(|_| JsonError::NumberOutOfRange)
     }
 
     /// # Errors
     /// Returns [`JsonError::ExpectedBoolean`] if the value is not `true` or `false`.
     pub fn read_bool(&mut self) -> Result<bool, JsonError> {
-        if self.input.get(self.pos..self.pos + 4) == Some(b"true") {
-            self.pos += 4;
+        if self.input.starts_with(b"true") {
+            self.input = &self.input[4..];
             Ok(true)
-        } else if self.input.get(self.pos..self.pos + 5) == Some(b"false") {
-            self.pos += 5;
+        } else if self.input.starts_with(b"false") {
+            self.input = &self.input[5..];
             Ok(false)
         } else {
             Err(JsonError::ExpectedBoolean)
@@ -426,17 +419,18 @@ impl<'a> JsonReader<'a> {
         self.expect(b'[')?;
         let mut result = Vec::new();
         if self.peek() == Some(b']') {
-            self.pos += 1;
+            self.input = &self.input[1..];
             return Ok(result);
         }
         loop {
             result.push(self.read_string()?);
-            match self.peek() {
-                Some(b',') => self.pos += 1,
-                Some(b']') => {
-                    self.pos += 1;
-                    return Ok(result);
-                }
+            let Some((&b, rest)) = self.input.split_first() else {
+                return Err(JsonError::InvalidArraySyntax);
+            };
+            self.input = rest;
+            match b {
+                b',' => {}
+                b']' => return Ok(result),
                 _ => return Err(JsonError::InvalidArraySyntax),
             }
         }
@@ -448,47 +442,50 @@ impl<'a> JsonReader<'a> {
     /// Returns [`JsonError`] if the value is malformed or unterminated.
     pub fn skip_value(&mut self) -> Result<(), JsonError> {
         match self.peek() {
-            Some(b'"') => {
-                self.skip_string()?;
-            }
-            Some(b'{' | b'[') => self.skip_nested()?,
+            Some(b'"') => self.skip_string(),
+            Some(b'{' | b'[') => self.skip_nested(),
             Some(b't') => {
-                if self.input.get(self.pos..self.pos + 4) != Some(b"true") {
+                if !self.input.starts_with(b"true") {
                     return Err(JsonError::InvalidValue);
                 }
-                self.pos += 4;
+                self.input = &self.input[4..];
+                Ok(())
             }
             Some(b'f') => {
-                if self.input.get(self.pos..self.pos + 5) != Some(b"false") {
+                if !self.input.starts_with(b"false") {
                     return Err(JsonError::InvalidValue);
                 }
-                self.pos += 5;
+                self.input = &self.input[5..];
+                Ok(())
             }
             Some(b'n') => {
-                if self.input.get(self.pos..self.pos + 4) != Some(b"null") {
+                if !self.input.starts_with(b"null") {
                     return Err(JsonError::InvalidValue);
                 }
-                self.pos += 4;
+                self.input = &self.input[4..];
+                Ok(())
             }
-            Some(b'-' | b'0'..=b'9') => self.skip_number()?,
-            _ => return Err(JsonError::InvalidValue),
+            Some(b'-' | b'0'..=b'9') => self.skip_number(),
+            _ => Err(JsonError::InvalidValue),
         }
-        Ok(())
     }
 
     fn skip_string(&mut self) -> Result<(), JsonError> {
-        self.pos += 1; // opening quote
+        self.input = &self.input[1..]; // opening quote
         loop {
-            match self.input.get(self.pos) {
-                None => return Err(JsonError::InvalidString),
-                Some(b'"') => {
-                    self.pos += 1;
-                    return Ok(());
+            let Some((&b, rest)) = self.input.split_first() else {
+                return Err(JsonError::InvalidString);
+            };
+            self.input = rest;
+            match b {
+                b'"' => return Ok(()),
+                b'\\' => {
+                    let Some((_, rest)) = self.input.split_first() else {
+                        return Err(JsonError::InvalidString);
+                    };
+                    self.input = rest;
                 }
-                Some(b'\\') => {
-                    self.pos += 2;
-                }
-                Some(_) => self.pos += 1,
+                _ => {}
             }
         }
     }
@@ -496,50 +493,50 @@ impl<'a> JsonReader<'a> {
     fn skip_nested(&mut self) -> Result<(), JsonError> {
         let mut depth = 0u32;
         loop {
-            match self.input.get(self.pos) {
-                None => return Err(JsonError::UnterminatedJson),
-                Some(b'"') => {
-                    self.skip_string()?;
-                }
-                Some(b'{' | b'[') => {
+            let Some((&b, rest)) = self.input.split_first() else {
+                return Err(JsonError::UnterminatedJson);
+            };
+            match b {
+                b'"' => self.skip_string()?,
+                b'{' | b'[' => {
                     depth += 1;
-                    self.pos += 1;
+                    self.input = rest;
                 }
-                Some(b'}' | b']') => {
+                b'}' | b']' => {
                     depth -= 1;
-                    self.pos += 1;
+                    self.input = rest;
                     if depth == 0 {
                         return Ok(());
                     }
                 }
-                Some(_) => self.pos += 1,
+                _ => self.input = rest,
             }
         }
     }
 
     fn skip_number(&mut self) -> Result<(), JsonError> {
-        if self.input.get(self.pos) == Some(&b'-') {
-            self.pos += 1;
+        if self.input.first() == Some(&b'-') {
+            self.input = &self.input[1..];
         }
-        if !matches!(self.input.get(self.pos), Some(b'0'..=b'9')) {
+        if !matches!(self.input.first(), Some(b'0'..=b'9')) {
             return Err(JsonError::InvalidNumber);
         }
-        while matches!(self.input.get(self.pos), Some(b'0'..=b'9')) {
-            self.pos += 1;
+        while matches!(self.input.first(), Some(b'0'..=b'9')) {
+            self.input = &self.input[1..];
         }
-        if self.input.get(self.pos) == Some(&b'.') {
-            self.pos += 1;
-            while matches!(self.input.get(self.pos), Some(b'0'..=b'9')) {
-                self.pos += 1;
+        if self.input.first() == Some(&b'.') {
+            self.input = &self.input[1..];
+            while matches!(self.input.first(), Some(b'0'..=b'9')) {
+                self.input = &self.input[1..];
             }
         }
-        if matches!(self.input.get(self.pos), Some(b'e' | b'E')) {
-            self.pos += 1;
-            if matches!(self.input.get(self.pos), Some(b'+' | b'-')) {
-                self.pos += 1;
+        if matches!(self.input.first(), Some(b'e' | b'E')) {
+            self.input = &self.input[1..];
+            if matches!(self.input.first(), Some(b'+' | b'-')) {
+                self.input = &self.input[1..];
             }
-            while matches!(self.input.get(self.pos), Some(b'0'..=b'9')) {
-                self.pos += 1;
+            while matches!(self.input.first(), Some(b'0'..=b'9')) {
+                self.input = &self.input[1..];
             }
         }
         Ok(())
@@ -548,10 +545,10 @@ impl<'a> JsonReader<'a> {
     fn read_unicode_escape(&mut self) -> Result<char, JsonError> {
         let high = self.read_hex4()?;
         if (0xD800..=0xDBFF).contains(&high) {
-            if self.input.get(self.pos..self.pos + 2) != Some(b"\\u") {
+            if !self.input.starts_with(b"\\u") {
                 return Err(JsonError::InvalidUnicodeEscape);
             }
-            self.pos += 2;
+            self.input = &self.input[2..];
             let low = self.read_hex4()?;
             if !(0xDC00..=0xDFFF).contains(&low) {
                 return Err(JsonError::InvalidUnicodeEscape);
@@ -566,12 +563,11 @@ impl<'a> JsonReader<'a> {
     }
 
     fn read_hex4(&mut self) -> Result<u16, JsonError> {
-        if self.pos + 4 > self.input.len() {
+        let Some(hex) = self.input.get(..4) else {
             return Err(JsonError::InvalidUnicodeEscape);
-        }
+        };
         let mut value = 0u16;
-        for i in 0..4 {
-            let digit = self.input[self.pos + i];
+        for &digit in hex {
             let n = match digit {
                 b'0'..=b'9' => digit - b'0',
                 b'a'..=b'f' => digit - b'a' + 10,
@@ -580,7 +576,7 @@ impl<'a> JsonReader<'a> {
             };
             value = value * 16 + u16::from(n);
         }
-        self.pos += 4;
+        self.input = &self.input[4..];
         Ok(value)
     }
 }

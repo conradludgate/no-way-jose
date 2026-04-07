@@ -206,10 +206,7 @@ macro_rules! ecdh_es_impl {
         }
 
         impl KeyManager for $name {
-            fn encrypt_cek(
-                key: &EcPrivateKey,
-                cek_len: usize,
-            ) -> JoseResult<KeyEncryptionResult> {
+            fn encrypt_cek(key: &EcPrivateKey, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
                 ecdh_encrypt(&key.public_key(), <$name>::ALG, cek_len, $wrap_key_len)
             }
 
@@ -314,10 +311,9 @@ fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPrivateKey
     }
     match &jwk.key {
         JwkParams::Ec(p) => {
-            let d = p
-                .d
-                .as_ref()
-                .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+            let d =
+                p.d.as_ref()
+                    .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
             match p.crv {
                 EcCurve::P256 => {
                     let sk = p256::SecretKey::from_slice(d)
@@ -333,10 +329,9 @@ fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPrivateKey
             }
         }
         JwkParams::Okp(p) if p.crv == OkpCurve::X25519 => {
-            let d = p
-                .d
-                .as_ref()
-                .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+            let d =
+                p.d.as_ref()
+                    .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
             let d_bytes: [u8; 32] = d
                 .as_slice()
                 .try_into()

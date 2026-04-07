@@ -792,9 +792,9 @@ fn ecdh_es_x25519_a256gcm_roundtrip() {
         &mut getrandom::rand_core::UnwrapErr(getrandom::SysRng),
     );
 
-    let key = no_way_jose_ecdh_es::ecdh_es::key(
-        no_way_jose_ecdh_es::EcPrivateKey::X25519(recipient_secret),
-    );
+    let key = no_way_jose_ecdh_es::ecdh_es::key(no_way_jose_ecdh_es::EcPrivateKey::X25519(
+        recipient_secret,
+    ));
 
     let claims = Claims {
         sub: "x25519".into(),

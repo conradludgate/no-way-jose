@@ -298,9 +298,7 @@ fn ecdh_es_jwk_roundtrip() {
     let sk_bytes = [99u8; 32];
     let secret_key = p256::SecretKey::from_slice(&sk_bytes).unwrap();
 
-    let ek = no_way_jose_ecdh_es::ecdh_es::key(no_way_jose_ecdh_es::EcPrivateKey::P256(
-        secret_key,
-    ));
+    let ek = no_way_jose_ecdh_es::ecdh_es::key(no_way_jose_ecdh_es::EcPrivateKey::P256(secret_key));
     let jwk = ek.to_jwk();
     assert_eq!(jwk.kty(), "EC");
     assert_eq!(jwk.alg.as_deref(), Some("ECDH-ES"));
