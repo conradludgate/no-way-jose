@@ -204,6 +204,9 @@ fn validate_rsa_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<()> {
 fn rsa_pubkey_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPublicKey> {
     match &jwk.key {
         JwkParams::Rsa(p) => {
+            if p.n.len() < 256 {
+                return Err(Report::new(JoseError::InvalidKey));
+            }
             let n = boxed_uint_from_be_bytes(&p.n);
             let e = boxed_uint_from_be_bytes(&p.e);
             rsa::RsaPublicKey::new_with_max_size(n, e, 16384)
@@ -216,6 +219,9 @@ fn rsa_pubkey_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPublicKey> {
 fn rsa_privkey_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPrivateKey> {
     match &jwk.key {
         JwkParams::Rsa(p) => {
+            if p.n.len() < 256 {
+                return Err(Report::new(JoseError::InvalidKey));
+            }
             let prv = p
                 .prv
                 .as_ref()
