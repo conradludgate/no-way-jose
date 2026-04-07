@@ -19,4 +19,4 @@ x25519-dalek = { workspace = true, features = ["static_secrets"] }
 aes-kw = { workspace = true }
 sha2 = { workspace = true }
 base64ct = { workspace = true }
-getrandom = { workspace = true }
+getrandom = { workspace = true, features = ["sys_rng"] }
