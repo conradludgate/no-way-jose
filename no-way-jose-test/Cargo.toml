@@ -18,6 +18,7 @@ no-way-jose-hmac = { workspace = true }
 no-way-jose-pbes2 = { workspace = true }
 no-way-jose-rsa = { workspace = true }
 no-way-jose-graviola = { workspace = true }
+no-way-jose-aws-lc = { workspace = true }
 no-way-jose-claims = { workspace = true }
 base64ct = { workspace = true }
 p256 = { workspace = true }
@@ -25,6 +26,7 @@ p384 = { workspace = true }
 p521 = { workspace = true }
 getrandom = { workspace = true }
 x25519-dalek = { workspace = true, features = ["static_secrets"] }
+aws-lc-rs = { workspace = true }
 graviola = { workspace = true }
 rsa = { workspace = true }
 sha2 = { workspace = true }
