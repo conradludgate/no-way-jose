@@ -97,7 +97,7 @@ fn ecdh_encrypt(
     }?;
 
     let derived_key_len = wrap_key_len.unwrap_or(cek_len);
-    let derived_key = concat_kdf(&shared_secret, alg, derived_key_len);
+    let derived_key = concat_kdf(&shared_secret, alg, derived_key_len, &[], &[]);
 
     let (encrypted_key, cek) = if wrap_key_len.is_some() {
         let mut cek = vec![0u8; cek_len];
@@ -127,6 +127,7 @@ fn ecdh_decrypt(
     wrap_key_len: Option<usize>,
 ) -> JoseResult<Vec<u8>> {
     let epk_fields = EpkFields::from_header(header)?;
+    let (apu, apv) = parse_apu_apv(header)?;
 
     let shared_secret = match recipient_priv {
         EcPrivateKey::P256(secret_key) => {
@@ -144,7 +145,7 @@ fn ecdh_decrypt(
     };
 
     let derived_key_len = wrap_key_len.unwrap_or(cek_len);
-    let derived_key = concat_kdf(&shared_secret, alg, derived_key_len);
+    let derived_key = concat_kdf(&shared_secret, alg, derived_key_len, &apu, &apv);
 
     if wrap_key_len.is_some() {
         aes_kw_unwrap(&derived_key, encrypted_key)
@@ -154,6 +155,44 @@ fn ecdh_decrypt(
         }
         Ok(derived_key)
     }
+}
+
+/// Parse optional `apu` and `apv` header fields (base64url-encoded per RFC 7518 §4.6.1).
+fn parse_apu_apv(header: &[u8]) -> JoseResult<(Vec<u8>, Vec<u8>)> {
+    use base64ct::{Base64UrlUnpadded, Encoding};
+    use no_way_jose_core::json::JsonReader;
+
+    let mut reader =
+        JsonReader::new(header).map_err(|_| Report::new(JoseError::MalformedToken))?;
+    let mut apu = Vec::new();
+    let mut apv = Vec::new();
+    while let Some(key) = reader
+        .next_key()
+        .map_err(|_| Report::new(JoseError::MalformedToken))?
+    {
+        match key {
+            "apu" => {
+                let s = reader
+                    .read_string()
+                    .map_err(|_| Report::new(JoseError::MalformedToken))?;
+                apu = Base64UrlUnpadded::decode_vec(&s)
+                    .map_err(|_| Report::new(JoseError::MalformedToken))?;
+            }
+            "apv" => {
+                let s = reader
+                    .read_string()
+                    .map_err(|_| Report::new(JoseError::MalformedToken))?;
+                apv = Base64UrlUnpadded::decode_vec(&s)
+                    .map_err(|_| Report::new(JoseError::MalformedToken))?;
+            }
+            _ => {
+                reader
+                    .skip_value()
+                    .map_err(|_| Report::new(JoseError::MalformedToken))?;
+            }
+        }
+    }
+    Ok((apu, apv))
 }
 
 fn aes_kw_wrap(kek_bytes: &[u8], plaintext: &[u8]) -> JoseResult<Vec<u8>> {
