@@ -3,10 +3,11 @@ use aws_lc_rs::signature::{self, KeyPair, RsaKeyPair, UnparsedPublicKey};
 use error_stack::Report;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::error::{JoseError, JoseResult};
+use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, RsaParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 pub struct RsaVerifyingKey {
-    pub(crate) bytes: Vec<u8>,
+    bytes: Vec<u8>,
 }
 
 impl RsaVerifyingKey {
@@ -61,7 +62,150 @@ macro_rules! rsa_algorithm {
                     .map_err(|_| Report::new(JoseError::CryptoError))
             }
         }
+
+        impl JwkKeyConvert<Verifying> for $name {
+            fn key_to_jwk(key: &RsaVerifyingKey) -> Jwk {
+                rsa_vk_to_jwk(key, $alg)
+            }
+
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<RsaVerifyingKey> {
+                rsa_vk_from_jwk(jwk, $alg)
+            }
+        }
     };
+}
+
+fn rsa_vk_to_jwk(key: &RsaVerifyingKey, alg: &str) -> Jwk {
+    let (n, e) = parse_rsa_public_key_der(&key.bytes).expect("valid RSA public key DER");
+    Jwk {
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        key: JwkParams::Rsa(RsaParams { n, e, prv: None }),
+    }
+}
+
+fn rsa_vk_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<RsaVerifyingKey> {
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(Report::new(JoseError::InvalidKey));
+    }
+    match &jwk.key {
+        JwkParams::Rsa(p) => {
+            let der = encode_rsa_public_key_der(&p.n, &p.e);
+            Ok(RsaVerifyingKey { bytes: der })
+        }
+        _ => Err(Report::new(JoseError::InvalidKey)),
+    }
+}
+
+// -- Minimal ASN.1 DER codec for PKCS#1 RSAPublicKey --
+
+fn parse_rsa_public_key_der(input: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
+    let (inner, rest) = read_der_sequence(input)?;
+    if !rest.is_empty() {
+        return None;
+    }
+    let (n_raw, rest) = read_der_integer(inner)?;
+    let (e_raw, rest) = read_der_integer(rest)?;
+    if !rest.is_empty() {
+        return None;
+    }
+    Some((strip_leading_zeros(n_raw).to_vec(), strip_leading_zeros(e_raw).to_vec()))
+}
+
+fn strip_leading_zeros(bytes: &[u8]) -> &[u8] {
+    let start = bytes.iter().position(|&b| b != 0).unwrap_or(bytes.len());
+    &bytes[start..]
+}
+
+fn read_der_tag(input: &[u8], expected: u8) -> Option<(&[u8], &[u8])> {
+    if input.first()? != &expected {
+        return None;
+    }
+    read_der_length(&input[1..])
+}
+
+fn read_der_sequence(input: &[u8]) -> Option<(&[u8], &[u8])> {
+    read_der_tag(input, 0x30)
+}
+
+fn read_der_integer(input: &[u8]) -> Option<(&[u8], &[u8])> {
+    read_der_tag(input, 0x02)
+}
+
+fn read_der_length(input: &[u8]) -> Option<(&[u8], &[u8])> {
+    let first = *input.first()?;
+    if first < 0x80 {
+        let len = first as usize;
+        if input.len() < 1 + len {
+            return None;
+        }
+        Some((&input[1..=len], &input[1 + len..]))
+    } else {
+        let num_bytes = (first & 0x7F) as usize;
+        if num_bytes == 0 || num_bytes > 4 || input.len() < 1 + num_bytes {
+            return None;
+        }
+        let mut len = 0usize;
+        for &b in &input[1..=num_bytes] {
+            len = len.checked_shl(8)? | (b as usize);
+        }
+        let offset = 1 + num_bytes;
+        if input.len() < offset + len {
+            return None;
+        }
+        Some((&input[offset..offset + len], &input[offset + len..]))
+    }
+}
+
+fn encode_rsa_public_key_der(n: &[u8], e: &[u8]) -> Vec<u8> {
+    let n_int = encode_der_integer(n);
+    let e_int = encode_der_integer(e);
+    let inner_len = n_int.len() + e_int.len();
+
+    let mut out = Vec::with_capacity(1 + 4 + inner_len);
+    out.push(0x30);
+    encode_der_length(&mut out, inner_len);
+    out.extend_from_slice(&n_int);
+    out.extend_from_slice(&e_int);
+    out
+}
+
+fn encode_der_integer(value: &[u8]) -> Vec<u8> {
+    let value = strip_leading_zeros(value);
+    let needs_pad = value.first().is_some_and(|&b| b & 0x80 != 0);
+    let content_len = if needs_pad { value.len() + 1 } else { value.len() };
+
+    let mut out = Vec::with_capacity(1 + 4 + content_len);
+    out.push(0x02);
+    encode_der_length(&mut out, content_len);
+    if needs_pad {
+        out.push(0x00);
+    }
+    out.extend_from_slice(value);
+    out
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn encode_der_length(out: &mut Vec<u8>, len: usize) {
+    if len < 0x80 {
+        out.push(len as u8);
+    } else if len <= 0xFF {
+        out.push(0x81);
+        out.push(len as u8);
+    } else if len <= 0xFFFF {
+        out.push(0x82);
+        out.push((len >> 8) as u8);
+        out.push(len as u8);
+    } else {
+        out.push(0x83);
+        out.push((len >> 16) as u8);
+        out.push((len >> 8) as u8);
+        out.push(len as u8);
+    }
 }
 
 rsa_algorithm!(Rs256, "RS256", &signature::RSA_PKCS1_SHA256, &signature::RSA_PKCS1_2048_8192_SHA256,

@@ -1,7 +1,9 @@
+use aws_lc_rs::encoding::AsBigEndian;
 use aws_lc_rs::signature::{self, Ed25519KeyPair, KeyPair, UnparsedPublicKey};
 use error_stack::Report;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::error::{JoseError, JoseResult};
+use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OkpCurve, OkpParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 pub struct Ed25519VerifyingKey {
@@ -38,6 +40,80 @@ impl Verifier for EdDsa {
         let pk = UnparsedPublicKey::new(&signature::ED25519, &key.bytes);
         pk.verify(signing_input, sig)
             .map_err(|_| Report::new(JoseError::CryptoError))
+    }
+}
+
+impl JwkKeyConvert<Signing> for EdDsa {
+    fn key_to_jwk(key: &Ed25519KeyPair) -> Jwk {
+        let seed = key.seed().expect("seed export");
+        let seed_bytes: aws_lc_rs::encoding::Curve25519SeedBin = seed
+            .as_be_bytes()
+            .expect("seed bytes export");
+        Jwk {
+            kid: None,
+            alg: Some("EdDSA".into()),
+            use_: None,
+            key_ops: None,
+            key: JwkParams::Okp(OkpParams {
+                crv: OkpCurve::Ed25519,
+                x: key.public_key().as_ref().to_vec(),
+                d: Some(seed_bytes.as_ref().to_vec()),
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<Ed25519KeyPair> {
+        validate_okp_jwk(jwk)?;
+        match &jwk.key {
+            JwkParams::Okp(p) => {
+                let d = p.d.as_ref()
+                    .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+                Ed25519KeyPair::from_seed_and_public_key(d, &p.x)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))
+            }
+            _ => Err(Report::new(JoseError::InvalidKey)),
+        }
+    }
+}
+
+impl JwkKeyConvert<Verifying> for EdDsa {
+    fn key_to_jwk(key: &Ed25519VerifyingKey) -> Jwk {
+        Jwk {
+            kid: None,
+            alg: Some("EdDSA".into()),
+            use_: None,
+            key_ops: None,
+            key: JwkParams::Okp(OkpParams {
+                crv: OkpCurve::Ed25519,
+                x: key.bytes.clone(),
+                d: None,
+            }),
+        }
+    }
+
+    fn key_from_jwk(jwk: &Jwk) -> JoseResult<Ed25519VerifyingKey> {
+        validate_okp_jwk(jwk)?;
+        match &jwk.key {
+            JwkParams::Okp(p) => {
+                if p.x.len() != 32 {
+                    return Err(Report::new(JoseError::InvalidKey));
+                }
+                Ok(Ed25519VerifyingKey { bytes: p.x.clone() })
+            }
+            _ => Err(Report::new(JoseError::InvalidKey)),
+        }
+    }
+}
+
+fn validate_okp_jwk(jwk: &Jwk) -> JoseResult<()> {
+    if let Some(alg) = &jwk.alg
+        && alg != "EdDSA"
+    {
+        return Err(Report::new(JoseError::InvalidKey));
+    }
+    match &jwk.key {
+        JwkParams::Okp(p) if p.crv == OkpCurve::Ed25519 => Ok(()),
+        _ => Err(Report::new(JoseError::InvalidKey)),
     }
 }
 

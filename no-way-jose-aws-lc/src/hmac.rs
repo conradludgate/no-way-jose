@@ -2,18 +2,58 @@ use aws_lc_rs::hmac;
 use error_stack::Report;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::error::{JoseError, JoseResult};
+use no_way_jose_core::jwk::{Jwk, JwkKeyConvert, JwkParams, OctParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
-fn make_key(
-    alg: hmac::Algorithm,
-    bytes: impl Into<Vec<u8>>,
-    min_len: usize,
-) -> JoseResult<hmac::Key> {
-    let bytes = bytes.into();
-    if bytes.len() < min_len {
+#[derive(Clone)]
+pub struct HmacKey {
+    raw: Vec<u8>,
+    inner: hmac::Key,
+}
+
+impl HmacKey {
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.raw
+    }
+}
+
+fn make_key(alg: hmac::Algorithm, bytes: impl Into<Vec<u8>>, min_len: usize) -> JoseResult<HmacKey> {
+    let raw = bytes.into();
+    if raw.len() < min_len {
         return Err(Report::new(JoseError::InvalidKey));
     }
-    Ok(hmac::Key::new(alg, &bytes))
+    let inner = hmac::Key::new(alg, &raw);
+    Ok(HmacKey { raw, inner })
+}
+
+fn oct_to_jwk(key_bytes: &[u8], alg: &str) -> Jwk {
+    Jwk {
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        key: JwkParams::Oct(OctParams {
+            k: key_bytes.to_vec(),
+        }),
+    }
+}
+
+fn oct_from_jwk(
+    jwk: &Jwk,
+    expected_alg: &str,
+    hmac_alg: hmac::Algorithm,
+    min_len: usize,
+) -> JoseResult<HmacKey> {
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(Report::new(JoseError::InvalidKey));
+    }
+    match &jwk.key {
+        JwkParams::Oct(p) => make_key(hmac_alg, p.k.clone(), min_len),
+        _ => Err(Report::new(JoseError::InvalidKey)),
+    }
 }
 
 macro_rules! hmac_algorithm {
@@ -26,23 +66,41 @@ macro_rules! hmac_algorithm {
         }
 
         impl HasKey<Signing> for $name {
-            type Key = hmac::Key;
+            type Key = HmacKey;
         }
 
         impl HasKey<Verifying> for $name {
-            type Key = hmac::Key;
+            type Key = HmacKey;
         }
 
         impl Signer for $name {
-            fn sign(key: &hmac::Key, signing_input: &[u8]) -> JoseResult<Vec<u8>> {
-                Ok(hmac::sign(key, signing_input).as_ref().to_vec())
+            fn sign(key: &HmacKey, signing_input: &[u8]) -> JoseResult<Vec<u8>> {
+                Ok(hmac::sign(&key.inner, signing_input).as_ref().to_vec())
             }
         }
 
         impl Verifier for $name {
-            fn verify(key: &hmac::Key, signing_input: &[u8], signature: &[u8]) -> JoseResult<()> {
-                hmac::verify(key, signing_input, signature)
+            fn verify(key: &HmacKey, signing_input: &[u8], signature: &[u8]) -> JoseResult<()> {
+                hmac::verify(&key.inner, signing_input, signature)
                     .map_err(|_| Report::new(JoseError::CryptoError))
+            }
+        }
+
+        impl JwkKeyConvert<Signing> for $name {
+            fn key_to_jwk(key: &HmacKey) -> Jwk {
+                oct_to_jwk(key.as_bytes(), $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<HmacKey> {
+                oct_from_jwk(jwk, $alg, $hmac_alg, $min_key_len)
+            }
+        }
+
+        impl JwkKeyConvert<Verifying> for $name {
+            fn key_to_jwk(key: &HmacKey) -> Jwk {
+                oct_to_jwk(key.as_bytes(), $alg)
+            }
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<HmacKey> {
+                oct_from_jwk(jwk, $alg, $hmac_alg, $min_key_len)
             }
         }
     };

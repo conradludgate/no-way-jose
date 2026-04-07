@@ -1,8 +1,10 @@
+use aws_lc_rs::encoding::{AsBigEndian, EcPrivateKeyBin};
 use aws_lc_rs::rand::SystemRandom;
 use aws_lc_rs::signature::{self, EcdsaKeyPair, EcdsaSigningAlgorithm, KeyPair, UnparsedPublicKey};
 use error_stack::Report;
 use no_way_jose_core::algorithm::{JwsAlgorithm, Signer, Verifier};
 use no_way_jose_core::error::{JoseError, JoseResult};
+use no_way_jose_core::jwk::{EcCurve, EcParams, Jwk, JwkKeyConvert, JwkParams};
 use no_way_jose_core::key::{HasKey, Signing, Verifying};
 
 pub struct EcdsaVerifyingKey {
@@ -13,6 +15,7 @@ macro_rules! ecdsa_algorithm {
     (
         $name:ident, $alg:literal,
         $signing_alg:expr, $verify_alg:expr,
+        $crv:expr, $scalar_len:literal,
         $doc:literal
     ) => {
         #[doc = $doc]
@@ -51,13 +54,119 @@ macro_rules! ecdsa_algorithm {
                     .map_err(|_| Report::new(JoseError::CryptoError))
             }
         }
+
+        impl JwkKeyConvert<Signing> for $name {
+            fn key_to_jwk(key: &EcdsaKeyPair) -> Jwk {
+                let pub_bytes = key.public_key().as_ref();
+                let d_bytes: EcPrivateKeyBin = key
+                    .private_key()
+                    .as_be_bytes()
+                    .expect("private key export");
+                ec_signing_to_jwk(pub_bytes, d_bytes.as_ref(), $alg, $crv, $scalar_len)
+            }
+
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<EcdsaKeyPair> {
+                validate_ec_jwk(jwk, $alg, $crv)?;
+                match &jwk.key {
+                    JwkParams::Ec(p) => {
+                        let d = p.d.as_ref()
+                            .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+                        let mut uncompressed = Vec::with_capacity(1 + p.x.len() + p.y.len());
+                        uncompressed.push(0x04);
+                        uncompressed.extend_from_slice(&p.x);
+                        uncompressed.extend_from_slice(&p.y);
+                        EcdsaKeyPair::from_private_key_and_public_key(
+                            $signing_alg,
+                            d,
+                            &uncompressed,
+                        )
+                        .map_err(|_| Report::new(JoseError::InvalidKey))
+                    }
+                    _ => Err(Report::new(JoseError::InvalidKey)),
+                }
+            }
+        }
+
+        impl JwkKeyConvert<Verifying> for $name {
+            fn key_to_jwk(key: &EcdsaVerifyingKey) -> Jwk {
+                ec_verifying_to_jwk(&key.bytes, $alg, $crv, $scalar_len)
+            }
+
+            fn key_from_jwk(jwk: &Jwk) -> JoseResult<EcdsaVerifyingKey> {
+                validate_ec_jwk(jwk, $alg, $crv)?;
+                match &jwk.key {
+                    JwkParams::Ec(p) => {
+                        let mut uncompressed = Vec::with_capacity(1 + p.x.len() + p.y.len());
+                        uncompressed.push(0x04);
+                        uncompressed.extend_from_slice(&p.x);
+                        uncompressed.extend_from_slice(&p.y);
+                        Ok(EcdsaVerifyingKey { bytes: uncompressed })
+                    }
+                    _ => Err(Report::new(JoseError::InvalidKey)),
+                }
+            }
+        }
     };
+}
+
+fn ec_signing_to_jwk(
+    pub_bytes: &[u8],
+    d_bytes: &[u8],
+    alg: &str,
+    crv: EcCurve,
+    scalar_len: usize,
+) -> Jwk {
+    Jwk {
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        key: JwkParams::Ec(EcParams {
+            crv,
+            x: pub_bytes[1..=scalar_len].to_vec(),
+            y: pub_bytes[1 + scalar_len..].to_vec(),
+            d: Some(d_bytes.to_vec()),
+        }),
+    }
+}
+
+fn ec_verifying_to_jwk(
+    pub_bytes: &[u8],
+    alg: &str,
+    crv: EcCurve,
+    scalar_len: usize,
+) -> Jwk {
+    Jwk {
+        kid: None,
+        alg: Some(alg.into()),
+        use_: None,
+        key_ops: None,
+        key: JwkParams::Ec(EcParams {
+            crv,
+            x: pub_bytes[1..=scalar_len].to_vec(),
+            y: pub_bytes[1 + scalar_len..].to_vec(),
+            d: None,
+        }),
+    }
+}
+
+fn validate_ec_jwk(jwk: &Jwk, expected_alg: &str, expected_crv: EcCurve) -> JoseResult<()> {
+    if let Some(alg) = &jwk.alg
+        && alg != expected_alg
+    {
+        return Err(Report::new(JoseError::InvalidKey));
+    }
+    match &jwk.key {
+        JwkParams::Ec(p) if p.crv == expected_crv => Ok(()),
+        _ => Err(Report::new(JoseError::InvalidKey)),
+    }
 }
 
 ecdsa_algorithm!(
     Es256, "ES256",
     &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
     &signature::ECDSA_P256_SHA256_FIXED,
+    EcCurve::P256, 32,
     "ES256: ECDSA using P-256 and SHA-256 (aws-lc-rs backend)."
 );
 
@@ -65,6 +174,7 @@ ecdsa_algorithm!(
     Es384, "ES384",
     &signature::ECDSA_P384_SHA384_FIXED_SIGNING,
     &signature::ECDSA_P384_SHA384_FIXED,
+    EcCurve::P384, 48,
     "ES384: ECDSA using P-384 and SHA-384 (aws-lc-rs backend)."
 );
 
@@ -72,6 +182,7 @@ ecdsa_algorithm!(
     Es512, "ES512",
     &signature::ECDSA_P521_SHA512_FIXED_SIGNING,
     &signature::ECDSA_P521_SHA512_FIXED,
+    EcCurve::P521, 66,
     "ES512: ECDSA using P-521 and SHA-512 (aws-lc-rs backend)."
 );
 
@@ -99,9 +210,8 @@ pub fn signing_key_from_pkcs8_der(bytes: &[u8]) -> JoseResult<SigningKey> {
 /// # Errors
 /// Returns [`JoseError::InvalidKey`] if the key bytes are invalid.
 pub fn verifying_key_from_public_bytes(bytes: &[u8]) -> JoseResult<VerifyingKey> {
-    // Validate the key by attempting to parse it
     let pk = UnparsedPublicKey::new(&signature::ECDSA_P256_SHA256_FIXED, bytes);
-    pk.verify(b"", b"").ok(); // trigger parse — ignore verify result
+    pk.verify(b"", b"").ok();
     Ok(no_way_jose_core::key::Key::new(EcdsaVerifyingKey {
         bytes: bytes.to_vec(),
     }))
