@@ -34,14 +34,8 @@ fn hmac_input(aad: &[u8], iv: &[u8], ciphertext: &[u8]) -> Vec<u8> {
 }
 
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut diff = 0u8;
-    for (x, y) in a.iter().zip(b.iter()) {
-        diff |= x ^ y;
-    }
-    diff == 0
+    use subtle::ConstantTimeEq;
+    a.ct_eq(b).into()
 }
 
 macro_rules! aes_cbc_hs_algorithm {
