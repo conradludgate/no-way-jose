@@ -518,11 +518,17 @@ impl<'a> JsonReader<'a> {
         if self.input.first() == Some(&b'-') {
             self.input = &self.input[1..];
         }
-        if !matches!(self.input.first(), Some(b'0'..=b'9')) {
-            return Err(JsonError::InvalidNumber);
-        }
-        while matches!(self.input.first(), Some(b'0'..=b'9')) {
-            self.input = &self.input[1..];
+        match self.input.first() {
+            Some(b'0') => {
+                self.input = &self.input[1..];
+            }
+            Some(b'1'..=b'9') => {
+                self.input = &self.input[1..];
+                while matches!(self.input.first(), Some(b'0'..=b'9')) {
+                    self.input = &self.input[1..];
+                }
+            }
+            _ => return Err(JsonError::InvalidNumber),
         }
         if self.input.first() == Some(&b'.') {
             self.input = &self.input[1..];
