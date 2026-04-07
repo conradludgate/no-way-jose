@@ -47,8 +47,9 @@ inter-service communication.
   with strict compact-JSON parsing (no whitespace). Claim types implement `ToJson`
   and `FromJson` directly.
 
-- **Sealed traits.** Algorithm traits are sealed -- users cannot create custom
-  algorithm types that could weaken security guarantees.
+- **Open algorithm traits.** Algorithm traits (`JwsAlgorithm`, `Signer`,
+  `Verifier`, etc.) are public, so third-party crates can implement new
+  algorithms or crypto backends.
 
 - **Structured errors.** All operations return `Report<JoseError>` via
   [`error-stack`](https://docs.rs/error-stack). Errors carry context chains
@@ -118,7 +119,8 @@ no-way-jose/
   no-way-jose-aes-gcm-kw/ A128GCMKW, A192GCMKW, A256GCMKW (JWE key wrapping)
   no-way-jose-ecdh-es/    ECDH-ES, ECDH-ES+A128KW/A192KW/A256KW (P-256/P-384/X25519)
   no-way-jose-pbes2/      PBES2-HS256+A128KW, HS384+A192KW, HS512+A256KW (JWE)
-  no-way-jose-graviola/   Alternate crypto backend (graviola)
+  no-way-jose-graviola/   Crypto backend: graviola (verified assembler)
+  no-way-jose-aws-lc/    Crypto backend: aws-lc-rs (FIPS-capable)
 ```
 
 All crates except `no-way-jose-claims` are `#![no_std]` with `extern crate alloc`.
@@ -449,15 +451,21 @@ let thumbprint_b64 = no_way_jose_core::base64url::encode(&thumbprint);
 | A192CBC-HS384 | AES-192-CBC + HMAC-SHA-384 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
 | A256CBC-HS512 | AES-256-CBC + HMAC-SHA-512 | `no-way-jose-aes-cbc-hs` | 7518 §5.2 |
 
-### Alternate crypto backend (graviola)
+### Alternate crypto backends
 
-`no-way-jose-graviola` provides the same JWS algorithms (ES256, ES384, EdDSA,
-HS256/384/512, RS256, PS256) and AES-GCM content encryption (A128GCM, A256GCM)
-using the [graviola](https://crates.io/crates/graviola) library -- a crypto
-library with formally verified assembler. Tokens produced by either backend are
-interchangeable on the wire.
+The default algorithm crates use [RustCrypto](https://github.com/RustCrypto).
+Two alternate backends provide the same traits, so tokens are wire-compatible
+regardless of which backend produced them.
 
-Graviola is limited to aarch64 and x86\_64 with specific CPU features.
+**`no-way-jose-graviola`** — Backed by [graviola](https://crates.io/crates/graviola),
+a cryptography library with formally verified assembler routines.
+Supports HS256/384/512, ES256, ES384, EdDSA, RS256, PS256, A128GCM, A256GCM.
+Limited to aarch64 and x86\_64 with specific CPU features.
+
+**`no-way-jose-aws-lc`** — Backed by [aws-lc-rs](https://crates.io/crates/aws-lc-rs),
+the cryptography library used by AWS with FIPS 140-3 validated builds available.
+Supports HS256/384/512, ES256/384/512, EdDSA, RS256/384/512, PS256/384/512,
+A128GCM, A256GCM. Full JWK support for all algorithm types.
 
 ## Limitations
 
@@ -479,8 +487,8 @@ Graviola is limited to aarch64 and x86\_64 with specific CPU features.
   ([RFC 7519 §5.2](https://datatracker.ietf.org/doc/html/rfc7519#section-5.2)).
 - **Minimum key lengths.** HMAC keys shorter than the hash output are rejected
   (32 bytes for HS256, 48 for HS384, 64 for HS512).
-- **Sealed traits.** Algorithm traits cannot be implemented outside this workspace,
-  preventing injection of weak custom algorithms.
+- **Type-safe algorithm selection.** Using the wrong key type for a given
+  algorithm is a compile error, preventing algorithm confusion at the type level.
 - **Strict JSON parsing.** The JSON parser rejects whitespace between tokens,
   enforcing compact serialization.
 
