@@ -1,6 +1,6 @@
 //! AES-GCM content encryption algorithms for JWE: [`A128Gcm`], [`A192Gcm`], and [`A256Gcm`].
 //!
-//! These implement the `ContentEncryptor` / `ContentDecryptor` traits from
+//! These implement the `ContentCipher` trait from
 //! `no-way-jose-core`. They are used as the `CE` type parameter in
 //! `CompactJwe<KM, CE, M>` and paired with a key management algorithm
 //! (e.g. `Dir`, `A128Kw`).
@@ -17,9 +17,7 @@ use aes_gcm::{KeyInit, Nonce};
 use error_stack::Report;
 pub use no_way_jose_core;
 use no_way_jose_core::error::{JoseError, JoseResult};
-use no_way_jose_core::jwe_algorithm::{
-    ContentDecryptor, ContentEncryptor, EncryptionOutput, JweContentEncryption,
-};
+use no_way_jose_core::jwe_algorithm::{ContentCipher, EncryptionOutput, JweContentEncryption};
 
 macro_rules! aes_gcm_algorithm {
     ($name:ident, $enc:literal, $key_len:literal, $cipher:ty, $doc:literal) => {
@@ -34,7 +32,7 @@ macro_rules! aes_gcm_algorithm {
             const TAG_LEN: usize = 16;
         }
 
-        impl ContentEncryptor for $name {
+        impl ContentCipher for $name {
             fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> JoseResult<EncryptionOutput> {
                 let cipher = <$cipher>::new_from_slice(cek)
                     .map_err(|_| Report::new(JoseError::InvalidKey))?;
@@ -61,9 +59,7 @@ macro_rules! aes_gcm_algorithm {
                     tag,
                 })
             }
-        }
 
-        impl ContentDecryptor for $name {
             fn decrypt(
                 cek: &[u8],
                 iv: &[u8],

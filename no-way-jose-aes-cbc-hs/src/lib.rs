@@ -1,7 +1,7 @@
 //! AES-CBC + HMAC-SHA content encryption algorithms for JWE (RFC 7518 §5.2):
 //! [`A128CbcHs256`], [`A192CbcHs384`], [`A256CbcHs512`].
 //!
-//! These implement `ContentEncryptor` / `ContentDecryptor` from `no-way-jose-core`.
+//! These implement `ContentCipher` from `no-way-jose-core`.
 //! The combined key is split: first half for HMAC, second half for AES-CBC.
 
 #![no_std]
@@ -17,9 +17,7 @@ use error_stack::Report;
 use hmac::{KeyInit, Mac};
 pub use no_way_jose_core;
 use no_way_jose_core::error::{JoseError, JoseResult};
-use no_way_jose_core::jwe_algorithm::{
-    ContentDecryptor, ContentEncryptor, EncryptionOutput, JweContentEncryption,
-};
+use no_way_jose_core::jwe_algorithm::{ContentCipher, EncryptionOutput, JweContentEncryption};
 
 const IV_LEN: usize = 16;
 
@@ -59,7 +57,7 @@ macro_rules! aes_cbc_hs_algorithm {
             const TAG_LEN: usize = $tag_len;
         }
 
-        impl ContentEncryptor for $name {
+        impl ContentCipher for $name {
             fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> JoseResult<EncryptionOutput> {
                 if cek.len() != $key_len {
                     return Err(Report::new(JoseError::InvalidKey));
@@ -86,9 +84,7 @@ macro_rules! aes_cbc_hs_algorithm {
                     tag,
                 })
             }
-        }
 
-        impl ContentDecryptor for $name {
             fn decrypt(
                 cek: &[u8],
                 iv: &[u8],
@@ -108,7 +104,6 @@ macro_rules! aes_cbc_hs_algorithm {
                 let mac_key = &cek[..$mac_key_len];
                 let enc_key = &cek[$mac_key_len..];
 
-                // Authenticate before decrypting
                 let hmac_data = hmac_input(aad, iv, ciphertext);
                 let mut mac = <$hmac>::new_from_slice(mac_key)
                     .map_err(|_| Report::new(JoseError::InvalidKey))?;

@@ -1,9 +1,7 @@
 use error_stack::Report;
 use graviola::aead::AesGcm;
 use no_way_jose_core::error::{JoseError, JoseResult};
-use no_way_jose_core::jwe_algorithm::{
-    ContentDecryptor, ContentEncryptor, EncryptionOutput, JweContentEncryption,
-};
+use no_way_jose_core::jwe_algorithm::{ContentCipher, EncryptionOutput, JweContentEncryption};
 
 macro_rules! aes_gcm_algorithm {
     ($name:ident, $enc:literal, $key_len:literal, $doc:literal) => {
@@ -18,7 +16,7 @@ macro_rules! aes_gcm_algorithm {
             const TAG_LEN: usize = 16;
         }
 
-        impl ContentEncryptor for $name {
+        impl ContentCipher for $name {
             fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> JoseResult<EncryptionOutput> {
                 if cek.len() != $key_len {
                     return Err(Report::new(JoseError::InvalidKey));
@@ -39,9 +37,7 @@ macro_rules! aes_gcm_algorithm {
                     tag: tag.to_vec(),
                 })
             }
-        }
 
-        impl ContentDecryptor for $name {
             fn decrypt(
                 cek: &[u8],
                 iv: &[u8],

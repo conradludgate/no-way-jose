@@ -7,9 +7,7 @@ use error_stack::{Report, ResultExt};
 use crate::algorithm::{JwsAlgorithm, Signer, Verifier};
 use crate::error::{HeaderError, JoseError, JoseResult, TokenFormatError};
 use crate::json::{FromJson, JsonReader, RawJson, ToJson};
-use crate::jwe_algorithm::{
-    ContentDecryptor, ContentEncryptor, JweContentEncryption, JweKeyManagement, KeyManager,
-};
+use crate::jwe_algorithm::{ContentCipher, JweContentEncryption, JweKeyManagement, KeyManager};
 use crate::purpose::{Encrypted, Purpose, Signed};
 use crate::validation::Validate;
 use crate::{EncryptionKey, SigningKey, VerifyingKey};
@@ -563,7 +561,7 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> UnsealedToken<Encrypted<
 impl<KM, CE, M> UnsealedToken<Encrypted<KM, CE>, M>
 where
     KM: KeyManager,
-    CE: ContentEncryptor,
+    CE: ContentCipher,
     M: ToJson,
 {
     /// # Errors
@@ -621,7 +619,7 @@ where
 impl<KM, CE, M> CompactToken<Encrypted<KM, CE>, M>
 where
     KM: KeyManager,
-    CE: ContentDecryptor,
+    CE: ContentCipher,
     M: FromJson,
 {
     /// # Errors

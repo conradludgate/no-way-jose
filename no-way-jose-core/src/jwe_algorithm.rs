@@ -59,16 +59,15 @@ pub trait KeyManager: JweKeyManagement + HasKey<Encrypting> {
     ) -> JoseResult<Vec<u8>>;
 }
 
-/// Encrypt plaintext using a content encryption algorithm.
-/// The implementation generates the IV internally.
-pub trait ContentEncryptor: JweContentEncryption {
+/// JWE content encryption: encrypt plaintext and decrypt ciphertext using
+/// an authenticated encryption algorithm (e.g. AES-GCM, AES-CBC-HS).
+pub trait ContentCipher: JweContentEncryption {
+    /// Encrypt plaintext. The implementation generates the IV internally.
+    ///
     /// # Errors
     /// Returns [`crate::JoseError::CryptoError`] if encryption fails.
     fn encrypt(cek: &[u8], aad: &[u8], plaintext: &[u8]) -> JoseResult<EncryptionOutput>;
-}
 
-/// Decrypt ciphertext using a content encryption algorithm.
-pub trait ContentDecryptor: JweContentEncryption {
     /// Decrypt and authenticate the ciphertext using the CEK, IV, AAD, and tag.
     ///
     /// # Errors
