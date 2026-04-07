@@ -431,6 +431,37 @@ impl<M> UntypedCompactJws<M> {
         }
     }
 
+    /// Decode claims and run validation **without checking the signature**.
+    ///
+    /// # Safety (logical)
+    ///
+    /// The caller **must** have already verified this token's signature
+    /// through some other means (e.g. a verification cache). Using this
+    /// on an unverified token completely bypasses authentication.
+    ///
+    /// # Errors
+    /// Returns a [`JoseError`] if payload decoding or claims validation fails.
+    ///
+    /// # Panics
+    /// Cannot panic — the compact string structure is validated at parse time.
+    pub fn dangerous_verify_without_signature(
+        self,
+        v: &impl Validate<Claims = M>,
+    ) -> JoseResult<M>
+    where
+        M: FromJson,
+    {
+        let (header_payload, _sig) =
+            self.compact.rsplit_once('.').expect("validated at parse time");
+        let (_header_b64, payload_b64) =
+            header_payload.split_once('.').expect("validated at parse time");
+        let payload_bytes = crate::base64url::decode(payload_b64)?;
+        let claims: M = M::from_json_bytes(&payload_bytes)
+            .map_err(|e| Report::new(JoseError::PayloadError).attach(e))?;
+        v.validate(&claims).map_err(Report::new)?;
+        Ok(claims)
+    }
+
     /// # Errors
     /// Returns [`JoseError::AlgorithmMismatch`] if the runtime `alg` does not match `A::ALG`.
     pub fn into_typed<A: JwsAlgorithm>(self) -> JoseResult<CompactJws<A, M>> {
