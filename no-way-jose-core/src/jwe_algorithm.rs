@@ -2,7 +2,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::JoseResult;
-use crate::key::{Decrypting, Encrypting, HasKey, KeyInner};
+use crate::key::{Encrypting, HasKey, KeyInner};
 
 /// Marker trait for JWE key management algorithm identifiers (RFC 7518 §4).
 pub trait JweKeyManagement: Send + Sync + Sized + 'static {
@@ -28,18 +28,19 @@ pub struct KeyEncryptionResult {
     pub extra_headers: Vec<(String, String)>,
 }
 
-/// Encrypt/wrap a Content Encryption Key using a key management algorithm.
-pub trait KeyEncryptor: JweKeyManagement + HasKey<Encrypting> {
+/// JWE key management: encrypt/wrap and decrypt/unwrap the Content Encryption Key.
+///
+/// For symmetric algorithms (dir, AES-KW, AES-GCM-KW, PBES2), the key type is the
+/// shared secret. For asymmetric algorithms (RSA, ECDH-ES), the key type is the
+/// private key — `encrypt_cek` derives the public component internally.
+pub trait KeyManager: JweKeyManagement + HasKey<Encrypting> {
     /// # Errors
     /// Returns [`crate::JoseError::CryptoError`] or [`crate::JoseError::InvalidKey`] if key encryption fails.
     fn encrypt_cek(
         key: &KeyInner<Self, Encrypting>,
         cek_len: usize,
     ) -> JoseResult<KeyEncryptionResult>;
-}
 
-/// Decrypt/unwrap a Content Encryption Key using a key management algorithm.
-pub trait KeyDecryptor: JweKeyManagement + HasKey<Decrypting> {
     /// Recover the CEK from the `encrypted_key` field of a JWE token.
     ///
     /// `header` contains the raw JSON header bytes for algorithms that need
@@ -51,7 +52,7 @@ pub trait KeyDecryptor: JweKeyManagement + HasKey<Decrypting> {
     /// # Errors
     /// Returns [`crate::JoseError::CryptoError`] or [`crate::JoseError::InvalidKey`] if decryption fails.
     fn decrypt_cek(
-        key: &KeyInner<Self, Decrypting>,
+        key: &KeyInner<Self, Encrypting>,
         encrypted_key: &[u8],
         header: &[u8],
         cek_len: usize,

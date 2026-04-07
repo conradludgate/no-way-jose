@@ -61,8 +61,8 @@ fn no_validation<T>() -> NoValidation<T> {
 #[test]
 fn dir_a256gcm_roundtrip() {
     let key_bytes = test_key();
-    let enc_key = dir::encryption_key(key_bytes.clone());
-    let dec_key = dir::decryption_key(key_bytes);
+    let enc_key = dir::key(key_bytes.clone());
+    let dec_key = dir::key(key_bytes);
 
     let claims = Claims {
         sub: "1234567890".into(),
@@ -79,8 +79,8 @@ fn dir_a256gcm_roundtrip() {
 
 #[test]
 fn dir_a256gcm_wrong_key_fails() {
-    let enc_key = dir::encryption_key(test_key());
-    let wrong_key = dir::decryption_key(vec![0xff; 32]);
+    let enc_key = dir::key(test_key());
+    let wrong_key = dir::key(vec![0xff; 32]);
 
     let claims = Claims {
         sub: "test".into(),
@@ -97,8 +97,8 @@ fn dir_a256gcm_wrong_key_fails() {
 #[test]
 fn dir_a256gcm_tampered_ciphertext_fails() {
     let key_bytes = test_key();
-    let enc_key = dir::encryption_key(key_bytes.clone());
-    let dec_key = dir::decryption_key(key_bytes);
+    let enc_key = dir::key(key_bytes.clone());
+    let dec_key = dir::key(key_bytes);
 
     let claims = Claims {
         sub: "tamper".into(),
@@ -122,8 +122,8 @@ fn dir_a256gcm_tampered_ciphertext_fails() {
 #[test]
 fn dir_a256gcm_token_display_parse_roundtrip() {
     let key_bytes = test_key();
-    let enc_key = dir::encryption_key(key_bytes.clone());
-    let dec_key = dir::decryption_key(key_bytes);
+    let enc_key = dir::key(key_bytes.clone());
+    let dec_key = dir::key(key_bytes);
 
     let claims = Claims {
         sub: "roundtrip".into(),
@@ -146,8 +146,8 @@ fn dir_a256gcm_token_display_parse_roundtrip() {
 #[test]
 fn dir_a256gcm_raw_json_roundtrip() {
     let key_bytes = test_key();
-    let enc_key = dir::encryption_key(key_bytes.clone());
-    let dec_key = dir::decryption_key(key_bytes);
+    let enc_key = dir::key(key_bytes.clone());
+    let dec_key = dir::key(key_bytes);
 
     let raw = RawJson(r#"{"hello":"world"}"#.into());
 
@@ -161,7 +161,7 @@ fn dir_a256gcm_raw_json_roundtrip() {
 #[test]
 fn dir_a256gcm_header_has_alg_and_enc() {
     let key_bytes = test_key();
-    let enc_key = dir::encryption_key(key_bytes);
+    let enc_key = dir::key(key_bytes);
 
     let claims = Claims {
         sub: "hdr".into(),
@@ -179,8 +179,8 @@ fn dir_a256gcm_header_has_alg_and_enc() {
 #[test]
 fn dir_rejects_nonempty_encrypted_key() {
     let key_bytes = test_key();
-    let enc_key = dir::encryption_key(key_bytes.clone());
-    let dec_key = dir::decryption_key(key_bytes);
+    let enc_key = dir::key(key_bytes.clone());
+    let dec_key = dir::key(key_bytes);
 
     let claims = Claims {
         sub: "ek".into(),
@@ -202,7 +202,7 @@ fn dir_rejects_nonempty_encrypted_key() {
 #[test]
 fn dir_rejects_wrong_key_length() {
     let short_key = vec![0u8; 16];
-    let enc_key = dir::encryption_key(short_key);
+    let enc_key = dir::key(short_key);
 
     let claims = Claims {
         sub: "short".into(),
@@ -250,7 +250,7 @@ fn rfc7520_plaintext() -> String {
 #[test]
 fn rfc7520_a128kw_a128gcm_decrypt() {
     let kek_bytes = Base64UrlUnpadded::decode_vec("GZy6sIZ6wl9NJOKB-jnmVQ").unwrap();
-    let dec_key = no_way_jose_aes_kw::a128kw::decryption_key(kek_bytes).unwrap();
+    let dec_key = no_way_jose_aes_kw::a128kw::key(kek_bytes).unwrap();
 
     let token: CompactJwe<no_way_jose_aes_kw::A128Kw, A128Gcm, RawJson> =
         RFC7520_A128KW_A128GCM_TOKEN.parse().unwrap();
@@ -262,8 +262,8 @@ fn rfc7520_a128kw_a128gcm_decrypt() {
 #[test]
 fn a128kw_a128gcm_roundtrip() {
     let kek = vec![0x42u8; 16];
-    let enc_key = no_way_jose_aes_kw::a128kw::encryption_key(kek.clone()).unwrap();
-    let dec_key = no_way_jose_aes_kw::a128kw::decryption_key(kek).unwrap();
+    let enc_key = no_way_jose_aes_kw::a128kw::key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_kw::a128kw::key(kek).unwrap();
 
     let claims = Claims {
         sub: "a128kw".into(),
@@ -288,8 +288,8 @@ fn a128kw_a128gcm_roundtrip() {
 #[test]
 fn a256kw_a256gcm_roundtrip() {
     let kek = vec![0x77u8; 32];
-    let enc_key = no_way_jose_aes_kw::a256kw::encryption_key(kek.clone()).unwrap();
-    let dec_key = no_way_jose_aes_kw::a256kw::decryption_key(kek).unwrap();
+    let enc_key = no_way_jose_aes_kw::a256kw::key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_kw::a256kw::key(kek).unwrap();
 
     let claims = Claims {
         sub: "a256kw".into(),
@@ -311,8 +311,8 @@ fn a256kw_a256gcm_roundtrip() {
 
 #[test]
 fn a128kw_wrong_kek_fails() {
-    let enc_key = no_way_jose_aes_kw::a128kw::encryption_key(vec![0x42u8; 16]).unwrap();
-    let wrong_key = no_way_jose_aes_kw::a128kw::decryption_key(vec![0xffu8; 16]).unwrap();
+    let enc_key = no_way_jose_aes_kw::a128kw::key(vec![0x42u8; 16]).unwrap();
+    let wrong_key = no_way_jose_aes_kw::a128kw::key(vec![0xffu8; 16]).unwrap();
 
     let claims = Claims {
         sub: "wrong".into(),
@@ -329,19 +329,19 @@ fn a128kw_wrong_kek_fails() {
 
 #[test]
 fn a128kw_rejects_wrong_kek_length() {
-    let result = no_way_jose_aes_kw::a128kw::encryption_key(vec![0u8; 15]);
+    let result = no_way_jose_aes_kw::a128kw::key(vec![0u8; 15]);
     assert!(result.is_err());
 }
 
 #[test]
 fn a256kw_rejects_wrong_kek_length() {
-    let result = no_way_jose_aes_kw::a256kw::encryption_key(vec![0u8; 31]);
+    let result = no_way_jose_aes_kw::a256kw::key(vec![0u8; 31]);
     assert!(result.is_err());
 }
 
 #[test]
 fn a128kw_header_has_alg_and_enc() {
-    let enc_key = no_way_jose_aes_kw::a128kw::encryption_key(vec![0x42u8; 16]).unwrap();
+    let enc_key = no_way_jose_aes_kw::a128kw::key(vec![0x42u8; 16]).unwrap();
 
     let claims = Claims {
         sub: "hdr".into(),
@@ -364,8 +364,8 @@ fn a128kw_header_has_alg_and_enc() {
 #[test]
 fn dir_a128cbc_hs256_roundtrip() {
     let key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let claims = Claims {
         sub: "cbc-hs".into(),
@@ -386,8 +386,8 @@ fn dir_a128cbc_hs256_roundtrip() {
 #[test]
 fn dir_a256cbc_hs512_roundtrip() {
     let key = vec![0x77u8; 64];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let claims = Claims {
         sub: "cbc512".into(),
@@ -407,8 +407,8 @@ fn dir_a256cbc_hs512_roundtrip() {
 
 #[test]
 fn a128cbc_hs256_wrong_key_fails() {
-    let enc_key = dir::encryption_key(vec![0x42u8; 32]);
-    let wrong_key = dir::decryption_key(vec![0xffu8; 32]);
+    let enc_key = dir::key(vec![0x42u8; 32]);
+    let wrong_key = dir::key(vec![0xffu8; 32]);
 
     let claims = Claims {
         sub: "wrong".into(),
@@ -424,8 +424,8 @@ fn a128cbc_hs256_wrong_key_fails() {
 #[test]
 fn a128cbc_hs256_tampered_ciphertext_fails() {
     let key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let claims = Claims {
         sub: "tamper".into(),
@@ -453,8 +453,8 @@ fn a128cbc_hs256_tampered_ciphertext_fails() {
 #[test]
 fn a128kw_a128cbc_hs256_roundtrip() {
     let kek = vec![0x42u8; 16];
-    let enc_key = no_way_jose_aes_kw::a128kw::encryption_key(kek.clone()).unwrap();
-    let dec_key = no_way_jose_aes_kw::a128kw::decryption_key(kek).unwrap();
+    let enc_key = no_way_jose_aes_kw::a128kw::key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_kw::a128kw::key(kek).unwrap();
 
     let claims = Claims {
         sub: "kw-cbc".into(),
@@ -487,21 +487,19 @@ fn test_rsa_keypair() -> (rsa::RsaPublicKey, rsa::RsaPrivateKey) {
 
 #[test]
 fn rsa_oaep_a256gcm_roundtrip() {
-    let (pub_key, priv_key) = test_rsa_keypair();
-    let enc_key = no_way_jose_rsa::rsa_oaep::encryption_key(pub_key);
-    let dec_key = no_way_jose_rsa::rsa_oaep::decryption_key(priv_key);
-
+    let (_, priv_key) = test_rsa_keypair();
+    let key = no_way_jose_rsa::rsa_oaep::key(priv_key);
     let claims = Claims {
         sub: "rsa-oaep".into(),
         admin: true,
     };
 
     let token = UnsealedToken::<Encrypted<RsaOaep, A256Gcm>, Claims>::new(claims);
-    let compact = token.encrypt(&enc_key).unwrap();
+    let compact = token.encrypt(&key).unwrap();
     let serialized = compact.to_string();
 
     let parsed: CompactJwe<RsaOaep, A256Gcm, Claims> = serialized.parse().unwrap();
-    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+    let unsealed = parsed.decrypt(&key, &no_validation()).unwrap();
 
     assert_eq!(unsealed.claims.sub, "rsa-oaep");
     assert!(unsealed.claims.admin);
@@ -509,21 +507,19 @@ fn rsa_oaep_a256gcm_roundtrip() {
 
 #[test]
 fn rsa_oaep256_a128gcm_roundtrip() {
-    let (pub_key, priv_key) = test_rsa_keypair();
-    let enc_key = no_way_jose_rsa::rsa_oaep_256::encryption_key(pub_key);
-    let dec_key = no_way_jose_rsa::rsa_oaep_256::decryption_key(priv_key);
-
+    let (_, priv_key) = test_rsa_keypair();
+    let key = no_way_jose_rsa::rsa_oaep_256::key(priv_key);
     let claims = Claims {
         sub: "rsa-oaep-256".into(),
         admin: false,
     };
 
     let token = UnsealedToken::<Encrypted<RsaOaep256, A128Gcm>, Claims>::new(claims);
-    let compact = token.encrypt(&enc_key).unwrap();
+    let compact = token.encrypt(&key).unwrap();
     let serialized = compact.to_string();
 
     let parsed: CompactJwe<RsaOaep256, A128Gcm, Claims> = serialized.parse().unwrap();
-    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+    let unsealed = parsed.decrypt(&key, &no_validation()).unwrap();
 
     assert_eq!(unsealed.claims.sub, "rsa-oaep-256");
     assert!(!unsealed.claims.admin);
@@ -531,11 +527,10 @@ fn rsa_oaep256_a128gcm_roundtrip() {
 
 #[test]
 fn rsa_oaep_wrong_key_fails() {
-    let (pub_key, _) = test_rsa_keypair();
+    let (_, priv_key) = test_rsa_keypair();
     let (_, wrong_priv) = test_rsa_keypair();
-    let enc_key = no_way_jose_rsa::rsa_oaep::encryption_key(pub_key);
-    let wrong_dec = no_way_jose_rsa::rsa_oaep::decryption_key(wrong_priv);
-
+    let enc_key = no_way_jose_rsa::rsa_oaep::key(priv_key);
+    let wrong_key = no_way_jose_rsa::rsa_oaep::key(wrong_priv);
     let claims = Claims {
         sub: "wrong".into(),
         admin: false,
@@ -543,14 +538,14 @@ fn rsa_oaep_wrong_key_fails() {
 
     let token = UnsealedToken::<Encrypted<RsaOaep, A256Gcm>, Claims>::new(claims);
     let compact = token.encrypt(&enc_key).unwrap();
-    let result = compact.decrypt(&wrong_dec, &no_validation());
+    let result = compact.decrypt(&wrong_key, &no_validation());
     assert!(result.is_err());
 }
 
 #[test]
 fn rsa_oaep_header_correct() {
-    let (pub_key, _) = test_rsa_keypair();
-    let enc_key = no_way_jose_rsa::rsa_oaep::encryption_key(pub_key);
+    let (_, priv_key) = test_rsa_keypair();
+    let enc_key = no_way_jose_rsa::rsa_oaep::key(priv_key);
 
     let claims = Claims {
         sub: "hdr".into(),
@@ -567,10 +562,8 @@ fn rsa_oaep_header_correct() {
 
 #[test]
 fn rsa1_5_a128cbc_hs256_roundtrip() {
-    let (pub_key, priv_key) = test_rsa_keypair();
-    let enc_key = no_way_jose_rsa::rsa1_5::encryption_key(pub_key);
-    let dec_key = no_way_jose_rsa::rsa1_5::decryption_key(priv_key);
-
+    let (_, priv_key) = test_rsa_keypair();
+    let key = no_way_jose_rsa::rsa1_5::key(priv_key);
     let claims = Claims {
         sub: "rsa15".into(),
         admin: true,
@@ -578,12 +571,12 @@ fn rsa1_5_a128cbc_hs256_roundtrip() {
 
     let token =
         UnsealedToken::<Encrypted<no_way_jose_rsa::Rsa1_5, A128CbcHs256>, Claims>::new(claims);
-    let compact = token.encrypt(&enc_key).unwrap();
+    let compact = token.encrypt(&key).unwrap();
     let serialized = compact.to_string();
 
     let parsed: CompactJwe<no_way_jose_rsa::Rsa1_5, A128CbcHs256, Claims> =
         serialized.parse().unwrap();
-    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+    let unsealed = parsed.decrypt(&key, &no_validation()).unwrap();
 
     assert_eq!(unsealed.claims.sub, "rsa15");
     assert!(unsealed.claims.admin);
@@ -596,8 +589,8 @@ fn rsa1_5_a128cbc_hs256_roundtrip() {
 #[test]
 fn a128gcmkw_a128gcm_roundtrip() {
     let kek = vec![0x42u8; 16];
-    let enc_key = no_way_jose_aes_gcm_kw::a128gcmkw::encryption_key(kek.clone()).unwrap();
-    let dec_key = no_way_jose_aes_gcm_kw::a128gcmkw::decryption_key(kek).unwrap();
+    let enc_key = no_way_jose_aes_gcm_kw::a128gcmkw::key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_gcm_kw::a128gcmkw::key(kek).unwrap();
 
     let claims = Claims {
         sub: "gcmkw128".into(),
@@ -624,8 +617,8 @@ fn a128gcmkw_a128gcm_roundtrip() {
 #[test]
 fn a256gcmkw_a256gcm_roundtrip() {
     let kek = vec![0x77u8; 32];
-    let enc_key = no_way_jose_aes_gcm_kw::a256gcmkw::encryption_key(kek.clone()).unwrap();
-    let dec_key = no_way_jose_aes_gcm_kw::a256gcmkw::decryption_key(kek).unwrap();
+    let enc_key = no_way_jose_aes_gcm_kw::a256gcmkw::key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_gcm_kw::a256gcmkw::key(kek).unwrap();
 
     let claims = Claims {
         sub: "gcmkw256".into(),
@@ -647,8 +640,8 @@ fn a256gcmkw_a256gcm_roundtrip() {
 
 #[test]
 fn a128gcmkw_wrong_kek_fails() {
-    let enc_key = no_way_jose_aes_gcm_kw::a128gcmkw::encryption_key(vec![0x42u8; 16]).unwrap();
-    let wrong = no_way_jose_aes_gcm_kw::a128gcmkw::decryption_key(vec![0xffu8; 16]).unwrap();
+    let enc_key = no_way_jose_aes_gcm_kw::a128gcmkw::key(vec![0x42u8; 16]).unwrap();
+    let wrong = no_way_jose_aes_gcm_kw::a128gcmkw::key(vec![0xffu8; 16]).unwrap();
 
     let claims = Claims {
         sub: "wrong".into(),
@@ -665,7 +658,7 @@ fn a128gcmkw_wrong_kek_fails() {
 #[test]
 fn a128gcmkw_header_contains_iv_and_tag() {
     let kek = vec![0x42u8; 16];
-    let enc_key = no_way_jose_aes_gcm_kw::a128gcmkw::encryption_key(kek).unwrap();
+    let enc_key = no_way_jose_aes_gcm_kw::a128gcmkw::key(kek).unwrap();
 
     let claims = Claims {
         sub: "ivtag".into(),
@@ -704,10 +697,8 @@ fn test_p256_keypair() -> (
 
 #[test]
 fn ecdh_es_a128kw_a128gcm_roundtrip() {
-    let (pub_key, priv_key) = test_p256_keypair();
-    let enc_key = no_way_jose_ecdh_es::ecdh_es_a128kw::encryption_key(pub_key);
-    let dec_key = no_way_jose_ecdh_es::ecdh_es_a128kw::decryption_key(priv_key);
-
+    let (_, priv_key) = test_p256_keypair();
+    let key = no_way_jose_ecdh_es::ecdh_es_a128kw::key(priv_key);
     let claims = Claims {
         sub: "ecdh-kw".into(),
         admin: true,
@@ -715,7 +706,7 @@ fn ecdh_es_a128kw_a128gcm_roundtrip() {
 
     let token =
         UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEsA128Kw, A128Gcm>, Claims>::new(claims);
-    let compact = token.encrypt(&enc_key).unwrap();
+    let compact = token.encrypt(&key).unwrap();
 
     let header = compact.header().unwrap();
     assert_eq!(header.alg, "ECDH-ES+A128KW");
@@ -724,7 +715,7 @@ fn ecdh_es_a128kw_a128gcm_roundtrip() {
     let serialized = compact.to_string();
     let parsed: CompactJwe<no_way_jose_ecdh_es::EcdhEsA128Kw, A128Gcm, Claims> =
         serialized.parse().unwrap();
-    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+    let unsealed = parsed.decrypt(&key, &no_validation()).unwrap();
 
     assert_eq!(unsealed.claims.sub, "ecdh-kw");
     assert!(unsealed.claims.admin);
@@ -732,10 +723,8 @@ fn ecdh_es_a128kw_a128gcm_roundtrip() {
 
 #[test]
 fn ecdh_es_direct_a256gcm_roundtrip() {
-    let (pub_key, priv_key) = test_p256_keypair();
-    let enc_key = no_way_jose_ecdh_es::ecdh_es::encryption_key(pub_key);
-    let dec_key = no_way_jose_ecdh_es::ecdh_es::decryption_key(priv_key);
-
+    let (_, priv_key) = test_p256_keypair();
+    let key = no_way_jose_ecdh_es::ecdh_es::key(priv_key);
     let claims = Claims {
         sub: "ecdh-direct".into(),
         admin: false,
@@ -743,7 +732,7 @@ fn ecdh_es_direct_a256gcm_roundtrip() {
 
     let token =
         UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEs, A256Gcm>, Claims>::new(claims);
-    let compact = token.encrypt(&enc_key).unwrap();
+    let compact = token.encrypt(&key).unwrap();
 
     let header = compact.header().unwrap();
     assert_eq!(header.alg, "ECDH-ES");
@@ -751,7 +740,7 @@ fn ecdh_es_direct_a256gcm_roundtrip() {
     let serialized = compact.to_string();
     let parsed: CompactJwe<no_way_jose_ecdh_es::EcdhEs, A256Gcm, Claims> =
         serialized.parse().unwrap();
-    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+    let unsealed = parsed.decrypt(&key, &no_validation()).unwrap();
 
     assert_eq!(unsealed.claims.sub, "ecdh-direct");
     assert!(!unsealed.claims.admin);
@@ -759,11 +748,10 @@ fn ecdh_es_direct_a256gcm_roundtrip() {
 
 #[test]
 fn ecdh_es_wrong_key_fails() {
-    let (pub_key, _) = test_p256_keypair();
+    let (_, priv_key) = test_p256_keypair();
     let (_, wrong_priv) = test_p256_keypair();
-    let enc_key = no_way_jose_ecdh_es::ecdh_es_a128kw::encryption_key(pub_key);
-    let wrong_dec = no_way_jose_ecdh_es::ecdh_es_a128kw::decryption_key(wrong_priv);
-
+    let enc_key = no_way_jose_ecdh_es::ecdh_es_a128kw::key(priv_key);
+    let wrong_key = no_way_jose_ecdh_es::ecdh_es_a128kw::key(wrong_priv);
     let claims = Claims {
         sub: "wrong".into(),
         admin: false,
@@ -772,14 +760,14 @@ fn ecdh_es_wrong_key_fails() {
     let token =
         UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEsA128Kw, A128Gcm>, Claims>::new(claims);
     let compact = token.encrypt(&enc_key).unwrap();
-    let result = compact.decrypt(&wrong_dec, &no_validation());
+    let result = compact.decrypt(&wrong_key, &no_validation());
     assert!(result.is_err());
 }
 
 #[test]
 fn ecdh_es_header_contains_epk() {
-    let (pub_key, _) = test_p256_keypair();
-    let enc_key = no_way_jose_ecdh_es::ecdh_es_a128kw::encryption_key(pub_key);
+    let (_, priv_key) = test_p256_keypair();
+    let enc_key = no_way_jose_ecdh_es::ecdh_es_a128kw::key(priv_key);
 
     let claims = Claims {
         sub: "epk".into(),
@@ -803,12 +791,8 @@ fn ecdh_es_x25519_a256gcm_roundtrip() {
     let recipient_secret = x25519_dalek::StaticSecret::random_from_rng(
         &mut getrandom::rand_core::UnwrapErr(getrandom::SysRng),
     );
-    let recipient_public = x25519_dalek::PublicKey::from(&recipient_secret);
 
-    let enc_key = no_way_jose_ecdh_es::ecdh_es::encryption_key(
-        no_way_jose_ecdh_es::EcPublicKey::X25519(recipient_public),
-    );
-    let dec_key = no_way_jose_ecdh_es::ecdh_es::decryption_key(
+    let key = no_way_jose_ecdh_es::ecdh_es::key(
         no_way_jose_ecdh_es::EcPrivateKey::X25519(recipient_secret),
     );
 
@@ -818,12 +802,12 @@ fn ecdh_es_x25519_a256gcm_roundtrip() {
     };
     let token =
         UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEs, A256Gcm>, Claims>::new(claims);
-    let compact = token.encrypt(&enc_key).unwrap();
+    let compact = token.encrypt(&key).unwrap();
     let token_str = compact.to_string();
 
     let parsed: CompactJwe<no_way_jose_ecdh_es::EcdhEs, A256Gcm, Claims> =
         token_str.parse().unwrap();
-    let unsealed = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+    let unsealed = parsed.decrypt(&key, &no_validation()).unwrap();
     assert_eq!(unsealed.claims.sub, "x25519");
 }
 
@@ -834,8 +818,8 @@ fn ecdh_es_x25519_a256gcm_roundtrip() {
 #[test]
 fn pbes2_hs256_a128kw_a128gcm_roundtrip() {
     let password = b"supersecretpassword";
-    let enc_key = no_way_jose_pbes2::pbes2_hs256_a128kw::encryption_key(password.to_vec());
-    let dec_key = no_way_jose_pbes2::pbes2_hs256_a128kw::decryption_key(password.to_vec());
+    let enc_key = no_way_jose_pbes2::pbes2_hs256_a128kw::key(password.to_vec());
+    let dec_key = no_way_jose_pbes2::pbes2_hs256_a128kw::key(password.to_vec());
 
     let claims = Claims {
         sub: "pbes2".into(),
@@ -864,8 +848,8 @@ fn pbes2_hs256_a128kw_a128gcm_roundtrip() {
 #[test]
 fn pbes2_hs512_a256kw_a256gcm_roundtrip() {
     let password = b"anotherpassword";
-    let enc_key = no_way_jose_pbes2::pbes2_hs512_a256kw::encryption_key(password.to_vec());
-    let dec_key = no_way_jose_pbes2::pbes2_hs512_a256kw::decryption_key(password.to_vec());
+    let enc_key = no_way_jose_pbes2::pbes2_hs512_a256kw::key(password.to_vec());
+    let dec_key = no_way_jose_pbes2::pbes2_hs512_a256kw::key(password.to_vec());
 
     let claims = Claims {
         sub: "pbes2-512".into(),
@@ -889,8 +873,8 @@ fn pbes2_hs512_a256kw_a256gcm_roundtrip() {
 
 #[test]
 fn pbes2_wrong_password_fails() {
-    let enc_key = no_way_jose_pbes2::pbes2_hs256_a128kw::encryption_key(b"correct".to_vec());
-    let wrong_dec = no_way_jose_pbes2::pbes2_hs256_a128kw::decryption_key(b"wrong".to_vec());
+    let enc_key = no_way_jose_pbes2::pbes2_hs256_a128kw::key(b"correct".to_vec());
+    let wrong_dec = no_way_jose_pbes2::pbes2_hs256_a128kw::key(b"wrong".to_vec());
 
     let claims = Claims {
         sub: "wrong".into(),
@@ -909,7 +893,7 @@ fn pbes2_wrong_password_fails() {
 #[test]
 fn pbes2_header_contains_p2s_and_p2c() {
     let password = b"test";
-    let enc_key = no_way_jose_pbes2::pbes2_hs256_a128kw::encryption_key(password.to_vec());
+    let enc_key = no_way_jose_pbes2::pbes2_hs256_a128kw::key(password.to_vec());
 
     let claims = Claims {
         sub: "hdr".into(),
@@ -937,8 +921,8 @@ fn pbes2_header_contains_p2s_and_p2c() {
 #[test]
 fn dir_a128gcm_roundtrip() {
     let key = vec![0x42u8; 16];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let claims = Claims {
         sub: "dir128".into(),
@@ -954,8 +938,8 @@ fn dir_a128gcm_roundtrip() {
 #[test]
 fn dir_a192gcm_roundtrip() {
     let key = vec![0x42u8; 24];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let claims = Claims {
         sub: "dir192".into(),
@@ -971,8 +955,8 @@ fn dir_a192gcm_roundtrip() {
 #[test]
 fn a192kw_a128gcm_roundtrip() {
     let kek = vec![0xABu8; 24];
-    let enc_key = no_way_jose_aes_kw::a192kw::encryption_key(kek.clone()).unwrap();
-    let dec_key = no_way_jose_aes_kw::a192kw::decryption_key(kek).unwrap();
+    let enc_key = no_way_jose_aes_kw::a192kw::key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_kw::a192kw::key(kek).unwrap();
 
     let claims = Claims {
         sub: "a192kw".into(),
@@ -990,8 +974,8 @@ fn a192kw_a128gcm_roundtrip() {
 #[test]
 fn dir_a192cbc_hs384_roundtrip() {
     let key = vec![0x77u8; 48];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let claims = Claims {
         sub: "cbc192".into(),
@@ -1010,8 +994,8 @@ fn dir_a192cbc_hs384_roundtrip() {
 #[test]
 fn a192gcmkw_a256gcm_roundtrip() {
     let kek = vec![0xCDu8; 24];
-    let enc_key = no_way_jose_aes_gcm_kw::a192gcmkw::encryption_key(kek.clone()).unwrap();
-    let dec_key = no_way_jose_aes_gcm_kw::a192gcmkw::decryption_key(kek).unwrap();
+    let enc_key = no_way_jose_aes_gcm_kw::a192gcmkw::key(kek.clone()).unwrap();
+    let dec_key = no_way_jose_aes_gcm_kw::a192gcmkw::key(kek).unwrap();
 
     let claims = Claims {
         sub: "gcmkw192".into(),
@@ -1042,10 +1026,8 @@ fn test_p384_keypair() -> (
 
 #[test]
 fn ecdh_es_a192kw_p384_roundtrip() {
-    let (pub_key, priv_key) = test_p384_keypair();
-    let enc_key = no_way_jose_ecdh_es::ecdh_es_a192kw::encryption_key(pub_key);
-    let dec_key = no_way_jose_ecdh_es::ecdh_es_a192kw::decryption_key(priv_key);
-
+    let (_, priv_key) = test_p384_keypair();
+    let key = no_way_jose_ecdh_es::ecdh_es_a192kw::key(priv_key);
     let claims = Claims {
         sub: "p384-kw".into(),
         admin: true,
@@ -1053,18 +1035,16 @@ fn ecdh_es_a192kw_p384_roundtrip() {
 
     let token =
         UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEsA192Kw, A256Gcm>, Claims>::new(claims);
-    let compact = token.encrypt(&enc_key).unwrap();
-    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    let compact = token.encrypt(&key).unwrap();
+    let unsealed = compact.decrypt(&key, &no_validation()).unwrap();
     assert_eq!(unsealed.claims.sub, "p384-kw");
     assert!(unsealed.claims.admin);
 }
 
 #[test]
 fn ecdh_es_a256kw_a128cbc_hs256_roundtrip() {
-    let (pub_key, priv_key) = test_p256_keypair();
-    let enc_key = no_way_jose_ecdh_es::ecdh_es_a256kw::encryption_key(pub_key);
-    let dec_key = no_way_jose_ecdh_es::ecdh_es_a256kw::decryption_key(priv_key);
-
+    let (_, priv_key) = test_p256_keypair();
+    let key = no_way_jose_ecdh_es::ecdh_es_a256kw::key(priv_key);
     let claims = Claims {
         sub: "ecdh256kw".into(),
         admin: false,
@@ -1074,17 +1054,15 @@ fn ecdh_es_a256kw_a128cbc_hs256_roundtrip() {
         UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEsA256Kw, A128CbcHs256>, Claims>::new(
             claims,
         );
-    let compact = token.encrypt(&enc_key).unwrap();
-    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    let compact = token.encrypt(&key).unwrap();
+    let unsealed = compact.decrypt(&key, &no_validation()).unwrap();
     assert_eq!(unsealed.claims.sub, "ecdh256kw");
 }
 
 #[test]
 fn ecdh_es_direct_p384_a256gcm_roundtrip() {
-    let (pub_key, priv_key) = test_p384_keypair();
-    let enc_key = no_way_jose_ecdh_es::ecdh_es::encryption_key(pub_key);
-    let dec_key = no_way_jose_ecdh_es::ecdh_es::decryption_key(priv_key);
-
+    let (_, priv_key) = test_p384_keypair();
+    let key = no_way_jose_ecdh_es::ecdh_es::key(priv_key);
     let claims = Claims {
         sub: "p384-direct".into(),
         admin: false,
@@ -1092,16 +1070,16 @@ fn ecdh_es_direct_p384_a256gcm_roundtrip() {
 
     let token =
         UnsealedToken::<Encrypted<no_way_jose_ecdh_es::EcdhEs, A256Gcm>, Claims>::new(claims);
-    let compact = token.encrypt(&enc_key).unwrap();
-    let unsealed = compact.decrypt(&dec_key, &no_validation()).unwrap();
+    let compact = token.encrypt(&key).unwrap();
+    let unsealed = compact.decrypt(&key, &no_validation()).unwrap();
     assert_eq!(unsealed.claims.sub, "p384-direct");
 }
 
 #[test]
 fn pbes2_hs384_a192kw_roundtrip() {
     let password = b"a-decent-password";
-    let enc_key = no_way_jose_pbes2::pbes2_hs384_a192kw::encryption_key(password.to_vec());
-    let dec_key = no_way_jose_pbes2::pbes2_hs384_a192kw::decryption_key(password.to_vec());
+    let enc_key = no_way_jose_pbes2::pbes2_hs384_a192kw::key(password.to_vec());
+    let dec_key = no_way_jose_pbes2::pbes2_hs384_a192kw::key(password.to_vec());
 
     let claims = Claims {
         sub: "pbes2-384".into(),
@@ -1148,7 +1126,7 @@ zl5tuJYyuvKhjKv6ihbsV_k1hJGPGAxJ6wUpmwC4PTQ2izEm0TuSE8oMKdTw8V\
 #[test]
 fn rfc7520_pbes2_hs512_a256kw_a128cbc_hs256_decrypt() {
     let password = "entrap_o\u{2013}peter_long\u{2013}credit_tun";
-    let dec_key = no_way_jose_pbes2::pbes2_hs512_a256kw::decryption_key(password.as_bytes());
+    let dec_key = no_way_jose_pbes2::pbes2_hs512_a256kw::key(password.as_bytes());
 
     let token: CompactJwe<Pbes2Hs512A256Kw, A128CbcHs256, RawJson> =
         RFC7520_PBES2_TOKEN.parse().unwrap();
@@ -1168,8 +1146,8 @@ fn rfc7520_pbes2_hs512_a256kw_a128cbc_hs256_decrypt() {
 #[test]
 fn untyped_jwe_dispatch() {
     let key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let claims = Claims {
         sub: "untyped-jwe".into(),
@@ -1196,7 +1174,7 @@ fn untyped_jwe_dispatch() {
 #[test]
 fn untyped_jwe_alg_mismatch() {
     let key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(key.clone());
+    let enc_key = dir::key(key.clone());
 
     let claims = Claims {
         sub: "mismatch".into(),
@@ -1220,7 +1198,7 @@ fn untyped_jwe_alg_mismatch() {
 #[test]
 fn untyped_jwe_enc_mismatch() {
     let key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(key.clone());
+    let enc_key = dir::key(key.clone());
 
     let claims = Claims {
         sub: "mismatch".into(),
@@ -1281,9 +1259,7 @@ fn rfc7520_section6_nested_jwt_roundtrip() {
 
     let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
     let enc_rsa = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let enc_pub = enc_rsa.to_public_key();
-    let enc_key = no_way_jose_rsa::rsa_oaep::encryption_key(enc_pub);
-    let dec_key = no_way_jose_rsa::rsa_oaep::decryption_key(enc_rsa);
+    let enc_key = no_way_jose_rsa::rsa_oaep::key(enc_rsa);
 
     let inner_claims = RawJson(
         r#"{"iss":"hobbiton.example","exp":1300819380,"http://example.com/is_root":true}"#.into(),
@@ -1305,7 +1281,7 @@ fn rfc7520_section6_nested_jwt_roundtrip() {
 
     let parsed: CompactJwe<RsaOaep, A128Gcm> = serialized.parse().unwrap();
     let parsed = parsed.require_cty("JWT").unwrap();
-    let decrypted = parsed.decrypt(&dec_key, &no_validation()).unwrap();
+    let decrypted = parsed.decrypt(&enc_key, &no_validation()).unwrap();
 
     let inner_jws: no_way_jose_core::CompactJws<no_way_jose_rsa::Ps256> =
         decrypted.claims.0.parse().unwrap();
@@ -1321,8 +1297,8 @@ fn nested_jwt_sign_then_encrypt_roundtrip() {
     let verify_key = no_way_jose_hmac::verifying_key(hmac_key_bytes).unwrap();
 
     let aes_key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(aes_key.clone());
-    let dec_key = dir::decryption_key(aes_key);
+    let enc_key = dir::key(aes_key.clone());
+    let dec_key = dir::key(aes_key);
 
     let inner_claims = Claims {
         sub: "nested".into(),
@@ -1355,7 +1331,7 @@ fn nested_jwt_sign_then_encrypt_roundtrip() {
 #[test]
 fn nested_jwt_require_cty_mismatch() {
     let key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(key.clone());
+    let enc_key = dir::key(key.clone());
 
     let token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::builder(RawJson(
         "inner-payload".into(),
@@ -1378,7 +1354,7 @@ fn nested_jwt_require_cty_mismatch() {
 #[test]
 fn nested_jwt_require_cty_missing() {
     let key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(key.clone());
+    let enc_key = dir::key(key.clone());
 
     let token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, Claims>::new(Claims {
         sub: "no-cty".into(),

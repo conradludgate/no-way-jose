@@ -19,10 +19,8 @@ use base64ct::{Base64UrlUnpadded, Encoding};
 use error_stack::Report;
 pub use no_way_jose_core;
 use no_way_jose_core::error::{JoseError, JoseResult};
-use no_way_jose_core::jwe_algorithm::{
-    JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
-};
-use no_way_jose_core::key::{Decrypting, Encrypting, HasKey};
+use no_way_jose_core::jwe_algorithm::{JweKeyManagement, KeyEncryptionResult, KeyManager};
+use no_way_jose_core::key::{Encrypting, HasKey};
 
 const DEFAULT_ITER_COUNT: u32 = 310_000;
 const SALT_LEN: usize = 16;
@@ -50,11 +48,7 @@ macro_rules! pbes2_algorithm {
             type Key = Vec<u8>;
         }
 
-        impl HasKey<Decrypting> for $name {
-            type Key = Vec<u8>;
-        }
-
-        impl KeyEncryptor for $name {
+        impl KeyManager for $name {
             fn encrypt_cek(password: &Vec<u8>, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
                 let mut random_salt = [0u8; SALT_LEN];
                 getrandom::fill(&mut random_salt)
@@ -97,9 +91,7 @@ macro_rules! pbes2_algorithm {
                     extra_headers,
                 })
             }
-        }
 
-        impl KeyDecryptor for $name {
             fn decrypt_cek(
                 password: &Vec<u8>,
                 encrypted_key: &[u8],
@@ -167,14 +159,9 @@ pbes2_algorithm!(
 pub mod pbes2_hs256_a128kw {
     use alloc::vec::Vec;
 
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Pbes2Hs256A128Kw>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::Pbes2Hs256A128Kw>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::Pbes2Hs256A128Kw>;
 
-    pub fn encryption_key(password: impl Into<Vec<u8>>) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(password.into())
-    }
-
-    pub fn decryption_key(password: impl Into<Vec<u8>>) -> DecryptionKey {
+    pub fn key(password: impl Into<Vec<u8>>) -> Key {
         no_way_jose_core::key::Key::new(password.into())
     }
 }
@@ -182,14 +169,9 @@ pub mod pbes2_hs256_a128kw {
 pub mod pbes2_hs384_a192kw {
     use alloc::vec::Vec;
 
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Pbes2Hs384A192Kw>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::Pbes2Hs384A192Kw>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::Pbes2Hs384A192Kw>;
 
-    pub fn encryption_key(password: impl Into<Vec<u8>>) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(password.into())
-    }
-
-    pub fn decryption_key(password: impl Into<Vec<u8>>) -> DecryptionKey {
+    pub fn key(password: impl Into<Vec<u8>>) -> Key {
         no_way_jose_core::key::Key::new(password.into())
     }
 }
@@ -197,14 +179,9 @@ pub mod pbes2_hs384_a192kw {
 pub mod pbes2_hs512_a256kw {
     use alloc::vec::Vec;
 
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Pbes2Hs512A256Kw>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::Pbes2Hs512A256Kw>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::Pbes2Hs512A256Kw>;
 
-    pub fn encryption_key(password: impl Into<Vec<u8>>) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(password.into())
-    }
-
-    pub fn decryption_key(password: impl Into<Vec<u8>>) -> DecryptionKey {
+    pub fn key(password: impl Into<Vec<u8>>) -> Key {
         no_way_jose_core::key::Key::new(password.into())
     }
 }

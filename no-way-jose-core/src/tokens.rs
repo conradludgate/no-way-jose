@@ -8,12 +8,11 @@ use crate::algorithm::{JwsAlgorithm, Signer, Verifier};
 use crate::error::{HeaderError, JoseError, JoseResult, TokenFormatError};
 use crate::json::{FromJson, JsonReader, RawJson, ToJson};
 use crate::jwe_algorithm::{
-    ContentDecryptor, ContentEncryptor, JweContentEncryption, JweKeyManagement, KeyDecryptor,
-    KeyEncryptor,
+    ContentDecryptor, ContentEncryptor, JweContentEncryption, JweKeyManagement, KeyManager,
 };
 use crate::purpose::{Encrypted, Purpose, Signed};
 use crate::validation::Validate;
-use crate::{DecryptionKey, EncryptionKey, SigningKey, VerifyingKey};
+use crate::{EncryptionKey, SigningKey, VerifyingKey};
 
 /// A parsed but unverified/undecrypted compact-serialized token.
 ///
@@ -563,7 +562,7 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> UnsealedToken<Encrypted<
 
 impl<KM, CE, M> UnsealedToken<Encrypted<KM, CE>, M>
 where
-    KM: KeyEncryptor,
+    KM: KeyManager,
     CE: ContentEncryptor,
     M: ToJson,
 {
@@ -621,7 +620,7 @@ where
 
 impl<KM, CE, M> CompactToken<Encrypted<KM, CE>, M>
 where
-    KM: KeyDecryptor,
+    KM: KeyManager,
     CE: ContentDecryptor,
     M: FromJson,
 {
@@ -629,7 +628,7 @@ where
     /// Returns a [`JoseError`] if decryption or claims validation fails.
     pub fn decrypt(
         self,
-        key: &DecryptionKey<KM>,
+        key: &EncryptionKey<KM>,
         v: &impl Validate<Claims = M>,
     ) -> JoseResult<UnsealedToken<Encrypted<KM, CE>, M>> {
         let (header_b64, ek_b64, iv_b64, ct_b64, tag_b64) = jwe_split(&self.compact);

@@ -280,7 +280,7 @@ fn rsa_rs256_jwk_roundtrip() {
 #[test]
 fn aes_kw_jwk_roundtrip() {
     let key_bytes = vec![0x42u8; 16];
-    let ek = no_way_jose_aes_kw::a128kw::encryption_key(key_bytes.clone()).unwrap();
+    let ek = no_way_jose_aes_kw::a128kw::key(key_bytes.clone()).unwrap();
     let jwk = ek.to_jwk();
     assert_eq!(jwk.kty(), "oct");
     assert_eq!(jwk.alg.as_deref(), Some("A128KW"));
@@ -289,7 +289,7 @@ fn aes_kw_jwk_roundtrip() {
         _ => panic!("expected oct params"),
     }
 
-    let dk: no_way_jose_aes_kw::a128kw::DecryptionKey = FromJwk::from_jwk(&jwk).unwrap();
+    let dk: no_way_jose_aes_kw::a128kw::Key = FromJwk::from_jwk(&jwk).unwrap();
     assert_eq!(dk.inner(), &key_bytes);
 }
 
@@ -297,14 +297,17 @@ fn aes_kw_jwk_roundtrip() {
 fn ecdh_es_jwk_roundtrip() {
     let sk_bytes = [99u8; 32];
     let secret_key = p256::SecretKey::from_slice(&sk_bytes).unwrap();
-    let public_key = secret_key.public_key();
 
-    let ek = no_way_jose_ecdh_es::ecdh_es::encryption_key(no_way_jose_ecdh_es::EcPublicKey::P256(
-        public_key,
+    let ek = no_way_jose_ecdh_es::ecdh_es::key(no_way_jose_ecdh_es::EcPrivateKey::P256(
+        secret_key,
     ));
     let jwk = ek.to_jwk();
     assert_eq!(jwk.kty(), "EC");
     assert_eq!(jwk.alg.as_deref(), Some("ECDH-ES"));
+    match &jwk.key {
+        JwkParams::Ec(p) => assert!(p.d.is_some()),
+        _ => panic!("expected EC params"),
+    }
 
     let ek2: no_way_jose_core::EncryptionKey<no_way_jose_ecdh_es::EcdhEs> =
         FromJwk::from_jwk(&jwk).unwrap();
@@ -314,6 +317,7 @@ fn ecdh_es_jwk_roundtrip() {
             assert_eq!(a.crv, b.crv);
             assert_eq!(a.x, b.x);
             assert_eq!(a.y, b.y);
+            assert_eq!(a.d, b.d);
         }
         _ => panic!("expected EC params"),
     }

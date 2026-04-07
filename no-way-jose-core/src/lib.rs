@@ -9,7 +9,7 @@
 //! Most users will interact with the type aliases at the crate root:
 //!
 //! - **JWS:** [`CompactJws`], [`UnsignedToken`], [`SigningKey`], [`VerifyingKey`]
-//! - **JWE:** [`CompactJwe`], [`EncryptionKey`], [`DecryptionKey`]
+//! - **JWE:** [`CompactJwe`], [`EncryptionKey`]
 //! - **Dynamic:** [`UntypedCompactJws`], [`UntypedCompactJwe`] for runtime algorithm selection
 
 #![no_std]
@@ -57,11 +57,8 @@ pub type UntypedCompactJws<M = json::RawJson> = tokens::UntypedCompactJws<M>;
 /// Fluent builder for constructing tokens with optional header fields (kid, typ).
 pub type TokenBuilder<P, M> = tokens::TokenBuilder<P, M>;
 
-/// Key used for JWE encryption (wrapping or providing the CEK).
+/// Key used for JWE key management (wrapping/unwrapping the CEK).
 pub type EncryptionKey<KM> = key::Key<KM, key::Encrypting>;
-
-/// Key used for JWE decryption (unwrapping or receiving the CEK).
-pub type DecryptionKey<KM> = key::Key<KM, key::Decrypting>;
 
 /// A parsed, undecrypted JWE compact token (`header.ek.iv.ciphertext.tag`).
 pub type CompactJwe<KM, CE, M = json::RawJson> = tokens::CompactJwe<KM, CE, M>;

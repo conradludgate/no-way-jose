@@ -260,15 +260,6 @@ macro_rules! rsa_jwk_impls {
     };
     ($name:ident, $alg:literal, encrypting) => {
         impl JwkKeyConvert<Encrypting> for $name {
-            fn key_to_jwk(key: &rsa::RsaPublicKey) -> Jwk {
-                rsa_pubkey_to_jwk(key, $alg)
-            }
-            fn key_from_jwk(jwk: &Jwk) -> JoseResult<rsa::RsaPublicKey> {
-                validate_rsa_jwk(jwk, $alg)?;
-                rsa_pubkey_from_jwk(jwk)
-            }
-        }
-        impl JwkKeyConvert<Decrypting> for $name {
             fn key_to_jwk(key: &rsa::RsaPrivateKey) -> Jwk {
                 rsa_privkey_to_jwk(key, $alg)
             }
@@ -391,10 +382,8 @@ pub mod ps512 {
 // JWE key management algorithms
 // ====================================================================
 
-use no_way_jose_core::jwe_algorithm::{
-    JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
-};
-use no_way_jose_core::key::{Decrypting, Encrypting};
+use no_way_jose_core::jwe_algorithm::{JweKeyManagement, KeyEncryptionResult, KeyManager};
+use no_way_jose_core::key::Encrypting;
 
 macro_rules! rsa_kw_algorithm {
     ($name:ident, $alg:literal, $pad_encrypt:expr, $pad_decrypt:expr, $doc:literal) => {
@@ -407,23 +396,20 @@ macro_rules! rsa_kw_algorithm {
         }
 
         impl HasKey<Encrypting> for $name {
-            type Key = rsa::RsaPublicKey;
-        }
-
-        impl HasKey<Decrypting> for $name {
             type Key = rsa::RsaPrivateKey;
         }
 
-        impl KeyEncryptor for $name {
+        impl KeyManager for $name {
             fn encrypt_cek(
-                key: &rsa::RsaPublicKey,
+                key: &rsa::RsaPrivateKey,
                 cek_len: usize,
             ) -> JoseResult<KeyEncryptionResult> {
+                let pub_key = key.to_public_key();
                 let mut cek = vec![0u8; cek_len];
                 getrandom::fill(&mut cek).map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
-                let encrypted_key = key
+                let encrypted_key = pub_key
                     .encrypt(&mut rng, $pad_encrypt, &cek)
                     .map_err(|_| Report::new(JoseError::CryptoError))?;
 
@@ -433,9 +419,7 @@ macro_rules! rsa_kw_algorithm {
                     extra_headers: Vec::new(),
                 })
             }
-        }
 
-        impl KeyDecryptor for $name {
             fn decrypt_cek(
                 key: &rsa::RsaPrivateKey,
                 encrypted_key: &[u8],
@@ -478,46 +462,28 @@ rsa_jwk_impls!(RsaOaep, "RSA-OAEP", encrypting);
 rsa_jwk_impls!(RsaOaep256, "RSA-OAEP-256", encrypting);
 
 pub mod rsa1_5 {
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::Rsa1_5>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::Rsa1_5>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::Rsa1_5>;
 
     #[must_use]
-    pub fn encryption_key(public_key: rsa::RsaPublicKey) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(public_key)
-    }
-
-    #[must_use]
-    pub fn decryption_key(private_key: rsa::RsaPrivateKey) -> DecryptionKey {
+    pub fn key(private_key: rsa::RsaPrivateKey) -> Key {
         no_way_jose_core::key::Key::new(private_key)
     }
 }
 
 pub mod rsa_oaep {
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::RsaOaep>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::RsaOaep>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::RsaOaep>;
 
     #[must_use]
-    pub fn encryption_key(public_key: rsa::RsaPublicKey) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(public_key)
-    }
-
-    #[must_use]
-    pub fn decryption_key(private_key: rsa::RsaPrivateKey) -> DecryptionKey {
+    pub fn key(private_key: rsa::RsaPrivateKey) -> Key {
         no_way_jose_core::key::Key::new(private_key)
     }
 }
 
 pub mod rsa_oaep_256 {
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::RsaOaep256>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::RsaOaep256>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::RsaOaep256>;
 
     #[must_use]
-    pub fn encryption_key(public_key: rsa::RsaPublicKey) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(public_key)
-    }
-
-    #[must_use]
-    pub fn decryption_key(private_key: rsa::RsaPrivateKey) -> DecryptionKey {
+    pub fn key(private_key: rsa::RsaPrivateKey) -> Key {
         no_way_jose_core::key::Key::new(private_key)
     }
 }

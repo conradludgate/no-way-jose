@@ -16,13 +16,11 @@ use alloc::vec::Vec;
 use error_stack::Report;
 pub use no_way_jose_core;
 use no_way_jose_core::error::{JoseError, JoseResult};
-use no_way_jose_core::jwe_algorithm::{
-    JweKeyManagement, KeyDecryptor, KeyEncryptionResult, KeyEncryptor,
-};
+use no_way_jose_core::jwe_algorithm::{JweKeyManagement, KeyEncryptionResult, KeyManager};
 use no_way_jose_core::jwk::{
     EcCurve, EcParams, Jwk, JwkKeyConvert, JwkParams, OkpCurve, OkpParams,
 };
-use no_way_jose_core::key::{Decrypting, Encrypting, HasKey};
+use no_way_jose_core::key::{Encrypting, HasKey};
 use p256::elliptic_curve::sec1::ToSec1Point;
 
 mod concat_kdf;
@@ -68,11 +66,22 @@ pub enum EcPublicKey {
     X25519(x25519_dalek::PublicKey),
 }
 
-/// Decryption key: the recipient's private key.
+/// Private key: the recipient's private key on a supported curve.
 pub enum EcPrivateKey {
     P256(p256::SecretKey),
     P384(p384::SecretKey),
     X25519(x25519_dalek::StaticSecret),
+}
+
+impl EcPrivateKey {
+    #[must_use]
+    pub fn public_key(&self) -> EcPublicKey {
+        match self {
+            Self::P256(sk) => EcPublicKey::P256(sk.public_key()),
+            Self::P384(sk) => EcPublicKey::P384(sk.public_key()),
+            Self::X25519(sk) => EcPublicKey::X25519(x25519_dalek::PublicKey::from(sk)),
+        }
+    }
 }
 
 fn ecdh_encrypt(
@@ -193,20 +202,17 @@ fn aes_kw_unwrap(kek_bytes: &[u8], ciphertext: &[u8]) -> JoseResult<Vec<u8>> {
 macro_rules! ecdh_es_impl {
     ($name:ty, $wrap_key_len:expr) => {
         impl HasKey<Encrypting> for $name {
-            type Key = EcPublicKey;
-        }
-
-        impl HasKey<Decrypting> for $name {
             type Key = EcPrivateKey;
         }
 
-        impl KeyEncryptor for $name {
-            fn encrypt_cek(key: &EcPublicKey, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
-                ecdh_encrypt(key, <$name>::ALG, cek_len, $wrap_key_len)
+        impl KeyManager for $name {
+            fn encrypt_cek(
+                key: &EcPrivateKey,
+                cek_len: usize,
+            ) -> JoseResult<KeyEncryptionResult> {
+                ecdh_encrypt(&key.public_key(), <$name>::ALG, cek_len, $wrap_key_len)
             }
-        }
 
-        impl KeyDecryptor for $name {
             fn decrypt_cek(
                 key: &EcPrivateKey,
                 encrypted_key: &[u8],
@@ -230,23 +236,15 @@ ecdh_es_impl!(EcdhEsA128Kw, Some(16));
 ecdh_es_impl!(EcdhEsA192Kw, Some(24));
 ecdh_es_impl!(EcdhEsA256Kw, Some(32));
 
-// ECDH-ES direct needs special handling: cek_len comes from the CE algorithm,
-// not from encrypted_key.len() (which is 0 for direct agreement).
 impl HasKey<Encrypting> for EcdhEs {
-    type Key = EcPublicKey;
-}
-
-impl HasKey<Decrypting> for EcdhEs {
     type Key = EcPrivateKey;
 }
 
-impl KeyEncryptor for EcdhEs {
-    fn encrypt_cek(key: &EcPublicKey, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
-        ecdh_encrypt(key, "ECDH-ES", cek_len, None)
+impl KeyManager for EcdhEs {
+    fn encrypt_cek(key: &EcPrivateKey, cek_len: usize) -> JoseResult<KeyEncryptionResult> {
+        ecdh_encrypt(&key.public_key(), "ECDH-ES", cek_len, None)
     }
-}
 
-impl KeyDecryptor for EcdhEs {
     fn decrypt_cek(
         key: &EcPrivateKey,
         encrypted_key: &[u8],
@@ -254,52 +252,6 @@ impl KeyDecryptor for EcdhEs {
         cek_len: usize,
     ) -> JoseResult<Vec<u8>> {
         ecdh_decrypt(key, encrypted_key, header, "ECDH-ES", cek_len, None)
-    }
-}
-
-fn ec_pubkey_to_jwk(key: &EcPublicKey, alg: &str) -> Jwk {
-    match key {
-        EcPublicKey::X25519(pk) => Jwk {
-            kid: None,
-            alg: Some(alg.into()),
-            use_: None,
-            key_ops: None,
-            key: JwkParams::Okp(OkpParams {
-                crv: OkpCurve::X25519,
-                x: pk.as_bytes().to_vec(),
-                d: None,
-            }),
-        },
-        EcPublicKey::P256(pk) => {
-            let point = pk.to_sec1_point(false);
-            Jwk {
-                kid: None,
-                alg: Some(alg.into()),
-                use_: None,
-                key_ops: None,
-                key: JwkParams::Ec(EcParams {
-                    crv: EcCurve::P256,
-                    x: point.x().unwrap().to_vec(),
-                    y: point.y().unwrap().to_vec(),
-                    d: None,
-                }),
-            }
-        }
-        EcPublicKey::P384(pk) => {
-            let point = pk.to_sec1_point(false);
-            Jwk {
-                kid: None,
-                alg: Some(alg.into()),
-                use_: None,
-                key_ops: None,
-                key: JwkParams::Ec(EcParams {
-                    crv: EcCurve::P384,
-                    x: point.x().unwrap().to_vec(),
-                    y: point.y().unwrap().to_vec(),
-                    d: None,
-                }),
-            }
-        }
     }
 }
 
@@ -315,7 +267,7 @@ fn ec_privkey_to_jwk(key: &EcPrivateKey, alg: &str) -> Jwk {
                 key: JwkParams::Okp(OkpParams {
                     crv: OkpCurve::X25519,
                     x: pk.as_bytes().to_vec(),
-                    d: Some(sk.to_bytes().to_vec()),
+                    d: Some(sk.as_bytes().to_vec()),
                 }),
             }
         }
@@ -354,45 +306,6 @@ fn ec_privkey_to_jwk(key: &EcPrivateKey, alg: &str) -> Jwk {
     }
 }
 
-fn ec_pubkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPublicKey> {
-    if let Some(alg) = &jwk.alg
-        && alg != expected_alg
-    {
-        return Err(Report::new(JoseError::InvalidKey));
-    }
-    match &jwk.key {
-        JwkParams::Ec(p) => match p.crv {
-            EcCurve::P256 => {
-                let mut sec1 = Vec::with_capacity(1 + p.x.len() + p.y.len());
-                sec1.push(0x04);
-                sec1.extend_from_slice(&p.x);
-                sec1.extend_from_slice(&p.y);
-                let pk = p256::PublicKey::from_sec1_bytes(&sec1)
-                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
-                Ok(EcPublicKey::P256(pk))
-            }
-            EcCurve::P384 => {
-                let mut sec1 = Vec::with_capacity(1 + p.x.len() + p.y.len());
-                sec1.push(0x04);
-                sec1.extend_from_slice(&p.x);
-                sec1.extend_from_slice(&p.y);
-                let pk = p384::PublicKey::from_sec1_bytes(&sec1)
-                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
-                Ok(EcPublicKey::P384(pk))
-            }
-            _ => Err(Report::new(JoseError::InvalidKey)),
-        },
-        JwkParams::Okp(p) if p.crv == OkpCurve::X25519 => {
-            let x: [u8; 32] =
-                p.x.as_slice()
-                    .try_into()
-                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
-            Ok(EcPublicKey::X25519(x25519_dalek::PublicKey::from(x)))
-        }
-        _ => Err(Report::new(JoseError::InvalidKey)),
-    }
-}
-
 fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPrivateKey> {
     if let Some(alg) = &jwk.alg
         && alg != expected_alg
@@ -401,7 +314,10 @@ fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPrivateKey
     }
     match &jwk.key {
         JwkParams::Ec(p) => {
-            let d = p.d.as_ref().ok_or(Report::new(JoseError::InvalidKey))?;
+            let d = p
+                .d
+                .as_ref()
+                .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
             match p.crv {
                 EcCurve::P256 => {
                     let sk = p256::SecretKey::from_slice(d)
@@ -417,13 +333,16 @@ fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPrivateKey
             }
         }
         JwkParams::Okp(p) if p.crv == OkpCurve::X25519 => {
-            let d = p.d.as_ref().ok_or(Report::new(JoseError::InvalidKey))?;
-            let d_arr: [u8; 32] = d
+            let d = p
+                .d
+                .as_ref()
+                .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+            let d_bytes: [u8; 32] = d
                 .as_slice()
                 .try_into()
                 .map_err(|_| Report::new(JoseError::InvalidKey))?;
             Ok(EcPrivateKey::X25519(x25519_dalek::StaticSecret::from(
-                d_arr,
+                d_bytes,
             )))
         }
         _ => Err(Report::new(JoseError::InvalidKey)),
@@ -433,14 +352,6 @@ fn ec_privkey_from_jwk(jwk: &Jwk, expected_alg: &str) -> JoseResult<EcPrivateKey
 macro_rules! ecdh_es_jwk_impls {
     ($name:ty, $alg:literal) => {
         impl JwkKeyConvert<Encrypting> for $name {
-            fn key_to_jwk(key: &EcPublicKey) -> Jwk {
-                ec_pubkey_to_jwk(key, $alg)
-            }
-            fn key_from_jwk(jwk: &Jwk) -> JoseResult<EcPublicKey> {
-                ec_pubkey_from_jwk(jwk, $alg)
-            }
-        }
-        impl JwkKeyConvert<Decrypting> for $name {
             fn key_to_jwk(key: &EcPrivateKey) -> Jwk {
                 ec_privkey_to_jwk(key, $alg)
             }
@@ -457,61 +368,37 @@ ecdh_es_jwk_impls!(EcdhEsA192Kw, "ECDH-ES+A192KW");
 ecdh_es_jwk_impls!(EcdhEsA256Kw, "ECDH-ES+A256KW");
 
 pub mod ecdh_es {
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::EcdhEs>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::EcdhEs>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::EcdhEs>;
 
     #[must_use]
-    pub fn encryption_key(public_key: super::EcPublicKey) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(public_key)
-    }
-
-    #[must_use]
-    pub fn decryption_key(private_key: super::EcPrivateKey) -> DecryptionKey {
+    pub fn key(private_key: super::EcPrivateKey) -> Key {
         no_way_jose_core::key::Key::new(private_key)
     }
 }
 
 pub mod ecdh_es_a128kw {
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::EcdhEsA128Kw>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::EcdhEsA128Kw>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::EcdhEsA128Kw>;
 
     #[must_use]
-    pub fn encryption_key(public_key: super::EcPublicKey) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(public_key)
-    }
-
-    #[must_use]
-    pub fn decryption_key(private_key: super::EcPrivateKey) -> DecryptionKey {
+    pub fn key(private_key: super::EcPrivateKey) -> Key {
         no_way_jose_core::key::Key::new(private_key)
     }
 }
 
 pub mod ecdh_es_a192kw {
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::EcdhEsA192Kw>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::EcdhEsA192Kw>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::EcdhEsA192Kw>;
 
     #[must_use]
-    pub fn encryption_key(public_key: super::EcPublicKey) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(public_key)
-    }
-
-    #[must_use]
-    pub fn decryption_key(private_key: super::EcPrivateKey) -> DecryptionKey {
+    pub fn key(private_key: super::EcPrivateKey) -> Key {
         no_way_jose_core::key::Key::new(private_key)
     }
 }
 
 pub mod ecdh_es_a256kw {
-    pub type EncryptionKey = no_way_jose_core::EncryptionKey<super::EcdhEsA256Kw>;
-    pub type DecryptionKey = no_way_jose_core::DecryptionKey<super::EcdhEsA256Kw>;
+    pub type Key = no_way_jose_core::EncryptionKey<super::EcdhEsA256Kw>;
 
     #[must_use]
-    pub fn encryption_key(public_key: super::EcPublicKey) -> EncryptionKey {
-        no_way_jose_core::key::Key::new(public_key)
-    }
-
-    #[must_use]
-    pub fn decryption_key(private_key: super::EcPrivateKey) -> DecryptionKey {
+    pub fn key(private_key: super::EcPrivateKey) -> Key {
         no_way_jose_core::key::Key::new(private_key)
     }
 }

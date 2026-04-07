@@ -367,8 +367,8 @@ fn aws_lc_dir_a256gcm_roundtrip() {
     use no_way_jose_core::tokens::{CompactJwe, UnsealedToken};
 
     let key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let token =
         UnsealedToken::<Encrypted<dir::Dir, no_way_jose_aws_lc::aes_gcm::A256Gcm>, Claims>::new(
@@ -391,8 +391,8 @@ fn aws_lc_dir_a128gcm_roundtrip() {
     use no_way_jose_core::tokens::{CompactJwe, UnsealedToken};
 
     let key = vec![0x42u8; 16];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let token =
         UnsealedToken::<Encrypted<dir::Dir, no_way_jose_aws_lc::aes_gcm::A128Gcm>, Claims>::new(
@@ -414,8 +414,8 @@ fn aws_lc_aes_gcm_interop_encrypt_awslc_decrypt_rc() {
     use no_way_jose_core::tokens::{CompactJwe, UnsealedToken};
 
     let key = vec![0x42u8; 32];
-    let enc_key = dir::encryption_key(key.clone());
-    let dec_key = dir::decryption_key(key);
+    let enc_key = dir::key(key.clone());
+    let dec_key = dir::key(key);
 
     let token =
         UnsealedToken::<Encrypted<dir::Dir, no_way_jose_aws_lc::aes_gcm::A256Gcm>, Claims>::new(
