@@ -34,6 +34,7 @@ no-way-jose/
   no-way-jose-pbes2/       PBES2-HS256+A128KW, HS384+A192KW, HS512+A256KW (password-based JWE + header params)
   no-way-jose-rsa/         RS256, RS384, RS512, PS256, PS384, PS512 (JWS), RSA1_5, RSA-OAEP, RSA-OAEP-256 (JWE key management)
   no-way-jose-graviola/    Alternate crypto backend using graviola (ES256, ES384, EdDSA, HS256/384/512, RS256, PS256, A128GCM, A256GCM)
+  no-way-jose-aws-lc/      Alternate crypto backend using aws-lc-rs (ES256/384/512, EdDSA, HS256/384/512, RS/PS256/384/512, A128/256GCM)
   no-way-jose-test/        Integration tests (unpublished)
 ```
 
@@ -60,7 +61,9 @@ Purpose               Wire-format discriminant (Signed / Encrypted)
   └─ Encrypted<KM,CE> 5-part compact: header.ek.iv.ct.tag
 
 HasKey<K>             Maps algorithm → concrete key type
-Signer / Verifier     Crypto entry points (impl by algorithm crates)
+Signer / Verifier     JWS crypto entry points (impl by algorithm crates)
+KeyManager            JWE key management: encrypt/decrypt the CEK
+ContentCipher         JWE content encryption: authenticated encrypt/decrypt
 Payload               Encode/decode token body
 Validate              Claims validation (composable)
 ```
@@ -98,6 +101,16 @@ The JSON parser is intentionally strict: whitespace between tokens is rejected.
 This is a deliberate design choice — JWTs should use compact JSON without
 extraneous whitespace.
 
+**Writer optimizations:** `write_escaped_string` uses a 256-byte lookup table (LUT)
+to identify escape-requiring bytes in a single branch per byte, and a slice-splitting
+approach that preserves multi-byte UTF-8 characters correctly. Cold hints (`#[cold]`)
+push rare escape paths out of line.
+
+**Reader optimizations:** `JsonReader` uses a sliding `&[u8]` slice internally (no
+separate `pos` index), advancing the slice pointer directly. `read_string` uses
+`split_first()` with pointer-difference run tracking to avoid indexed loads in the
+hot loop.
+
 ### Error handling
 
 All fallible operations return `JoseResult<T>`, which is
@@ -130,7 +143,7 @@ Some JWE key management algorithms (AES-GCM-KW, ECDH-ES, PBES2) produce
 parameters during encryption that must be included in the JWE protected header.
 This is handled through `KeyEncryptionResult::extra_headers` — a vec of
 `(key, raw_json_value)` pairs that are spliced into the header JSON before
-base64url encoding and use as AAD. On decryption, `KeyDecryptor::decrypt_cek`
+base64url encoding and use as AAD. On decryption, `KeyManager::decrypt_cek`
 receives the raw header JSON bytes so algorithms can extract their parameters.
 
 ### JWK types
@@ -154,11 +167,11 @@ All JWK enums (`JwkParams`, `EcCurve`, `OkpCurve`, `KeyUse`, `KeyOp`) are
 
 - [x] `JwsAlgorithm`
 - [x] `JweKeyManagement` / `JweContentEncryption`
-- [x] `KeyEncryptor` / `KeyDecryptor` / `ContentEncryptor` / `ContentDecryptor`
+- [x] `KeyManager` / `ContentCipher`
 - [x] `KeyEncryptionResult` (header parameter support)
 - [x] `Purpose` / `Signed<A>` / `Encrypted<KM, CE>`
-- [x] `HasKey<K>` / `KeyPurpose` (`Signing`, `Verifying`, `Encrypting`, `Decrypting`)
-- [x] `Key<A, K>` / `SigningKey<A>` / `VerifyingKey<A>` / `EncryptionKey<KM>` / `DecryptionKey<KM>`
+- [x] `HasKey<K>` / `KeyPurpose` (`Signing`, `Verifying`, `Encrypting`)
+- [x] `Key<A, K>` / `SigningKey<A>` / `VerifyingKey<A>` / `EncryptionKey<KM>`
 - [x] `Signer` / `Verifier`
 - [x] `Dir` key management (direct key agreement)
 - [x] `ToJson` / `FromJson` (custom, no serde dependency)
@@ -347,6 +360,6 @@ is not yet available). Key dependency versions as of the latest update:
 ## Future Ideas
 
 - **Header caching**: avoid re-decoding the header in `FromStr` → `header()` → `verify()`
-- **Alternate crypto backends**: aws-lc-rs, ring, libsodium (graviola already available)
+- **Alternate crypto backends**: ring, libsodium (graviola and aws-lc-rs already available)
 - **`no_std` end-to-end**: core and algorithm crates are `#![no_std]`; verify in a real embedded target
 - **Benchmarks**: Criterion benchmarks comparing against other Rust JOSE libraries
