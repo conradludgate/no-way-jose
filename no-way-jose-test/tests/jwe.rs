@@ -1155,7 +1155,12 @@ fn rfc7520_pbes2_hs512_a256kw_a128cbc_hs256_decrypt() {
     let unsealed = token.decrypt(&dec_key, &no_validation()).unwrap();
 
     assert!(unsealed.claims.0.contains("\"keys\""));
-    assert!(unsealed.claims.0.contains("77c7e2b8-6e13-45cf-8672-617b5b45243a"));
+    assert!(
+        unsealed
+            .claims
+            .0
+            .contains("77c7e2b8-6e13-45cf-8672-617b5b45243a")
+    );
 }
 
 // -- UntypedCompactJwe dynamic dispatch --
@@ -1291,11 +1296,10 @@ fn rfc7520_section6_nested_jwt_roundtrip() {
             .unwrap();
     let inner_compact = inner_token.to_string();
 
-    let outer_token = UnsealedToken::<Encrypted<RsaOaep, A128Gcm>, RawJson>::builder(RawJson(
-        inner_compact,
-    ))
-    .cty("JWT")
-    .build();
+    let outer_token =
+        UnsealedToken::<Encrypted<RsaOaep, A128Gcm>, RawJson>::builder(RawJson(inner_compact))
+            .cty("JWT")
+            .build();
     let encrypted = outer_token.encrypt(&enc_key).unwrap();
     let serialized = encrypted.to_string();
 
@@ -1330,11 +1334,10 @@ fn nested_jwt_sign_then_encrypt_roundtrip() {
             .unwrap();
     let inner_compact = inner_token.to_string();
 
-    let outer_token = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::builder(RawJson(
-        inner_compact,
-    ))
-    .cty("JWT")
-    .build();
+    let outer_token =
+        UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::builder(RawJson(inner_compact))
+            .cty("JWT")
+            .build();
     let encrypted = outer_token.encrypt(&enc_key).unwrap();
     let serialized = encrypted.to_string();
 

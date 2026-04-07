@@ -18,7 +18,11 @@ impl HmacKey {
     }
 }
 
-fn make_key(alg: hmac::Algorithm, bytes: impl Into<Vec<u8>>, min_len: usize) -> JoseResult<HmacKey> {
+fn make_key(
+    alg: hmac::Algorithm,
+    bytes: impl Into<Vec<u8>>,
+    min_len: usize,
+) -> JoseResult<HmacKey> {
     let raw = bytes.into();
     if raw.len() < min_len {
         return Err(Report::new(JoseError::InvalidKey));
@@ -106,9 +110,27 @@ macro_rules! hmac_algorithm {
     };
 }
 
-hmac_algorithm!(Hs256, "HS256", hmac::HMAC_SHA256, 32, "HS256: HMAC using SHA-256 (aws-lc-rs backend).");
-hmac_algorithm!(Hs384, "HS384", hmac::HMAC_SHA384, 48, "HS384: HMAC using SHA-384 (aws-lc-rs backend).");
-hmac_algorithm!(Hs512, "HS512", hmac::HMAC_SHA512, 64, "HS512: HMAC using SHA-512 (aws-lc-rs backend).");
+hmac_algorithm!(
+    Hs256,
+    "HS256",
+    hmac::HMAC_SHA256,
+    32,
+    "HS256: HMAC using SHA-256 (aws-lc-rs backend)."
+);
+hmac_algorithm!(
+    Hs384,
+    "HS384",
+    hmac::HMAC_SHA384,
+    48,
+    "HS384: HMAC using SHA-384 (aws-lc-rs backend)."
+);
+hmac_algorithm!(
+    Hs512,
+    "HS512",
+    hmac::HMAC_SHA512,
+    64,
+    "HS512: HMAC using SHA-512 (aws-lc-rs backend)."
+);
 
 pub mod hs256 {
     use aws_lc_rs::hmac;

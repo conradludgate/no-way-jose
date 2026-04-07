@@ -32,11 +32,7 @@ impl Signer for EdDsa {
 }
 
 impl Verifier for EdDsa {
-    fn verify(
-        key: &Ed25519VerifyingKey,
-        signing_input: &[u8],
-        sig: &[u8],
-    ) -> JoseResult<()> {
+    fn verify(key: &Ed25519VerifyingKey, signing_input: &[u8], sig: &[u8]) -> JoseResult<()> {
         let pk = UnparsedPublicKey::new(&signature::ED25519, &key.bytes);
         pk.verify(signing_input, sig)
             .map_err(|_| Report::new(JoseError::CryptoError))
@@ -46,9 +42,8 @@ impl Verifier for EdDsa {
 impl JwkKeyConvert<Signing> for EdDsa {
     fn key_to_jwk(key: &Ed25519KeyPair) -> Jwk {
         let seed = key.seed().expect("seed export");
-        let seed_bytes: aws_lc_rs::encoding::Curve25519SeedBin = seed
-            .as_be_bytes()
-            .expect("seed bytes export");
+        let seed_bytes: aws_lc_rs::encoding::Curve25519SeedBin =
+            seed.as_be_bytes().expect("seed bytes export");
         Jwk {
             kid: None,
             alg: Some("EdDSA".into()),
@@ -66,8 +61,9 @@ impl JwkKeyConvert<Signing> for EdDsa {
         validate_okp_jwk(jwk)?;
         match &jwk.key {
             JwkParams::Okp(p) => {
-                let d = p.d.as_ref()
-                    .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
+                let d =
+                    p.d.as_ref()
+                        .ok_or_else(|| Report::new(JoseError::InvalidKey))?;
                 Ed25519KeyPair::from_seed_and_public_key(d, &p.x)
                     .map_err(|_| Report::new(JoseError::InvalidKey))
             }

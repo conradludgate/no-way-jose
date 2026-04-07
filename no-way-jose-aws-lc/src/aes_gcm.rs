@@ -1,5 +1,4 @@
-use aws_lc_rs::aead;
-use aws_lc_rs::rand;
+use aws_lc_rs::{aead, rand};
 use error_stack::Report;
 use no_way_jose_core::error::{JoseError, JoseResult};
 use no_way_jose_core::jwe_algorithm::{
@@ -25,14 +24,14 @@ macro_rules! aes_gcm_algorithm {
                     return Err(Report::new(JoseError::InvalidKey));
                 }
 
-                let unbound =
-                    aead::UnboundKey::new($aead_alg, cek).map_err(|_| Report::new(JoseError::InvalidKey))?;
+                let unbound = aead::UnboundKey::new($aead_alg, cek)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 let key = aead::LessSafeKey::new(unbound);
 
                 let mut iv_bytes = [0u8; 12];
                 rand::fill(&mut iv_bytes).map_err(|_| Report::new(JoseError::CryptoError))?;
-                let nonce =
-                    aead::Nonce::try_assume_unique_for_key(&iv_bytes).map_err(|_| Report::new(JoseError::CryptoError))?;
+                let nonce = aead::Nonce::try_assume_unique_for_key(&iv_bytes)
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let mut in_out = plaintext.to_vec();
                 let tag = key
@@ -62,11 +61,11 @@ macro_rules! aes_gcm_algorithm {
                     return Err(Report::new(JoseError::MalformedToken));
                 }
 
-                let unbound =
-                    aead::UnboundKey::new($aead_alg, cek).map_err(|_| Report::new(JoseError::InvalidKey))?;
+                let unbound = aead::UnboundKey::new($aead_alg, cek)
+                    .map_err(|_| Report::new(JoseError::InvalidKey))?;
                 let key = aead::LessSafeKey::new(unbound);
-                let nonce =
-                    aead::Nonce::try_assume_unique_for_key(iv).map_err(|_| Report::new(JoseError::CryptoError))?;
+                let nonce = aead::Nonce::try_assume_unique_for_key(iv)
+                    .map_err(|_| Report::new(JoseError::CryptoError))?;
 
                 let mut in_out = Vec::with_capacity(ciphertext.len() + tag.len());
                 in_out.extend_from_slice(ciphertext);
@@ -83,11 +82,17 @@ macro_rules! aes_gcm_algorithm {
 }
 
 aes_gcm_algorithm!(
-    A128Gcm, "A128GCM", 16, &aead::AES_128_GCM,
+    A128Gcm,
+    "A128GCM",
+    16,
+    &aead::AES_128_GCM,
     "AES-128-GCM content encryption (aws-lc-rs backend)."
 );
 
 aes_gcm_algorithm!(
-    A256Gcm, "A256GCM", 32, &aead::AES_256_GCM,
+    A256Gcm,
+    "A256GCM",
+    32,
+    &aead::AES_256_GCM,
     "AES-256-GCM content encryption (aws-lc-rs backend)."
 );

@@ -8,7 +8,6 @@ use no_way_jose_core::key::{HasKey, Signing, Verifying};
 /// `EdDSA`: Edwards-curve Digital Signature Algorithm using Ed25519 (graviola backend).
 pub struct EdDsa;
 
-
 impl JwsAlgorithm for EdDsa {
     const ALG: &'static str = "EdDSA";
 }

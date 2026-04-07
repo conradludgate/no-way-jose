@@ -54,7 +54,10 @@ impl<P: Purpose, M> CompactToken<P, M> {
     /// Cannot panic — the compact string structure is validated at parse/sign/encrypt time.
     #[must_use]
     pub fn raw_header_b64(&self) -> &str {
-        self.compact.split_once('.').expect("validated at parse time").0
+        self.compact
+            .split_once('.')
+            .expect("validated at parse time")
+            .0
     }
 
     /// Validate that the header's `typ` field matches the expected value (RFC 8725 §3.11).
@@ -216,7 +219,9 @@ impl<A: JwsAlgorithm, M> CompactToken<Signed<A>, M> {
     }
 
     fn jws_split(&self) -> (&str, &str) {
-        self.compact.rsplit_once('.').expect("validated at parse time")
+        self.compact
+            .rsplit_once('.')
+            .expect("validated at parse time")
     }
 }
 
@@ -237,13 +242,16 @@ where
         key: &VerifyingKey<A>,
         v: &impl Validate<Claims = M>,
     ) -> JoseResult<UnsealedToken<Signed<A>, M>> {
-        let (header_payload, sig_b64) =
-            self.compact.rsplit_once('.').expect("validated at parse time");
+        let (header_payload, sig_b64) = self
+            .compact
+            .rsplit_once('.')
+            .expect("validated at parse time");
         let signature = crate::base64url::decode(sig_b64)?;
         A::verify(key.inner(), header_payload.as_bytes(), &signature)?;
 
-        let (header_b64, payload_b64) =
-            header_payload.split_once('.').expect("validated at parse time");
+        let (header_b64, payload_b64) = header_payload
+            .split_once('.')
+            .expect("validated at parse time");
         decode_claims(String::from(header_b64), payload_b64, v)
     }
 }
@@ -266,10 +274,13 @@ impl<A: JwsAlgorithm, M: FromJson> CompactToken<Signed<A>, M> {
         self,
         v: &impl Validate<Claims = M>,
     ) -> JoseResult<UnsealedToken<Signed<A>, M>> {
-        let (header_payload, _sig) =
-            self.compact.rsplit_once('.').expect("validated at parse time");
-        let (header_b64, payload_b64) =
-            header_payload.split_once('.').expect("validated at parse time");
+        let (header_payload, _sig) = self
+            .compact
+            .rsplit_once('.')
+            .expect("validated at parse time");
+        let (header_b64, payload_b64) = header_payload
+            .split_once('.')
+            .expect("validated at parse time");
         decode_claims(String::from(header_b64), payload_b64, v)
     }
 }
@@ -336,8 +347,7 @@ impl<A: JwsAlgorithm, M> CompactJws<A, M> {
     /// Returns [`JoseError::MalformedToken`] if the bytes are not valid UTF-8
     /// or the token structure is invalid.
     pub fn from_bytes(bytes: &[u8]) -> JoseResult<Self> {
-        let s = core::str::from_utf8(bytes)
-            .map_err(|_| Report::new(JoseError::MalformedToken))?;
+        let s = core::str::from_utf8(bytes).map_err(|_| Report::new(JoseError::MalformedToken))?;
         s.parse()
     }
 }
@@ -386,7 +396,10 @@ impl<M> UntypedCompactJws<M> {
     /// Cannot panic — structure is validated at parse time.
     #[must_use]
     pub fn raw_header_b64(&self) -> &str {
-        self.compact.split_once('.').expect("validated at parse time").0
+        self.compact
+            .split_once('.')
+            .expect("validated at parse time")
+            .0
     }
 
     /// The `header.payload` portion of the compact serialization.
@@ -395,7 +408,10 @@ impl<M> UntypedCompactJws<M> {
     /// Cannot panic — structure is validated at parse time.
     #[must_use]
     pub fn signing_input(&self) -> &str {
-        self.compact.rsplit_once('.').expect("validated at parse time").0
+        self.compact
+            .rsplit_once('.')
+            .expect("validated at parse time")
+            .0
     }
 
     /// The base64url-encoded signature.
@@ -404,7 +420,10 @@ impl<M> UntypedCompactJws<M> {
     /// Cannot panic — structure is validated at parse time.
     #[must_use]
     pub fn signature_b64(&self) -> &str {
-        self.compact.rsplit_once('.').expect("validated at parse time").1
+        self.compact
+            .rsplit_once('.')
+            .expect("validated at parse time")
+            .1
     }
 
     /// # Errors
@@ -444,17 +463,17 @@ impl<M> UntypedCompactJws<M> {
     ///
     /// # Panics
     /// Cannot panic — the compact string structure is validated at parse time.
-    pub fn dangerous_verify_without_signature(
-        self,
-        v: &impl Validate<Claims = M>,
-    ) -> JoseResult<M>
+    pub fn dangerous_verify_without_signature(self, v: &impl Validate<Claims = M>) -> JoseResult<M>
     where
         M: FromJson,
     {
-        let (header_payload, _sig) =
-            self.compact.rsplit_once('.').expect("validated at parse time");
-        let (_header_b64, payload_b64) =
-            header_payload.split_once('.').expect("validated at parse time");
+        let (header_payload, _sig) = self
+            .compact
+            .rsplit_once('.')
+            .expect("validated at parse time");
+        let (_header_b64, payload_b64) = header_payload
+            .split_once('.')
+            .expect("validated at parse time");
         let payload_bytes = crate::base64url::decode(payload_b64)?;
         let claims: M = M::from_json_bytes(&payload_bytes)
             .map_err(|e| Report::new(JoseError::PayloadError).attach(e))?;
@@ -482,8 +501,7 @@ impl<M> UntypedCompactJws<M> {
     /// Returns [`JoseError::MalformedToken`] if the bytes are not valid UTF-8
     /// or the token structure is invalid.
     pub fn from_bytes(bytes: &[u8]) -> JoseResult<Self> {
-        let s = core::str::from_utf8(bytes)
-            .map_err(|_| Report::new(JoseError::MalformedToken))?;
+        let s = core::str::from_utf8(bytes).map_err(|_| Report::new(JoseError::MalformedToken))?;
         s.parse()
     }
 }
@@ -713,8 +731,7 @@ impl<KM: JweKeyManagement, CE: JweContentEncryption, M> CompactJwe<KM, CE, M> {
     /// Returns [`JoseError::MalformedToken`] if the bytes are not valid UTF-8
     /// or the token structure is invalid.
     pub fn from_bytes(bytes: &[u8]) -> JoseResult<Self> {
-        let s = core::str::from_utf8(bytes)
-            .map_err(|_| Report::new(JoseError::MalformedToken))?;
+        let s = core::str::from_utf8(bytes).map_err(|_| Report::new(JoseError::MalformedToken))?;
         s.parse()
     }
 }
@@ -776,7 +793,10 @@ impl<M> UntypedCompactJwe<M> {
     /// Cannot panic — structure is validated at parse time.
     #[must_use]
     pub fn raw_header_b64(&self) -> &str {
-        self.compact.split_once('.').expect("validated at parse time").0
+        self.compact
+            .split_once('.')
+            .expect("validated at parse time")
+            .0
     }
 
     /// # Errors
@@ -830,8 +850,7 @@ impl<M> UntypedCompactJwe<M> {
     /// Returns [`JoseError::MalformedToken`] if the bytes are not valid UTF-8
     /// or the token structure is invalid.
     pub fn from_bytes(bytes: &[u8]) -> JoseResult<Self> {
-        let s = core::str::from_utf8(bytes)
-            .map_err(|_| Report::new(JoseError::MalformedToken))?;
+        let s = core::str::from_utf8(bytes).map_err(|_| Report::new(JoseError::MalformedToken))?;
         s.parse()
     }
 }

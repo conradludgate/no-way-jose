@@ -52,11 +52,7 @@ macro_rules! rsa_algorithm {
         }
 
         impl Verifier for $name {
-            fn verify(
-                key: &RsaVerifyingKey,
-                signing_input: &[u8],
-                sig: &[u8],
-            ) -> JoseResult<()> {
+            fn verify(key: &RsaVerifyingKey, signing_input: &[u8], sig: &[u8]) -> JoseResult<()> {
                 let pk = UnparsedPublicKey::new($verify_alg, &key.bytes);
                 pk.verify(signing_input, sig)
                     .map_err(|_| Report::new(JoseError::CryptoError))
@@ -113,7 +109,10 @@ fn parse_rsa_public_key_der(input: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
     if !rest.is_empty() {
         return None;
     }
-    Some((strip_leading_zeros(n_raw).to_vec(), strip_leading_zeros(e_raw).to_vec()))
+    Some((
+        strip_leading_zeros(n_raw).to_vec(),
+        strip_leading_zeros(e_raw).to_vec(),
+    ))
 }
 
 fn strip_leading_zeros(bytes: &[u8]) -> &[u8] {
@@ -177,7 +176,11 @@ fn encode_rsa_public_key_der(n: &[u8], e: &[u8]) -> Vec<u8> {
 fn encode_der_integer(value: &[u8]) -> Vec<u8> {
     let value = strip_leading_zeros(value);
     let needs_pad = value.first().is_some_and(|&b| b & 0x80 != 0);
-    let content_len = if needs_pad { value.len() + 1 } else { value.len() };
+    let content_len = if needs_pad {
+        value.len() + 1
+    } else {
+        value.len()
+    };
 
     let mut out = Vec::with_capacity(1 + 4 + content_len);
     out.push(0x02);
@@ -208,18 +211,48 @@ fn encode_der_length(out: &mut Vec<u8>, len: usize) {
     }
 }
 
-rsa_algorithm!(Rs256, "RS256", &signature::RSA_PKCS1_SHA256, &signature::RSA_PKCS1_2048_8192_SHA256,
-    "RS256: RSASSA-PKCS1-v1_5 using SHA-256 (aws-lc-rs backend).");
-rsa_algorithm!(Rs384, "RS384", &signature::RSA_PKCS1_SHA384, &signature::RSA_PKCS1_2048_8192_SHA384,
-    "RS384: RSASSA-PKCS1-v1_5 using SHA-384 (aws-lc-rs backend).");
-rsa_algorithm!(Rs512, "RS512", &signature::RSA_PKCS1_SHA512, &signature::RSA_PKCS1_2048_8192_SHA512,
-    "RS512: RSASSA-PKCS1-v1_5 using SHA-512 (aws-lc-rs backend).");
-rsa_algorithm!(Ps256, "PS256", &signature::RSA_PSS_SHA256, &signature::RSA_PSS_2048_8192_SHA256,
-    "PS256: RSASSA-PSS using SHA-256 (aws-lc-rs backend).");
-rsa_algorithm!(Ps384, "PS384", &signature::RSA_PSS_SHA384, &signature::RSA_PSS_2048_8192_SHA384,
-    "PS384: RSASSA-PSS using SHA-384 (aws-lc-rs backend).");
-rsa_algorithm!(Ps512, "PS512", &signature::RSA_PSS_SHA512, &signature::RSA_PSS_2048_8192_SHA512,
-    "PS512: RSASSA-PSS using SHA-512 (aws-lc-rs backend).");
+rsa_algorithm!(
+    Rs256,
+    "RS256",
+    &signature::RSA_PKCS1_SHA256,
+    &signature::RSA_PKCS1_2048_8192_SHA256,
+    "RS256: RSASSA-PKCS1-v1_5 using SHA-256 (aws-lc-rs backend)."
+);
+rsa_algorithm!(
+    Rs384,
+    "RS384",
+    &signature::RSA_PKCS1_SHA384,
+    &signature::RSA_PKCS1_2048_8192_SHA384,
+    "RS384: RSASSA-PKCS1-v1_5 using SHA-384 (aws-lc-rs backend)."
+);
+rsa_algorithm!(
+    Rs512,
+    "RS512",
+    &signature::RSA_PKCS1_SHA512,
+    &signature::RSA_PKCS1_2048_8192_SHA512,
+    "RS512: RSASSA-PKCS1-v1_5 using SHA-512 (aws-lc-rs backend)."
+);
+rsa_algorithm!(
+    Ps256,
+    "PS256",
+    &signature::RSA_PSS_SHA256,
+    &signature::RSA_PSS_2048_8192_SHA256,
+    "PS256: RSASSA-PSS using SHA-256 (aws-lc-rs backend)."
+);
+rsa_algorithm!(
+    Ps384,
+    "PS384",
+    &signature::RSA_PSS_SHA384,
+    &signature::RSA_PSS_2048_8192_SHA384,
+    "PS384: RSASSA-PSS using SHA-384 (aws-lc-rs backend)."
+);
+rsa_algorithm!(
+    Ps512,
+    "PS512",
+    &signature::RSA_PSS_SHA512,
+    &signature::RSA_PSS_2048_8192_SHA512,
+    "PS512: RSASSA-PSS using SHA-512 (aws-lc-rs backend)."
+);
 
 fn make_signing_key(der: &[u8]) -> JoseResult<RsaKeyPair> {
     RsaKeyPair::from_der(der).map_err(|_| Report::new(JoseError::InvalidKey))

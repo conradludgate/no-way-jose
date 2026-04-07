@@ -597,10 +597,7 @@ mod tests {
         w.number("exp", 1_300_819_380);
         w.bool("admin", true);
         let json = w.finish();
-        assert_eq!(
-            json,
-            r#"{"alg":"HS256","exp":1300819380,"admin":true}"#
-        );
+        assert_eq!(json, r#"{"alg":"HS256","exp":1300819380,"admin":true}"#);
 
         let mut r = JsonReader::new(json.as_bytes()).unwrap();
         let k1 = r.next_key().unwrap().unwrap();

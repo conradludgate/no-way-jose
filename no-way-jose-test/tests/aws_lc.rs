@@ -56,12 +56,10 @@ fn test_claims() -> Claims {
 
 #[test]
 fn aws_lc_hs256_roundtrip() {
-    let key =
-        no_way_jose_aws_lc::hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec())
-            .unwrap();
-    let vk =
-        no_way_jose_aws_lc::hmac::verifying_key(b"super-secret-key-for-testing-256".to_vec())
-            .unwrap();
+    let key = no_way_jose_aws_lc::hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec())
+        .unwrap();
+    let vk = no_way_jose_aws_lc::hmac::verifying_key(b"super-secret-key-for-testing-256".to_vec())
+        .unwrap();
 
     let compact = UnsignedToken::<no_way_jose_aws_lc::hmac::Hs256, _>::new(test_claims())
         .sign(&key)
@@ -230,8 +228,7 @@ fn aws_lc_es256_interop_sign_awslc_verify_rc() {
     let rng = SystemRandom::new();
     let pkcs8 =
         EcdsaKeyPair::generate_pkcs8(&signature::ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
-    let aws_sk =
-        no_way_jose_aws_lc::ecdsa::signing_key_from_pkcs8_der(pkcs8.as_ref()).unwrap();
+    let aws_sk = no_way_jose_aws_lc::ecdsa::signing_key_from_pkcs8_der(pkcs8.as_ref()).unwrap();
     let pub_bytes = aws_sk.inner().public_key().as_ref();
 
     let compact = UnsignedToken::<no_way_jose_aws_lc::ecdsa::Es256, _>::new(test_claims())
@@ -253,7 +250,15 @@ fn generate_rsa_key() -> aws_lc_rs::signature::RsaKeyPair {
     aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048).unwrap()
 }
 
-fn rsa_vk_from_sk<A: no_way_jose_core::key::HasKey<no_way_jose_core::key::Signing, Key = aws_lc_rs::signature::RsaKeyPair> + no_way_jose_core::key::HasKey<no_way_jose_core::key::Verifying, Key = no_way_jose_aws_lc::rsa::RsaVerifyingKey>>(
+fn rsa_vk_from_sk<
+    A: no_way_jose_core::key::HasKey<
+            no_way_jose_core::key::Signing,
+            Key = aws_lc_rs::signature::RsaKeyPair,
+        > + no_way_jose_core::key::HasKey<
+            no_way_jose_core::key::Verifying,
+            Key = no_way_jose_aws_lc::rsa::RsaVerifyingKey,
+        >,
+>(
     sk: &no_way_jose_core::SigningKey<A>,
 ) -> no_way_jose_core::VerifyingKey<A> {
     no_way_jose_core::key::Key::new(no_way_jose_aws_lc::rsa::RsaVerifyingKey::from_der(
@@ -574,9 +579,8 @@ fn aws_lc_rfc7520_hs256_verify() {
 fn aws_lc_hmac_jwk_roundtrip() {
     use no_way_jose_core::jwk::{FromJwk, ToJwk};
 
-    let sk =
-        no_way_jose_aws_lc::hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec())
-            .unwrap();
+    let sk = no_way_jose_aws_lc::hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec())
+        .unwrap();
     let compact = UnsignedToken::<no_way_jose_aws_lc::hmac::Hs256, _>::new(test_claims())
         .sign(&sk)
         .unwrap();
@@ -712,9 +716,8 @@ fn aws_lc_rsa_jwk_verifying_roundtrip() {
 fn jwk_hmac_aws_lc_to_graviola() {
     use no_way_jose_core::jwk::{FromJwk, ToJwk};
 
-    let sk =
-        no_way_jose_aws_lc::hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec())
-            .unwrap();
+    let sk = no_way_jose_aws_lc::hmac::symmetric_key(b"super-secret-key-for-testing-256".to_vec())
+        .unwrap();
     let compact = UnsignedToken::<no_way_jose_aws_lc::hmac::Hs256, _>::new(test_claims())
         .sign(&sk)
         .unwrap();
@@ -751,10 +754,9 @@ fn jwk_eddsa_graviola_to_aws_lc() {
 
     let seed = [13u8; 32];
     let sk = no_way_jose_graviola::eddsa::signing_key_from_bytes(&seed).unwrap();
-    let compact =
-        UnsignedToken::<no_way_jose_graviola::eddsa::EdDsa, _>::new(test_claims())
-            .sign(&sk)
-            .unwrap();
+    let compact = UnsignedToken::<no_way_jose_graviola::eddsa::EdDsa, _>::new(test_claims())
+        .sign(&sk)
+        .unwrap();
 
     let jwk = sk.to_jwk();
     let vk: no_way_jose_aws_lc::eddsa::VerifyingKey = FromJwk::from_jwk(&jwk).unwrap();
@@ -777,8 +779,7 @@ fn jwk_ecdsa_aws_lc_to_graviola() {
         .unwrap();
 
     let vk_jwk = no_way_jose_aws_lc::ecdsa::verifying_key_from_signing(&sk).to_jwk();
-    let grav_vk: no_way_jose_graviola::ecdsa::VerifyingKey =
-        FromJwk::from_jwk(&vk_jwk).unwrap();
+    let grav_vk: no_way_jose_graviola::ecdsa::VerifyingKey = FromJwk::from_jwk(&vk_jwk).unwrap();
 
     let parsed: no_way_jose_core::CompactJws<no_way_jose_graviola::ecdsa::Es256, Claims> =
         compact.to_string().parse().unwrap();
