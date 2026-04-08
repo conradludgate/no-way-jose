@@ -1,12 +1,45 @@
-//! HMAC-based JWS algorithms: [`Hs256`], [`Hs384`], [`Hs512`].
+//! HMAC-based JWS algorithms: [`Hs256`], [`Hs384`], [`Hs512`] (HS256, HS384, HS512).
 //!
-//! HMAC is a symmetric algorithm -- the same secret key is used for both
-//! signing and verification. Key constructors enforce minimum lengths
-//! (32 / 48 / 64 bytes respectively, per RFC 7518 Section 3.2).
+//! ## Algorithms
 //!
-//! The root-level [`symmetric_key`] and [`verifying_key`] functions are
-//! convenience aliases for HS256. For other variants use the [`hs384`] or
-//! [`hs512`] submodules.
+//! | JWS `alg` | Construction | Minimum key length | Specification |
+//! |-----------|--------------|-------------------|---------------|
+//! | HS256 | HMAC-SHA-256 | 32 bytes | [RFC 7518 § 3.2](https://www.rfc-editor.org/rfc/rfc7518#section-3.2) |
+//! | HS384 | HMAC-SHA-384 | 48 bytes | [RFC 7518 § 3.2](https://www.rfc-editor.org/rfc/rfc7518#section-3.2) |
+//! | HS512 | HMAC-SHA-512 | 64 bytes | [RFC 7518 § 3.2](https://www.rfc-editor.org/rfc/rfc7518#section-3.2) |
+//!
+//! HMAC is symmetric: the same secret signs and verifies. The crate-root [`symmetric_key`] and
+//! [`verifying_key`] target HS256; use [`hs384`] or [`hs512`] for the other algorithms.
+//!
+//! ## Example
+//!
+//! ```
+//! use no_way_jose_core::json::RawJson;
+//! use no_way_jose_core::validation::NoValidation;
+//! use no_way_jose_core::{CompactJws, UnsignedToken};
+//! use no_way_jose_hmac::hs256;
+//! use no_way_jose_hmac::Hs256;
+//!
+//! let secret = b"my-secret-key-at-least-32-bytes!".to_vec();
+//! let sk = hs256::symmetric_key(secret.clone()).unwrap();
+//! let vk = hs256::verifying_key(secret).unwrap();
+//!
+//! let payload = r#"{"sub":"alice"}"#;
+//! let claims = RawJson(payload.into());
+//! let token_str = UnsignedToken::<Hs256, _>::new(claims)
+//!     .sign(&sk)
+//!     .unwrap()
+//!     .to_string();
+//!
+//! let token: CompactJws<Hs256> = token_str.parse().unwrap();
+//! let verified = token
+//!     .verify(&vk, &NoValidation::dangerous_no_validation())
+//!     .unwrap();
+//! assert_eq!(verified.claims.0, payload);
+//! ```
+//!
+//! See also [no-way-jose-core](https://docs.rs/no-way-jose-core) and
+//! [no-way-jose-claims](https://docs.rs/no-way-jose-claims).
 
 #![no_std]
 #![warn(clippy::pedantic)]

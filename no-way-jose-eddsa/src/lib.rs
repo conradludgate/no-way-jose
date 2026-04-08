@@ -1,8 +1,42 @@
-//! `EdDSA` JWS algorithm using Ed25519 ([`EdDsa`]).
+//! EdDSA JWS algorithm using Ed25519 ([`EdDsa`]).
 //!
-//! `EdDSA` is an asymmetric algorithm with small, fast keys. Keys are
-//! constructed from 32-byte seeds ([`signing_key_from_bytes`]) or raw
-//! public key bytes ([`verifying_key_from_bytes`]).
+//! ## Algorithm
+//!
+//! | JWS `alg` | Curve | Private / public key | Signature | Specification |
+//! |-----------|-------|----------------------|-----------|---------------|
+//! | EdDSA | Ed25519 (OKP) | 32 bytes each | 64 bytes | [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037) |
+//!
+//! EdDSA is asymmetric: [`signing_key`] generates a random signing key; [`verifying_key_from_signing`]
+//! derives the public key. Keys can also be built from 32-byte seeds ([`signing_key_from_bytes`]) or
+//! raw public bytes ([`verifying_key_from_bytes`]).
+//!
+//! ## Example
+//!
+//! ```
+//! use no_way_jose_core::json::RawJson;
+//! use no_way_jose_core::validation::NoValidation;
+//! use no_way_jose_core::{CompactJws, UnsignedToken};
+//! use no_way_jose_eddsa::EdDsa;
+//!
+//! let sk = no_way_jose_eddsa::signing_key();
+//! let vk = no_way_jose_eddsa::verifying_key_from_signing(&sk);
+//!
+//! let payload = r#"{"sub":"alice"}"#;
+//! let claims = RawJson(payload.into());
+//! let token_str = UnsignedToken::<EdDsa, _>::new(claims)
+//!     .sign(&sk)
+//!     .unwrap()
+//!     .to_string();
+//!
+//! let token: CompactJws<EdDsa> = token_str.parse().unwrap();
+//! let verified = token
+//!     .verify(&vk, &NoValidation::dangerous_no_validation())
+//!     .unwrap();
+//! assert_eq!(verified.claims.0, payload);
+//! ```
+//!
+//! See also [no-way-jose-core](https://docs.rs/no-way-jose-core) and
+//! [no-way-jose-claims](https://docs.rs/no-way-jose-claims).
 
 #![no_std]
 #![warn(clippy::pedantic)]
@@ -137,6 +171,13 @@ fn validate_okp_jwk(jwk: &Jwk) -> JoseResult<()> {
 pub type SigningKey = no_way_jose_core::SigningKey<EdDsa>;
 /// `EdDSA` verifying key.
 pub type VerifyingKey = no_way_jose_core::VerifyingKey<EdDsa>;
+
+/// Create a random `EdDSA` signing key using OS randomness.
+#[must_use]
+pub fn signing_key() -> SigningKey {
+    let mut rng = getrandom::rand_core::UnwrapErr(getrandom::SysRng);
+    no_way_jose_core::key::Key::new(ed25519_dalek::SigningKey::generate(&mut rng))
+}
 
 /// Create an `EdDSA` signing key from a 32-byte Ed25519 seed.
 #[must_use]

@@ -13,4 +13,5 @@ rust-version.workspace = true
 [dependencies]
 no-way-jose-core = { workspace = true }
 error-stack = { workspace = true }
-ed25519-dalek = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
+getrandom = { workspace = true, features = ["sys_rng"] }

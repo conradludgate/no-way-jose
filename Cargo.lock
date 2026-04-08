@@ -343,6 +343,7 @@ checksum = "053618a4c3d3bc24f188aa660ae75a46eeab74ef07fb415c61431e5e7cd4749b"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
+ "rand_core",
  "sha2",
  "subtle",
 ]
@@ -650,6 +651,7 @@ dependencies = [
  "base64ct",
  "error-stack",
  "getrandom 0.4.2",
+ "no-way-jose-aes-gcm",
  "no-way-jose-core",
 ]
 
@@ -660,6 +662,7 @@ dependencies = [
  "aes-kw",
  "error-stack",
  "getrandom 0.4.2",
+ "no-way-jose-aes-gcm",
  "no-way-jose-core",
 ]
 
@@ -687,6 +690,7 @@ version = "0.1.0-rc.2"
 dependencies = [
  "base64ct",
  "error-stack",
+ "no-way-jose-graviola",
 ]
 
 [[package]]
@@ -697,6 +701,7 @@ dependencies = [
  "base64ct",
  "error-stack",
  "getrandom 0.4.2",
+ "no-way-jose-aes-gcm",
  "no-way-jose-core",
  "p256",
  "p384",
@@ -721,6 +726,7 @@ version = "0.1.0-rc.2"
 dependencies = [
  "ed25519-dalek",
  "error-stack",
+ "getrandom 0.4.2",
  "no-way-jose-core",
 ]
 
@@ -752,6 +758,7 @@ dependencies = [
  "error-stack",
  "getrandom 0.4.2",
  "hmac",
+ "no-way-jose-aes-gcm",
  "no-way-jose-core",
  "pbkdf2",
  "sha2",
@@ -763,6 +770,7 @@ version = "0.1.0-rc.2"
 dependencies = [
  "error-stack",
  "getrandom 0.4.2",
+ "no-way-jose-aes-gcm",
  "no-way-jose-core",
  "rsa",
  "sha1",

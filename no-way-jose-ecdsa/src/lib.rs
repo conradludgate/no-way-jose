@@ -1,12 +1,45 @@
 //! ECDSA-based JWS algorithms: [`Es256`] (P-256), [`Es384`] (P-384), and [`Es512`] (P-521).
 //!
-//! ECDSA is an asymmetric algorithm -- a private key signs and the
-//! corresponding public key verifies. Keys can be constructed from raw scalar
-//! bytes ([`signing_key_from_bytes`]) or SEC1-encoded public keys
-//! ([`verifying_key_from_sec1`]).
+//! ## Algorithms
 //!
-//! The root-level key functions target ES256. For ES384 and ES512 use the
-//! [`es384`] and [`es512`] submodules respectively.
+//! | JWS `alg` | Curve | Signature size (fixed) | Specification |
+//! |-----------|-------|------------------------|---------------|
+//! | ES256 | NIST P-256 (secp256r1) | 64 bytes | [RFC 7518 § 3.4](https://www.rfc-editor.org/rfc/rfc7518#section-3.4) |
+//! | ES384 | NIST P-384 | 96 bytes | [RFC 7518 § 3.4](https://www.rfc-editor.org/rfc/rfc7518#section-3.4) |
+//! | ES512 | NIST P-521 | 132 bytes | [RFC 7518 § 3.4](https://www.rfc-editor.org/rfc/rfc7518#section-3.4) |
+//!
+//! ECDSA is asymmetric: a signing key produces signatures; the matching verifying key checks them.
+//! For ES256 use [`es256::signing_key`] (random) or [`signing_key_from_bytes`]; for ES384 / ES512 use
+//! [`es384`] and [`es512`].
+//!
+//! ## Example
+//!
+//! ```
+//! use no_way_jose_core::json::RawJson;
+//! use no_way_jose_core::validation::NoValidation;
+//! use no_way_jose_core::{CompactJws, UnsignedToken};
+//! use no_way_jose_ecdsa::es256;
+//! use no_way_jose_ecdsa::Es256;
+//!
+//! let sk = es256::signing_key();
+//! let vk = es256::verifying_key_from_signing(&sk);
+//!
+//! let payload = r#"{"sub":"alice"}"#;
+//! let claims = RawJson(payload.into());
+//! let token_str = UnsignedToken::<Es256, _>::new(claims)
+//!     .sign(&sk)
+//!     .unwrap()
+//!     .to_string();
+//!
+//! let token: CompactJws<Es256> = token_str.parse().unwrap();
+//! let verified = token
+//!     .verify(&vk, &NoValidation::dangerous_no_validation())
+//!     .unwrap();
+//! assert_eq!(verified.claims.0, payload);
+//! ```
+//!
+//! See also [no-way-jose-core](https://docs.rs/no-way-jose-core) and
+//! [no-way-jose-claims](https://docs.rs/no-way-jose-claims).
 
 #![no_std]
 #![warn(clippy::pedantic)]
@@ -149,6 +182,32 @@ pub fn verifying_key_from_sec1(bytes: &[u8]) -> JoseResult<VerifyingKey> {
 #[must_use]
 pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
     no_way_jose_core::key::Key::new(*key.inner().verifying_key())
+}
+
+pub mod es256 {
+    use no_way_jose_core::error::JoseResult;
+    use p256::ecdsa::SigningKey as InnerSigningKey;
+    use p256::elliptic_curve::Generate;
+
+    pub type SigningKey = no_way_jose_core::SigningKey<super::Es256>;
+    pub type VerifyingKey = no_way_jose_core::VerifyingKey<super::Es256>;
+
+    #[must_use]
+    pub fn signing_key() -> SigningKey {
+        no_way_jose_core::key::Key::new(InnerSigningKey::generate())
+    }
+
+    pub fn signing_key_from_bytes(bytes: &[u8]) -> JoseResult<SigningKey> {
+        super::signing_key_from_bytes(bytes)
+    }
+
+    pub fn verifying_key_from_sec1(bytes: &[u8]) -> JoseResult<VerifyingKey> {
+        super::verifying_key_from_sec1(bytes)
+    }
+
+    pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
+        super::verifying_key_from_signing(key)
+    }
 }
 
 // -- ES384 --
