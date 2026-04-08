@@ -619,7 +619,7 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
 name = "no-way-jose-aes-cbc-hs"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "aes",
  "cbc",
@@ -633,7 +633,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-aes-gcm"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -644,7 +644,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-aes-gcm-kw"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -657,7 +657,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-aes-kw"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "aes-kw",
  "error-stack",
@@ -668,7 +668,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-aws-lc"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "aws-lc-rs",
  "error-stack",
@@ -677,7 +677,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-claims"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "error-stack",
  "jiff",
@@ -686,7 +686,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-core"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "base64ct",
  "error-stack",
@@ -695,7 +695,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-ecdh-es"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "aes-kw",
  "base64ct",
@@ -711,7 +711,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-ecdsa"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "error-stack",
  "no-way-jose-core",
@@ -722,7 +722,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-eddsa"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "ed25519-dalek",
  "error-stack",
@@ -732,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-graviola"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "error-stack",
  "graviola",
@@ -741,7 +741,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-hmac"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "error-stack",
  "hmac",
@@ -751,7 +751,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-pbes2"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "aes-kw",
  "base64ct",
@@ -766,7 +766,7 @@ dependencies = [
 
 [[package]]
 name = "no-way-jose-rsa"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 dependencies = [
  "error-stack",
  "getrandom 0.4.2",
