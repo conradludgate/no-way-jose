@@ -162,8 +162,8 @@ use no_way_jose_core::validation::NoValidation;
 use no_way_jose_aes_gcm::A256Gcm;
 
 let key_bytes = vec![/* 32 bytes of shared secret */];
-let enc_key = dir::encryption_key(key_bytes.clone());
-let dec_key = dir::decryption_key(key_bytes);
+let enc_key = dir::key(key_bytes.clone());
+let dec_key = dir::key(key_bytes);
 
 // Encrypt
 let compact = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, MyClaims>::new(claims)
@@ -192,8 +192,8 @@ use no_way_jose_aes_gcm::A128Gcm;
 use no_way_jose_aes_kw::A128Kw;
 
 let kek = vec![/* 16 bytes */];
-let enc_key = no_way_jose_aes_kw::a128kw::encryption_key(kek.clone()).unwrap();
-let dec_key = no_way_jose_aes_kw::a128kw::decryption_key(kek).unwrap();
+let enc_key = no_way_jose_aes_kw::a128kw::key(kek.clone()).unwrap();
+let dec_key = no_way_jose_aes_kw::a128kw::key(kek).unwrap();
 
 let compact = UnsealedToken::<Encrypted<A128Kw, A128Gcm>, MyClaims>::new(claims)
     .encrypt(&enc_key)
@@ -245,7 +245,7 @@ let inner_compact = no_way_jose_core::UnsignedToken::<Hs256, _>::new(my_claims)
 
 // 2. Encrypt with cty: "JWT"
 let encrypted = UnsealedToken::<Encrypted<dir::Dir, A256Gcm>, RawJson>::builder(
-        RawJson(inner_compact.into_bytes()),
+        RawJson(inner_compact),
     )
     .cty("JWT")
     .build()
@@ -260,8 +260,7 @@ let decrypted = outer
     .decrypt(&dec_key, &NoValidation::dangerous_no_validation())
     .unwrap();
 
-let inner_str = core::str::from_utf8(&decrypted.claims.0).unwrap();
-let inner: no_way_jose_core::CompactJws<Hs256, MyClaims> = inner_str.parse().unwrap();
+let inner: no_way_jose_core::CompactJws<Hs256, MyClaims> = decrypted.claims.0.parse().unwrap();
 let verified = inner.verify(&verifying_key, &validator).unwrap();
 ```
 
@@ -278,16 +277,16 @@ struct MyClaims {
 }
 
 impl ToJson for MyClaims {
-    fn write_json(&self, buf: &mut Vec<u8>) {
+    fn write_json(&self, buf: &mut String) {
         let mut w = JsonWriter::new();
         w.string("sub", &self.sub);
         w.bool("admin", self.admin);
-        buf.extend_from_slice(&w.finish());
+        buf.push_str(&w.finish());
     }
 }
 
 impl FromJson for MyClaims {
-    fn from_json_bytes(bytes: &[u8]) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    fn from_json_bytes(bytes: &[u8]) -> Result<Self, Box<dyn core::error::Error + Send + Sync>> {
         let mut reader = JsonReader::new(bytes)?;
         let mut sub = None;
         let mut admin = None;
@@ -306,8 +305,8 @@ impl FromJson for MyClaims {
 }
 ```
 
-If you don't need to parse the payload, use `RawJson` -- it stores the raw bytes
-without any deserialization.
+If you don't need to parse the payload, use `RawJson` -- it stores the raw JSON
+string without any deserialization.
 
 ### Validate claims
 
