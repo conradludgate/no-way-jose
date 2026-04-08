@@ -20,6 +20,8 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+pub mod docs;
+
 pub mod algorithm;
 pub mod base64url;
 pub mod dir;

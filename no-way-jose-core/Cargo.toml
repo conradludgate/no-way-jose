@@ -13,3 +13,6 @@ rust-version.workspace = true
 [dependencies]
 base64ct = { workspace = true }
 error-stack = { workspace = true }
+
+[dev-dependencies]
+no-way-jose-graviola = { workspace = true }
