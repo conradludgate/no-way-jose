@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-rc.2](https://github.com/conradludgate/no-way-jose/compare/no-way-jose-ecdh-es-v0.1.0-rc.1...no-way-jose-ecdh-es-v0.1.0-rc.2) - 2026-04-08
+
+### Other
+
+- Bump all crate versions to 0.1.0-rc.2
+- Support apu/apv header params in ECDH-ES key derivation
+- Refactor JsonReader to use sliding slice instead of input+pos
+- Unify JWE key management into single KeyManager trait
+
 ## [0.1.0-rc.1](https://github.com/conradludgate/no-way-jose/releases/tag/no-way-jose-ecdh-es-v0.1.0-rc.1) - 2026-04-07
 
 ### Fixed
