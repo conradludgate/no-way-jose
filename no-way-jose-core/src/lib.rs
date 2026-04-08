@@ -1,16 +1,27 @@
-//! Core types and traits for the no-way-jose JOSE library.
+//! Core types and traits for the [no-way-jose](https://github.com/conradludgate/no-way-jose) JOSE library.
 //!
-//! This crate defines the token lifecycle (`UnsealedToken` -> sign/encrypt ->
-//! `CompactToken` -> verify/decrypt -> `UnsealedToken`), the key system, JSON
-//! encoding traits, and the validation framework. It is `no_std`-compatible and
-//! has no cryptographic dependencies -- algorithm implementations live in
-//! separate crates.
+//! This crate is `no_std`-compatible and contains no cryptographic code.
+//! It defines the token types, algorithm traits, key system, JSON encoding,
+//! JWK support, and validation framework. Algorithm implementations live in
+//! separate crates — see the [`docs::_03_algorithms`] module for a full list.
 //!
-//! Most users will interact with the type aliases at the crate root:
+//! ## Key types
 //!
 //! - **JWS:** [`CompactJws`], [`UnsignedToken`], [`SigningKey`], [`VerifyingKey`]
 //! - **JWE:** [`CompactJwe`], [`EncryptionKey`]
-//! - **Dynamic:** [`UntypedCompactJws`], [`UntypedCompactJwe`] for runtime algorithm selection
+//! - **Dynamic dispatch:** [`UntypedCompactJws`], [`UntypedCompactJwe`]
+//! - **Headers:** [`TokenBuilder`] for setting `kid`, `typ`, `cty`
+//! - **JWK:** [`jwk::Jwk`], [`jwk::JwkSet`], [`jwk::ToJwk`], [`jwk::FromJwk`]
+//!
+//! ## Documentation
+//!
+//! See the [`docs`] module for:
+//! - [Architecture](docs::_01_architecture) — design decisions, type safety, trait hierarchy
+//! - [How-to guides](docs::_02_howto) — sign, verify, encrypt, decrypt, custom claims, JWK
+//! - [Algorithm table](docs::_03_algorithms) — every algorithm crate with links
+//!
+//! For JWT registered claims (`exp`, `iss`, `aud`, ...) and validators, see
+//! [`no-way-jose-claims`](https://docs.rs/no-way-jose-claims).
 
 #![no_std]
 #![warn(clippy::pedantic)]

@@ -2,16 +2,27 @@
 
 Core types and traits for the [no-way-jose](https://github.com/conradludgate/no-way-jose) JOSE library.
 
-This crate provides the foundation that all algorithm crates build on:
+This crate is `#![no_std]` with `alloc` and contains no cryptographic code.
+It defines the token types, algorithm traits, key system, JSON encoding,
+JWK support, and validation framework. Algorithm implementations live in
+separate crates.
 
-- **Token types** — `CompactJws`, `CompactJwe`, `UnsignedToken`, `UnsealedToken`, and their untyped counterparts for runtime algorithm dispatch.
-- **Algorithm traits** — `JwsAlgorithm`, `Signer`, `Verifier`, `JweKeyManagement`, `JweContentEncryption`, and related key traits.
-- **JWK** — `Jwk`, `JwkSet`, `ToJwk`, `FromJwk`, and thumbprint computation (RFC 7638).
-- **JSON** — A minimal `no_std`-compatible JSON reader/writer. Claim types implement `ToJson`/`FromJson` directly instead of using serde.
-- **Validation** — The `Validate` trait and `NoValidation` for composable claim checks.
-- **`dir` key management** — Direct key agreement (RFC 7518 §4.5).
-- **Base64url** — Encoding/decoding helpers.
+## Key types
 
-This crate is `#![no_std]` with `alloc`.
+- **JWS:** `CompactJws`, `UnsignedToken`, `SigningKey`, `VerifyingKey`
+- **JWE:** `CompactJwe`, `EncryptionKey`
+- **Dynamic dispatch:** `UntypedCompactJws`, `UntypedCompactJwe`
+- **Headers:** `TokenBuilder` for setting `kid`, `typ`, `cty`
+- **JWK:** `Jwk`, `JwkSet`, `ToJwk`, `FromJwk`
 
-See the [workspace README](https://github.com/conradludgate/no-way-jose) for usage examples and the full algorithm table.
+## Documentation
+
+The [`docs`](https://docs.rs/no-way-jose-core/latest/no_way_jose_core/docs/index.html) module
+contains longer-form content:
+
+- [Architecture](https://docs.rs/no-way-jose-core/latest/no_way_jose_core/docs/_01_architecture/index.html) — design decisions, type safety, trait hierarchy
+- [How-to guides](https://docs.rs/no-way-jose-core/latest/no_way_jose_core/docs/_02_howto/index.html) — sign, verify, encrypt, decrypt, custom claims, JWK
+- [Algorithm table](https://docs.rs/no-way-jose-core/latest/no_way_jose_core/docs/_03_algorithms/index.html) — every algorithm crate with links
+
+For JWT registered claims and validators, see
+[no-way-jose-claims](https://docs.rs/no-way-jose-claims).
