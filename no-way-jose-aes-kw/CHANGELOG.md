@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-rc.3](https://github.com/conradludgate/no-way-jose/compare/no-way-jose-aes-kw-v0.1.0-rc.2...no-way-jose-aes-kw-v0.1.0-rc.3) - 2026-04-08
+
+### Other
+
+- improve JWE key management crate docs (aes-kw, aes-gcm-kw, ecdh-es, pbes2)
+
 ## [0.1.0-rc.2](https://github.com/conradludgate/no-way-jose/compare/no-way-jose-aes-kw-v0.1.0-rc.1...no-way-jose-aes-kw-v0.1.0-rc.2) - 2026-04-08
 
 ### Other

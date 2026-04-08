@@ -1,6 +1,6 @@
 [package]
 name = "no-way-jose-claims"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 edition = "2024"
 description = "JWT registered claims and composable validators for no-way-jose"
 readme = "README.md"
