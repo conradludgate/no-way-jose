@@ -17,3 +17,6 @@ rsa = { workspace = true }
 sha1 = { workspace = true }
 sha2 = { workspace = true }
 getrandom = { workspace = true, features = ["sys_rng"] }
+
+[dev-dependencies]
+no-way-jose-aes-gcm = { workspace = true }
