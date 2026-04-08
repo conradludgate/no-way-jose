@@ -1,6 +1,6 @@
 [package]
 name = "no-way-jose-graviola"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 edition = "2024"
 description = "Graviola crypto backend for no-way-jose (HMAC, ECDSA, EdDSA, RSA, AES-GCM)"
 readme = "README.md"

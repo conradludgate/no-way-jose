@@ -1,6 +1,6 @@
 [package]
 name = "no-way-jose-aes-cbc-hs"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 edition = "2024"
 description = "AES-CBC + HMAC-SHA JWE content encryption for no-way-jose"
 readme = "README.md"

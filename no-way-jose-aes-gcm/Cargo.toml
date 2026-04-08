@@ -1,6 +1,6 @@
 [package]
 name = "no-way-jose-aes-gcm"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 edition = "2024"
 description = "AES-GCM JWE content encryption (A128GCM, A192GCM, A256GCM) for no-way-jose"
 readme = "README.md"
