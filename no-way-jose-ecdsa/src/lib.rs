@@ -197,14 +197,19 @@ pub mod es256 {
         no_way_jose_core::key::Key::new(InnerSigningKey::generate())
     }
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidKey`](no_way_jose_core::error::JoseError::InvalidKey) on invalid bytes.
     pub fn signing_key_from_bytes(bytes: &[u8]) -> JoseResult<SigningKey> {
         super::signing_key_from_bytes(bytes)
     }
 
+    /// # Errors
+    /// Returns [`JoseError::InvalidKey`](no_way_jose_core::error::JoseError::InvalidKey) on invalid bytes.
     pub fn verifying_key_from_sec1(bytes: &[u8]) -> JoseResult<VerifyingKey> {
         super::verifying_key_from_sec1(bytes)
     }
 
+    #[must_use]
     pub fn verifying_key_from_signing(key: &SigningKey) -> VerifyingKey {
         super::verifying_key_from_signing(key)
     }

@@ -8,7 +8,7 @@
 //! |-----------|-------|-----|
 //! | HS256, HS384, HS512 | [`no-way-jose-hmac`](https://docs.rs/no-way-jose-hmac) | 7518 §3.2 |
 //! | ES256, ES384, ES512 | [`no-way-jose-ecdsa`](https://docs.rs/no-way-jose-ecdsa) | 7518 §3.4 |
-//! | EdDSA (Ed25519) | [`no-way-jose-eddsa`](https://docs.rs/no-way-jose-eddsa) | 8037 |
+//! | `EdDSA` (Ed25519) | [`no-way-jose-eddsa`](https://docs.rs/no-way-jose-eddsa) | 8037 |
 //! | RS256–RS512, PS256–PS512 | [`no-way-jose-rsa`](https://docs.rs/no-way-jose-rsa) | 7518 §3.3/§3.5 |
 //!
 //! ## JWE key management

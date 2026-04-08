@@ -1,12 +1,12 @@
-//! EdDSA JWS algorithm using Ed25519 ([`EdDsa`]).
+//! `EdDSA` JWS algorithm using Ed25519 ([`EdDsa`]).
 //!
 //! ## Algorithm
 //!
 //! | JWS `alg` | Curve | Private / public key | Signature | Specification |
 //! |-----------|-------|----------------------|-----------|---------------|
-//! | EdDSA | Ed25519 (OKP) | 32 bytes each | 64 bytes | [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037) |
+//! | `EdDSA` | Ed25519 (OKP) | 32 bytes each | 64 bytes | [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037) |
 //!
-//! EdDSA is asymmetric: [`signing_key`] generates a random signing key; [`verifying_key_from_signing`]
+//! `EdDSA` is asymmetric: [`signing_key`] generates a random signing key; [`verifying_key_from_signing`]
 //! derives the public key. Keys can also be built from 32-byte seeds ([`signing_key_from_bytes`]) or
 //! raw public bytes ([`verifying_key_from_bytes`]).
 //!
