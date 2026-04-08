@@ -1,24 +1,49 @@
 # no-way-jose-graviola
 
-[Graviola](https://crates.io/crates/graviola) crypto backend for [no-way-jose](https://github.com/conradludgate/no-way-jose).
+[Graviola](https://crates.io/crates/graviola) crypto backend for [no-way-jose-core](https://docs.rs/no-way-jose-core): the same JWS/JWE algorithm traits as the default `RustCrypto` crates, implemented with formally verified assembler (tokens are interchangeable on the wire).
 
-Provides the same algorithm interfaces as the default RustCrypto-based crates, but backed by graviola — a cryptography library with formally verified assembler routines.
+## Algorithms
 
-### Algorithms
+| Module | Algorithms |
+|--------|-----------|
+| `hmac` | HS256, HS384, HS512 |
+| `ecdsa` | ES256, ES384 |
+| `eddsa` | EdDSA (Ed25519) |
+| `rsa` | RS256, PS256 |
+| `aes_gcm` | A128GCM, A256GCM |
 
-| Category | Algorithms |
-|----------|-----------|
-| JWS signing | HS256, HS384, HS512, ES256, ES384, EdDSA, RS256, PS256 |
-| JWE content encryption | A128GCM, A256GCM |
+## Drop-in usage
 
-All algorithm types implement `JwkKeyConvert` for JWK import/export (HMAC, ECDSA, EdDSA).
+Swap this crate’s algorithm types (for example `hmac::Hs256`) for the matching types in [no-way-jose-hmac](https://docs.rs/no-way-jose-hmac) and related crates; the compact JWS format is unchanged.
 
-### Platform requirements
+```rust
+use no_way_jose_core::json::RawJson;
+use no_way_jose_core::validation::NoValidation;
+use no_way_jose_core::{CompactJws, UnsignedToken};
+use no_way_jose_graviola::hmac::Hs256;
 
-Graviola requires **aarch64** or **x86\_64** with specific CPU features. See the [graviola docs](https://docs.rs/graviola) for details.
+let secret = b"my-secret-key-at-least-32-bytes!".to_vec();
+let sk = no_way_jose_graviola::hmac::hs256::symmetric_key(secret.clone()).unwrap();
+let vk = no_way_jose_graviola::hmac::hs256::verifying_key(secret).unwrap();
 
-### Usage
+let token_str = UnsignedToken::<Hs256, RawJson>::new(RawJson(r#"{"sub":"alice"}"#.into()))
+    .sign(&sk)
+    .unwrap()
+    .to_string();
 
-Use `no_way_jose_graviola::hmac::Hs256` (etc.) as a drop-in replacement for `no_way_jose_hmac::Hs256`. Tokens are wire-compatible across backends.
+let token: CompactJws<Hs256> = token_str.parse().unwrap();
+let verified = token
+    .verify(&vk, &NoValidation::dangerous_no_validation())
+    .unwrap();
+assert_eq!(verified.claims.0, r#"{"sub":"alice"}"#);
+```
 
-See the [workspace README](https://github.com/conradludgate/no-way-jose) for full examples.
+## Platform requirements
+
+Requires **aarch64** or **x86_64** with the CPU features expected by [graviola](https://docs.rs/graviola).
+
+## See also
+
+- [no-way-jose-core](https://docs.rs/no-way-jose-core) — tokens, keys, wire format
+- [no-way-jose-claims](https://docs.rs/no-way-jose-claims) — common claim types and checks
+- Default `RustCrypto` algorithm crates: [no-way-jose-hmac](https://docs.rs/no-way-jose-hmac), [no-way-jose-ecdsa](https://docs.rs/no-way-jose-ecdsa), [no-way-jose-eddsa](https://docs.rs/no-way-jose-eddsa), [no-way-jose-rsa](https://docs.rs/no-way-jose-rsa), [no-way-jose-aes-gcm](https://docs.rs/no-way-jose-aes-gcm)

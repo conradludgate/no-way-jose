@@ -1,10 +1,7 @@
 //! [Graviola](https://crates.io/crates/graviola) crypto backend for
-//! [`no-way-jose`](https://crates.io/crates/no-way-jose-core).
-//!
-//! Re-implements the same algorithm traits as the default RustCrypto-based
-//! crates, but backed by graviola — a cryptography library with formally
-//! verified assembler routines. Tokens produced by either backend are
-//! interchangeable on the wire.
+//! [`no-way-jose-core`](https://docs.rs/no-way-jose-core): the same JWS/JWE
+//! algorithm traits as the default `RustCrypto` crates, implemented with
+//! formally verified assembler (tokens are interchangeable on the wire).
 //!
 //! ## Algorithms
 //!
@@ -16,10 +13,49 @@
 //! | [`rsa`] | RS256, PS256 |
 //! | [`aes_gcm`] | A128GCM, A256GCM |
 //!
+//! ## Drop-in usage
+//!
+//! Swap this crate’s algorithm types (for example [`hmac::Hs256`]) for the
+//! matching types in [`no-way-jose-hmac`](https://docs.rs/no-way-jose-hmac) and
+//! related crates; the compact JWS format is unchanged.
+//!
+//! ```
+//! use no_way_jose_core::json::RawJson;
+//! use no_way_jose_core::validation::NoValidation;
+//! use no_way_jose_core::{CompactJws, UnsignedToken};
+//! use no_way_jose_graviola::hmac::Hs256;
+//!
+//! let secret = b"my-secret-key-at-least-32-bytes!".to_vec();
+//! let sk = no_way_jose_graviola::hmac::hs256::symmetric_key(secret.clone()).unwrap();
+//! let vk = no_way_jose_graviola::hmac::hs256::verifying_key(secret).unwrap();
+//!
+//! let token_str = UnsignedToken::<Hs256, RawJson>::new(RawJson(r#"{"sub":"alice"}"#.into()))
+//!     .sign(&sk)
+//!     .unwrap()
+//!     .to_string();
+//!
+//! let token: CompactJws<Hs256> = token_str.parse().unwrap();
+//! let verified = token
+//!     .verify(&vk, &NoValidation::dangerous_no_validation())
+//!     .unwrap();
+//! assert_eq!(verified.claims.0, r#"{"sub":"alice"}"#);
+//! ```
+//!
 //! ## Platform requirements
 //!
-//! Requires **aarch64** or **x86\_64** with specific CPU features.
-//! See the [graviola docs](https://docs.rs/graviola) for details.
+//! Requires **aarch64** or **x86\_64** with the CPU features expected by
+//! [graviola](https://docs.rs/graviola).
+//!
+//! ## See also
+//!
+//! - [`no-way-jose-core`](https://docs.rs/no-way-jose-core) — tokens, keys, wire format
+//! - [`no-way-jose-claims`](https://docs.rs/no-way-jose-claims) — common claim types and checks
+//! - Default `RustCrypto` algorithm crates:
+//!   [`no-way-jose-hmac`](https://docs.rs/no-way-jose-hmac),
+//!   [`no-way-jose-ecdsa`](https://docs.rs/no-way-jose-ecdsa),
+//!   [`no-way-jose-eddsa`](https://docs.rs/no-way-jose-eddsa),
+//!   [`no-way-jose-rsa`](https://docs.rs/no-way-jose-rsa),
+//!   [`no-way-jose-aes-gcm`](https://docs.rs/no-way-jose-aes-gcm)
 
 #![warn(clippy::pedantic)]
 
