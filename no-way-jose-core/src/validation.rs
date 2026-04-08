@@ -1,3 +1,15 @@
+//! Composable claim validation.
+//!
+//! The [`Validate`] trait defines a check that runs after signature verification
+//! or decryption. Validators compose with [`Validate::and_then`]:
+//!
+//! ```text
+//! HasExpiry.and_then(Time::valid_now()).and_then(ForAudience("my-api"))
+//! ```
+//!
+//! [`NoValidation`] skips all checks — the caller takes full responsibility.
+//! Use it only when you handle validation separately.
+
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::sync::Arc;

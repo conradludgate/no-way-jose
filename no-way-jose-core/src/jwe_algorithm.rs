@@ -1,3 +1,18 @@
+//! JWE algorithm traits.
+//!
+//! JWE uses two independent trait stacks:
+//!
+//! **Key management** (wrapping / unwrapping the Content Encryption Key):
+//! - [`JweKeyManagement`] — declares the `alg` header value
+//! - [`KeyManager`] — encrypts and decrypts the CEK
+//!
+//! **Content encryption** (authenticated encryption of the payload):
+//! - [`JweContentEncryption`] — declares the `enc` header value and key/IV sizes
+//! - [`ContentCipher`] — performs AEAD encryption and decryption
+//!
+//! A [`CompactJwe<KM, CE>`](crate::CompactJwe) is parameterized by both.
+//! Key type is determined via [`HasKey<Encrypting>`](crate::key::HasKey).
+
 use alloc::string::String;
 use alloc::vec::Vec;
 

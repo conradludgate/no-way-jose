@@ -1,3 +1,15 @@
+//! JWS algorithm traits.
+//!
+//! A signing algorithm is defined by implementing three traits on a zero-sized type:
+//!
+//! - [`JwsAlgorithm`] — declares the `alg` header value (e.g. `"HS256"`)
+//! - [`Signer`] — produces a signature from a signing key and the signing input
+//! - [`Verifier`] — checks a signature against a verifying key
+//!
+//! The key types are determined by the algorithm via [`HasKey<Signing>`](crate::key::HasKey)
+//! and [`HasKey<Verifying>`](crate::key::HasKey). Core provides only the traits;
+//! concrete implementations live in algorithm crates like `no-way-jose-hmac`.
+
 use alloc::vec::Vec;
 
 use crate::JoseResult;

@@ -1,3 +1,13 @@
+//! Minimal JSON reader and writer for JOSE payloads.
+//!
+//! JOSE tokens use compact JSON with no whitespace. This module provides
+//! [`JsonWriter`] for serialization and [`JsonReader`] for deserialization.
+//! Claim types implement [`ToJson`] and [`FromJson`] directly, avoiding a
+//! serde dependency while keeping full control over the wire format.
+//!
+//! [`RawJson`] is a pass-through type that stores the raw JSON string
+//! without parsing — useful when you only need to transport opaque payloads.
+
 use alloc::string::String;
 use alloc::vec::Vec;
 

@@ -1,3 +1,19 @@
+//! Token types for the JWS and JWE compact serialization.
+//!
+//! The lifecycle flows through three stages:
+//!
+//! 1. **Build** — [`UnsignedToken`] / [`UnsealedToken`] holds the claims before
+//!    signing or encrypting.
+//! 2. **Serialize** — [`CompactJws`] / [`CompactJwe`] is the wire-format token
+//!    (a dot-separated string). Can be obtained by signing/encrypting or by
+//!    parsing an incoming token string.
+//! 3. **Consume** — verifying or decrypting returns an [`UnsealedToken`] with
+//!    the validated claims.
+//!
+//! For runtime algorithm selection, use [`UntypedCompactJws`] / [`UntypedCompactJwe`].
+//! These parse the `alg` (and `enc`) header and let callers dispatch to the
+//! correct verifier/decryptor at runtime.
+
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
