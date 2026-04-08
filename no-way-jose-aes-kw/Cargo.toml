@@ -15,3 +15,6 @@ no-way-jose-core = { workspace = true }
 error-stack = { workspace = true }
 aes-kw = { workspace = true }
 getrandom = { workspace = true }
+
+[dev-dependencies]
+no-way-jose-aes-gcm = { workspace = true }
