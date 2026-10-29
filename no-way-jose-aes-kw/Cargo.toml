@@ -1,6 +1,6 @@
 [package]
 name = "no-way-jose-aes-kw"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 edition = "2024"
 description = "AES Key Wrap (A128KW, A192KW, A256KW) JWE key management for no-way-jose"
 readme = "README.md"
