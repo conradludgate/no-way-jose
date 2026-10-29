@@ -230,6 +230,7 @@ impl Validate for HasExpiry {
 
 /// Validates that the token is not expired (`exp`) and not used before its
 /// `nbf` time. Either field may be absent, in which case that check is skipped.
+/// Expiration is exclusive (`now < exp`); not-before is inclusive (`now >= nbf`).
 pub struct Time {
     now: jiff::Timestamp,
 }
@@ -254,14 +255,10 @@ impl Validate for Time {
     type Claims = RegisteredClaims;
 
     fn validate(&self, claims: &Self::Claims) -> Result<(), JoseError> {
-        if let Some(exp) = claims.exp
-            && exp < self.now
-        {
+        if claims.exp.is_some_and(|exp| exp <= self.now) {
             return Err(JoseError::ClaimsValidation(ClaimsError::Expired));
         }
-        if let Some(nbf) = claims.nbf
-            && self.now < nbf
-        {
+        if claims.nbf.is_some_and(|nbf| self.now < nbf) {
             return Err(JoseError::ClaimsValidation(ClaimsError::NotYetValid));
         }
         Ok(())
@@ -293,5 +290,57 @@ impl<T: AsRef<str>> Validate for ForAudience<T> {
             Some(auds) if auds.iter().any(|a| a == self.0.as_ref()) => Ok(()),
             _ => Err(JoseError::ClaimsValidation(ClaimsError::AudienceMismatch)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expiry_is_exclusive() {
+        let time = Time::valid_at(jiff::Timestamp::from_second(1000).unwrap());
+        for seconds in [999, 1000] {
+            let claims = RegisteredClaims {
+                exp: Some(jiff::Timestamp::from_second(seconds).unwrap()),
+                ..Default::default()
+            };
+            assert!(matches!(
+                time.validate(&claims),
+                Err(JoseError::ClaimsValidation(ClaimsError::Expired))
+            ));
+        }
+        let claims = RegisteredClaims {
+            exp: Some(jiff::Timestamp::from_second(1001).unwrap()),
+            ..Default::default()
+        };
+        time.validate(&claims).unwrap();
+    }
+
+    #[test]
+    fn not_before_is_inclusive() {
+        let time = Time::valid_at(jiff::Timestamp::from_second(1000).unwrap());
+        for seconds in [999, 1000] {
+            let claims = RegisteredClaims {
+                nbf: Some(jiff::Timestamp::from_second(seconds).unwrap()),
+                ..Default::default()
+            };
+            time.validate(&claims).unwrap();
+        }
+        let claims = RegisteredClaims {
+            nbf: Some(jiff::Timestamp::from_second(1001).unwrap()),
+            ..Default::default()
+        };
+        assert!(matches!(
+            time.validate(&claims),
+            Err(JoseError::ClaimsValidation(ClaimsError::NotYetValid))
+        ));
+    }
+
+    #[test]
+    fn absent_times_remain_optional() {
+        Time::valid_at(jiff::Timestamp::UNIX_EPOCH)
+            .validate(&RegisteredClaims::default())
+            .unwrap();
     }
 }
