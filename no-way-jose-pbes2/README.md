@@ -12,6 +12,21 @@ PBKDF2 derives a KEK from the password; a random CEK is wrapped and `p2s` / `p2c
 
 `#![no_std]` compatible.
 
+## Bounding decryption work
+
+PBKDF2 runs before authentication, using the token's untrusted `p2c` count.
+Before decrypting untrusted tokens, choose an iteration ceiling from your
+application's processing budget. The library accepts positive counts up to
+`u32::MAX`; encryption uses 310,000 iterations. Claims validators run after
+decryption and cannot enforce a work limit.
+
+The existing API supports a preflight check: decode `token.raw_header_b64()`
+with `no_way_jose_core::base64url::decode`, read `p2c` with
+`no_way_jose_core::json::read_header_i64`, and reject counts outside
+`1..=your_limit` before calling `decrypt`. Using the same reader as decryption
+keeps the count interpretation consistent. The [crate documentation](src/lib.rs)
+has a complete check; the approach applies to all three PBES2 algorithms.
+
 ```rust
 use no_way_jose_aes_gcm::A128Gcm;
 use no_way_jose_core::json::RawJson;
