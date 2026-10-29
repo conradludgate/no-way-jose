@@ -9,6 +9,26 @@ fn ts(secs: i64) -> jiff::Timestamp {
 }
 
 #[test]
+fn malformed_unknown_claims_are_rejected() {
+    for input in [
+        br#"{"sub":"alice","extra":[not-json]}"#.as_slice(),
+        br#"{"sub":"alice","extra":"\q"}"#,
+        br#"{"sub":"alice","extra":1e}"#,
+    ] {
+        assert!(RegisteredClaims::from_json_bytes(input).is_err());
+    }
+}
+
+#[test]
+fn valid_unknown_claims_do_not_hide_later_known_claims() {
+    let claims = RegisteredClaims::from_json_bytes(
+        br#"{"extra":{"nested":[true,null,-0.5e+2,"\uD83E\uDD80"]},"sub":"alice"}"#,
+    )
+    .unwrap();
+    assert_eq!(claims.sub.as_deref(), Some("alice"));
+}
+
+#[test]
 fn has_expiry_passes_when_present() {
     let claims = RegisteredClaims {
         exp: Some(ts(9999999999)),

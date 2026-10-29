@@ -292,7 +292,7 @@ impl<'a> JsonReader<'a> {
                     self.expect(b':')?;
                     return Ok(Some(key));
                 }
-                b'\\' => return Err(JsonError::InvalidKey),
+                b'\\' | 0x00..=0x1f => return Err(JsonError::InvalidKey),
                 _ => self.input = rest,
             }
         }
@@ -443,7 +443,9 @@ impl<'a> JsonReader<'a> {
 
     /// Iterate over the raw bytes of each element in a JSON array.
     ///
-    /// Calls `f` with the raw `&[u8]` bytes of each element (without parsing them).
+    /// Calls `f` with the raw `&[u8]` bytes of each element after validating its
+    /// syntax, without decoding it into owned values. Each element has the
+    /// nesting limit documented on [`Self::skip_value`].
     ///
     /// # Errors
     /// Returns [`JsonError`] on malformed array syntax.
@@ -474,13 +476,18 @@ impl<'a> JsonReader<'a> {
     }
 
     /// Skip one JSON value of any type (string, number, bool, null, object, array).
+    /// Nested containers are limited to 128 levels to bound stack usage.
     ///
     /// # Errors
-    /// Returns [`JsonError`] if the value is malformed or unterminated.
+    /// Returns [`JsonError`] if the value is malformed, unterminated, or too deeply nested.
     pub fn skip_value(&mut self) -> Result<(), JsonError> {
+        self.skip_value_with_depth(128)
+    }
+
+    fn skip_value_with_depth(&mut self, depth: usize) -> Result<(), JsonError> {
         match self.peek() {
             Some(b'"') => self.skip_string(),
-            Some(b'{' | b'[') => self.skip_nested(),
+            Some(b'{' | b'[') => self.skip_nested(depth),
             Some(b't') => {
                 if !self.input.starts_with(b"true") {
                     return Err(JsonError::InvalidValue);
@@ -504,50 +511,73 @@ impl<'a> JsonReader<'a> {
             }
             Some(b'-' | b'0'..=b'9') => self.skip_number(),
             _ => Err(JsonError::InvalidValue),
+        }?;
+        if matches!(self.peek(), None | Some(b',' | b'}' | b']')) {
+            Ok(())
+        } else {
+            Err(JsonError::InvalidValue)
         }
     }
 
     fn skip_string(&mut self) -> Result<(), JsonError> {
-        self.input = &self.input[1..]; // opening quote
+        self.expect(b'"')?;
+        let mut run = self.input;
         loop {
             let Some((&b, rest)) = self.input.split_first() else {
                 return Err(JsonError::InvalidString);
             };
-            self.input = rest;
             match b {
-                b'"' => return Ok(()),
-                b'\\' => {
-                    let Some((_, rest)) = self.input.split_first() else {
-                        return Err(JsonError::InvalidString);
+                b'"' | b'\\' => {
+                    core::str::from_utf8(&run[..run.len() - self.input.len()])
+                        .map_err(|_| JsonError::InvalidString)?;
+                    self.input = rest;
+                    if b == b'"' {
+                        return Ok(());
+                    }
+                    let Some((&escape, rest)) = self.input.split_first() else {
+                        return Err(JsonError::InvalidEscape);
                     };
                     self.input = rest;
+                    match escape {
+                        b'"' | b'\\' | b'/' | b'b' | b'f' | b'n' | b'r' | b't' => {}
+                        b'u' => {
+                            self.read_unicode_escape()?;
+                        }
+                        _ => return Err(JsonError::InvalidEscape),
+                    }
+                    run = self.input;
                 }
-                _ => {}
+                0x00..=0x1f => return Err(JsonError::InvalidString),
+                _ => self.input = rest,
             }
         }
     }
 
-    fn skip_nested(&mut self) -> Result<(), JsonError> {
-        let mut depth = 0u32;
+    fn skip_nested(&mut self, depth: usize) -> Result<(), JsonError> {
+        if depth == 0 {
+            return Err(JsonError::InvalidValue);
+        }
+        let closing = match self.peek() {
+            Some(b'{') => b'}',
+            Some(b'[') => b']',
+            _ => return Err(JsonError::InvalidValue),
+        };
+        self.input = &self.input[1..];
+        if self.peek() == Some(closing) {
+            self.input = &self.input[1..];
+            return Ok(());
+        }
         loop {
-            let Some((&b, rest)) = self.input.split_first() else {
-                return Err(JsonError::UnterminatedJson);
-            };
-            match b {
-                b'"' => self.skip_string()?,
-                b'{' | b'[' => {
-                    depth += 1;
-                    self.input = rest;
-                }
-                b'}' | b']' => {
-                    depth -= 1;
-                    self.input = rest;
-                    if depth == 0 {
-                        return Ok(());
-                    }
-                }
-                _ => self.input = rest,
+            if closing == b'}' {
+                self.skip_string()?;
+                self.expect(b':')?;
             }
+            self.skip_value_with_depth(depth - 1)?;
+            if self.peek() == Some(closing) {
+                self.input = &self.input[1..];
+                return Ok(());
+            }
+            self.expect(b',')?;
         }
     }
 
@@ -569,20 +599,28 @@ impl<'a> JsonReader<'a> {
         }
         if self.input.first() == Some(&b'.') {
             self.input = &self.input[1..];
-            while matches!(self.input.first(), Some(b'0'..=b'9')) {
-                self.input = &self.input[1..];
-            }
+            self.skip_digits()?;
         }
         if matches!(self.input.first(), Some(b'e' | b'E')) {
             self.input = &self.input[1..];
             if matches!(self.input.first(), Some(b'+' | b'-')) {
                 self.input = &self.input[1..];
             }
-            while matches!(self.input.first(), Some(b'0'..=b'9')) {
-                self.input = &self.input[1..];
-            }
+            self.skip_digits()?;
         }
         Ok(())
+    }
+
+    fn skip_digits(&mut self) -> Result<(), JsonError> {
+        let before = self.input.len();
+        while matches!(self.input.first(), Some(b'0'..=b'9')) {
+            self.input = &self.input[1..];
+        }
+        if self.input.len() == before {
+            Err(JsonError::InvalidNumber)
+        } else {
+            Ok(())
+        }
     }
 
     fn read_unicode_escape(&mut self) -> Result<char, JsonError> {
@@ -802,5 +840,142 @@ mod tests {
         let mut r = JsonReader::new(input).unwrap();
         r.next_key().unwrap();
         assert_eq!(r.read_i64().unwrap(), -42);
+    }
+
+    fn skip_extra(value: &[u8]) -> Result<(), JsonError> {
+        let mut input = br#"{"extra":"#.to_vec();
+        input.extend_from_slice(value);
+        input.extend_from_slice(br#","after":"ok"}"#);
+        let mut reader = JsonReader::new(&input)?;
+        assert_eq!(reader.next_key()?, Some("extra"));
+        reader.skip_value()?;
+        assert_eq!(reader.next_key()?, Some("after"));
+        assert_eq!(reader.read_string()?, "ok");
+        assert!(reader.next_key()?.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn skipped_containers_validate_their_grammar() {
+        for invalid in [
+            br"[not-json]".as_slice(),
+            br#"{"x":}"#,
+            br#"{"x"1}"#,
+            br"[1,]",
+            br"[,1]",
+            br"[1 2]",
+            br#"{"x":1,}"#,
+            br"[1}",
+            br"{]",
+            br#"{"x":[1,2}"#,
+        ] {
+            assert!(skip_extra(invalid).is_err(), "{invalid:?}");
+        }
+    }
+
+    #[test]
+    fn skipped_strings_use_the_same_validation_as_read_strings() {
+        for invalid in [
+            br#""\q""#.as_slice(),
+            br#""\uXXXX""#,
+            br#""\uD800""#,
+            br#""\uDC00""#,
+            b"\"line\nbreak\"",
+            b"\"\xff\"",
+            b"\"unfinished\\",
+        ] {
+            assert!(skip_extra(invalid).is_err(), "{invalid:?}");
+            let mut reader = JsonReader::new(br"{").unwrap();
+            reader.input = invalid;
+            assert!(reader.read_string().is_err());
+        }
+    }
+
+    #[test]
+    fn skipped_values_preserve_valid_json_and_the_following_field() {
+        for valid in [
+            br"{}".as_slice(),
+            br"[]",
+            br#"{"x":[1,{"y":false},null],"\u0061":"b"}"#,
+            br"-0.25e+10",
+            br"1e9999",
+            br"18446744073709551616000000000000000",
+            br"true",
+            br"false",
+            br"null",
+            br#""\"\\\/\b\f\n\r\t\u0061\uD83E\uDD80""#,
+            "\"é🦀\"".as_bytes(),
+        ] {
+            skip_extra(valid).unwrap();
+        }
+    }
+
+    #[test]
+    fn skipped_numbers_require_fraction_and_exponent_digits() {
+        for invalid in [
+            br"1.".as_slice(),
+            br"1e",
+            br"1e+",
+            br"1e-",
+            br"-",
+            br"01",
+            br"-01",
+        ] {
+            assert!(skip_extra(invalid).is_err(), "{invalid:?}");
+        }
+    }
+
+    #[test]
+    fn skip_value_rejects_invalid_primitive_suffixes() {
+        for input in [
+            br#"{"v":truex}"#.as_slice(),
+            br#"{"v":false0}"#,
+            br#"{"v":nullx}"#,
+            br#"{"v":01}"#,
+        ] {
+            let mut reader = JsonReader::new(input).unwrap();
+            reader.next_key().unwrap();
+            assert!(reader.skip_value().is_err(), "{input:?}");
+        }
+    }
+
+    #[test]
+    fn raw_array_does_not_deliver_malformed_values() {
+        for input in [
+            br#"{"v":[1e]}"#.as_slice(),
+            br#"{"v":[[not-json]]}"#,
+            br#"{"v":["\q"]}"#,
+        ] {
+            let mut reader = JsonReader::new(input).unwrap();
+            reader.next_key().unwrap();
+            let mut calls = 0;
+            assert!(
+                reader
+                    .read_raw_array(|_| {
+                        calls += 1;
+                        Ok(())
+                    })
+                    .is_err()
+            );
+            assert_eq!(calls, 0);
+        }
+    }
+
+    #[test]
+    fn skipped_nesting_is_bounded() {
+        for (depth, accepted) in [(128, true), (129, false), (10_000, false)] {
+            let mut value = alloc::vec![b'['; depth];
+            value.push(b'0');
+            value.extend(core::iter::repeat_n(b']', depth));
+            assert_eq!(skip_extra(&value).is_ok(), accepted);
+        }
+    }
+
+    #[test]
+    fn control_characters_are_rejected_in_object_keys() {
+        for input in [b"{\"bad\nkey\":0}".as_slice(), b"{\"bad\0key\":0}"] {
+            let mut reader = JsonReader::new(input).unwrap();
+            assert!(reader.next_key().is_err());
+        }
     }
 }
