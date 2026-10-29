@@ -26,20 +26,20 @@ categories = ["authentication", "cryptography"]
 rust-version = "1.85"
 
 [workspace.dependencies]
-no-way-jose-aes-cbc-hs = { path = "no-way-jose-aes-cbc-hs", version = "0.1.0-rc.2" }
-no-way-jose-aes-gcm = { path = "no-way-jose-aes-gcm", version = "0.1.0-rc.2" }
-no-way-jose-aes-gcm-kw = { path = "no-way-jose-aes-gcm-kw", version = "0.1.0-rc.2" }
-no-way-jose-aes-kw = { path = "no-way-jose-aes-kw", version = "0.1.0-rc.2" }
-no-way-jose-core = { path = "no-way-jose-core", version = "0.1.0-rc.2" }
-no-way-jose-ecdh-es = { path = "no-way-jose-ecdh-es", version = "0.1.0-rc.2" }
-no-way-jose-ecdsa = { path = "no-way-jose-ecdsa", version = "0.1.0-rc.2" }
-no-way-jose-eddsa = { path = "no-way-jose-eddsa", version = "0.1.0-rc.2" }
-no-way-jose-hmac = { path = "no-way-jose-hmac", version = "0.1.0-rc.2" }
-no-way-jose-pbes2 = { path = "no-way-jose-pbes2", version = "0.1.0-rc.2" }
-no-way-jose-rsa = { path = "no-way-jose-rsa", version = "0.1.0-rc.2" }
-no-way-jose-claims = { path = "no-way-jose-claims", version = "0.1.0-rc.2" }
-no-way-jose-graviola = { path = "no-way-jose-graviola", version = "0.1.0-rc.2" }
-no-way-jose-aws-lc = { path = "no-way-jose-aws-lc", version = "0.1.0-rc.2" }
+no-way-jose-aes-cbc-hs = { path = "no-way-jose-aes-cbc-hs", version = "0.1.0-rc.3" }
+no-way-jose-aes-gcm = { path = "no-way-jose-aes-gcm", version = "0.1.0-rc.3" }
+no-way-jose-aes-gcm-kw = { path = "no-way-jose-aes-gcm-kw", version = "0.1.0-rc.3" }
+no-way-jose-aes-kw = { path = "no-way-jose-aes-kw", version = "0.1.0-rc.3" }
+no-way-jose-core = { path = "no-way-jose-core", version = "0.1.0-rc.3" }
+no-way-jose-ecdh-es = { path = "no-way-jose-ecdh-es", version = "0.1.0-rc.3" }
+no-way-jose-ecdsa = { path = "no-way-jose-ecdsa", version = "0.1.0-rc.3" }
+no-way-jose-eddsa = { path = "no-way-jose-eddsa", version = "0.1.0-rc.3" }
+no-way-jose-hmac = { path = "no-way-jose-hmac", version = "0.1.0-rc.3" }
+no-way-jose-pbes2 = { path = "no-way-jose-pbes2", version = "0.1.0-rc.3" }
+no-way-jose-rsa = { path = "no-way-jose-rsa", version = "0.1.0-rc.3" }
+no-way-jose-claims = { path = "no-way-jose-claims", version = "0.1.0-rc.3" }
+no-way-jose-graviola = { path = "no-way-jose-graviola", version = "0.1.0-rc.3" }
+no-way-jose-aws-lc = { path = "no-way-jose-aws-lc", version = "0.1.0-rc.3" }
 aws-lc-rs = "1"
 graviola = "0.3"
 base64ct = { version = "1", default-features = false, features = ["alloc"] }

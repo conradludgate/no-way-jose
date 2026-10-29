@@ -1,6 +1,6 @@
 [package]
 name = "no-way-jose-ecdsa"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 edition = "2024"
 description = "ECDSA JWS algorithms (ES256, ES384, ES512) for no-way-jose"
 readme = "README.md"

@@ -1,6 +1,6 @@
 [package]
 name = "no-way-jose-ecdh-es"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 edition = "2024"
 description = "ECDH-ES JWE key agreement (P-256, P-384, X25519) for no-way-jose"
 readme = "README.md"
