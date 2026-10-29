@@ -34,6 +34,40 @@
 //! assert_eq!(unsealed.claims.0, r#"{"sub":"demo"}"#);
 //! ```
 //!
+//! ## Bounding decryption work
+//!
+//! PBKDF2 runs before the JWE can be authenticated. An untrusted token controls
+//! `p2c`, so applications accepting such tokens should choose an iteration ceiling
+//! from their processing budget and check it **before** calling `decrypt`.
+//! Claims validators run after decryption and cannot enforce this work limit.
+//! The library accepts positive counts up to `u32::MAX`; it does not impose an
+//! application-specific ceiling. Encryption uses 310,000 iterations.
+//!
+//! This example uses the same header reader as decryption, so both checks
+//! interpret `p2c` consistently. The same approach applies to all three algorithms.
+//!
+//! ```
+//! use error_stack::Report;
+//! use no_way_jose_aes_gcm::A128Gcm;
+//! use no_way_jose_core::{base64url, json::read_header_i64, tokens::CompactJwe};
+//! use no_way_jose_core::{JoseError, JoseResult};
+//! use no_way_jose_pbes2::Pbes2Hs256A128Kw;
+//!
+//! fn check_iterations(
+//!     token: &CompactJwe<Pbes2Hs256A128Kw, A128Gcm>,
+//!     max_p2c: u32,
+//! ) -> JoseResult<()> {
+//!     let header = base64url::decode(token.raw_header_b64())?;
+//!     let p2c = read_header_i64(&header, "p2c")?;
+//!     if !(1..=i64::from(max_p2c)).contains(&p2c) {
+//!         return Err(Report::new(JoseError::MalformedToken));
+//!     }
+//!     Ok(())
+//! }
+//! // For a parsed PBES2 token, call check_iterations(&token, your_limit)?
+//! // before token.decrypt(&key, &validator)?.
+//! ```
+//!
 //! See [no-way-jose-core](https://docs.rs/no-way-jose-core) and
 //! [no-way-jose-claims](https://docs.rs/no-way-jose-claims).
 
