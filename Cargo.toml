@@ -60,4 +60,4 @@ aes-kw = { version = "0.3.0-rc.2", default-features = false }
 subtle = { version = "2", default-features = false }
 error-stack = { version = "0.7", default-features = false }
 getrandom = { version = "0.4" }
-jiff = { version = "0.2" }
+jiff = { version = "1" }

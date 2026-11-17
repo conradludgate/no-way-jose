@@ -200,8 +200,7 @@ fn parse_apu_apv(header: &[u8]) -> JoseResult<(Vec<u8>, Vec<u8>)> {
     use base64ct::{Base64UrlUnpadded, Encoding};
     use no_way_jose_core::json::JsonReader;
 
-    let mut reader =
-        JsonReader::new(header).map_err(|_| Report::new(JoseError::MalformedToken))?;
+    let mut reader = JsonReader::new(header).map_err(|_| Report::new(JoseError::MalformedToken))?;
     let mut apu = Vec::new();
     let mut apv = Vec::new();
     while let Some(key) = reader
