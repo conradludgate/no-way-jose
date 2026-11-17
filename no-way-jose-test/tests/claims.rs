@@ -9,6 +9,27 @@ fn ts(secs: i64) -> jiff::Timestamp {
 }
 
 #[test]
+fn timestamps_round_trip_as_numeric_dates_across_the_unix_epoch() {
+    for seconds in [-1, 0, 1] {
+        let claims = RegisteredClaims {
+            exp: Some(ts(seconds)),
+            nbf: Some(ts(seconds)),
+            iat: Some(ts(seconds)),
+            ..Default::default()
+        };
+        let json = claims.to_json();
+        assert_eq!(
+            json,
+            format!(r#"{{"exp":{seconds},"nbf":{seconds},"iat":{seconds}}}"#)
+        );
+        let decoded = RegisteredClaims::from_json_bytes(json.as_bytes()).unwrap();
+        assert_eq!(decoded.exp, claims.exp);
+        assert_eq!(decoded.nbf, claims.nbf);
+        assert_eq!(decoded.iat, claims.iat);
+    }
+}
+
+#[test]
 fn has_expiry_passes_when_present() {
     let claims = RegisteredClaims {
         exp: Some(ts(9999999999)),
